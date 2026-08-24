@@ -361,10 +361,7 @@
     bottom:26px;
     height:26px;
     background:var(--steel);
-    border:2px solid #26445a;
-    border-radius:3px 1px 1px 3px;
-    box-sizing:content-box;
-    margin-right:-2px;
+    border-radius:3px 0 0 3px;
   }
   .tape-scale-label{
     font-size:0.95rem;
@@ -1017,10 +1014,11 @@
         const x = REC_START + c*10*pxPerMM;
         const isMeter = c>0 && c%100===0;
         const isBold = c>0 && c%10===0 && !isMeter;
+        const isHalf = c>0 && c%5===0 && !isBold && !isMeter;
         const tick = document.createElement('div');
-        tick.className = 'tick cm' + (isMeter?' meter':(isBold?' bold10':''));
+        tick.className = 'tick cm' + (isMeter?' meter':(isBold?' bold10':(isHalf?' half-cm':'')));
         tick.style.left = x+'px';
-        tick.style.height = isMeter ? '86px' : (isBold ? '64px' : '28px');
+        tick.style.height = isMeter ? '86px' : (isBold ? '64px' : (isHalf ? '44px' : '28px'));
         inner.appendChild(tick);
         if(isMeter || isBold){
           const lbl = document.createElement('div');
