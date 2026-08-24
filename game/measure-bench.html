@@ -281,6 +281,7 @@
     background:var(--charcoal);
   }
   .tick.cm{ width:2px; }
+  .tick.half-cm{ width:1.5px; }
   .tick.bold10{ width:3px; background:var(--charcoal); }
   .tick.meter{ width:4px; background:var(--miss); }
   .mm-bg{
@@ -984,6 +985,15 @@
       inner.appendChild(mmBg);
 
       const totalCM = Math.ceil(totalMM/10);
+      // 5mm (half-cm) ticks — taller than regular mm but shorter than cm
+      for(let h=1; h<=totalCM*2; h+=2){
+        const x = REC_START + h*5*pxPerMM;
+        const tick = document.createElement('div');
+        tick.className = 'tick half-cm';
+        tick.style.left = x+'px';
+        tick.style.height = '21px';
+        inner.appendChild(tick);
+      }
       for(let c=0; c<=totalCM; c++){
         const x = REC_START + c*10*pxPerMM;
         const isBold = c>0 && c%10===0;
@@ -1081,7 +1091,7 @@
     // started visually overlapping each other once the reading dropped below ~2.3mm
     // (jawW/pxPerMM), well short of a true 0 reading. At 6px the same math only kicks in
     // under 1mm, so the arrow can actually reach all the way down to 0.
-    const jawH = 46, jawW = 6;
+    const jawH = 46, jawW = 14;
     const barY = beamY+beamH+14, barH = 24; // the measured object, gripped by the jaws
 
     let ticks = '';
@@ -1091,14 +1101,18 @@
       // Ticks live only in the lower part of the beam, well clear of the numbers row —
       // and the numbers themselves are the actual mm value (10, 20, 30…), not a
       // centimeter shorthand, matching how the ruler view already labels mm.
-      ticks += `<line x1="${x}" y1="${beamY+beamH}" x2="${x}" y2="${beamY+beamH-(isCM?16:9)}" stroke="#fff" stroke-width="${isCM?1.4:0.8}"/>`;
+      const isHalfCM = !isCM && mm%5===0;
+      const tickH = isCM ? 16 : isHalfCM ? 12 : 9;
+      const tickW = isCM ? 1.4 : isHalfCM ? 1.1 : 0.8;
+      ticks += `<line x1="${x}" y1="${beamY+beamH}" x2="${x}" y2="${beamY+beamH-tickH}" stroke="#fff" stroke-width="${tickW}"/>`;
       if(isCM) ticks += `<text x="${x}" y="${beamY+10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${mm}</text>`;
     }
 
     const fixedX = beamX, slideX = beamX + valueMM*pxPerMM;
     const H = barY + barH + 20;
 
-    const fixedJaw = `<path d="M${fixedX-jawW/2} ${beamY+beamH} h${jawW} v${jawH} h-${jawW} Z" fill="#14171a"/>`;
+    // Tapered jaws that come to a point, like real sliding calipers
+    const fixedJaw = `<path d="M${fixedX-jawW/2} ${beamY+beamH} h${jawW} l-${jawW/2-1} ${jawH} h-2 Z" fill="#14171a"/>`;
     // The slider used to be a wide block spanning the whole tick zone, which hid the exact
     // ticks a student needs to read right where the reading is. It's now a thin marker
     // line through the beam (doesn't obscure neighboring ticks/numbers at all) plus a
@@ -1109,7 +1123,7 @@
     // tick zone itself, or it covers the exact tick the arrow is pointing at (which is
     // always a real tick, since caliper readings are always whole mm).
     const slideLine = `<rect x="${slideX-1.5}" y="${beamY-4}" width="3" height="4" fill="#2c3138"/>`;
-    const slideJaw = `<path d="M${slideX-jawW/2} ${beamY+beamH} h${jawW} v${jawH} h-${jawW} Z" fill="#2c3138"/>`;
+    const slideJaw = `<path d="M${slideX-jawW/2} ${beamY+beamH} h${jawW} l-${jawW/2-1} ${jawH} h-2 Z" fill="#2c3138"/>`;
     const pointer = `<polygon points="${slideX},${beamY+beamH+2} ${slideX-5},${beamY+beamH+12} ${slideX+5},${beamY+beamH+12}" fill="#f2c230"/>`;
 
     return `<svg width="${railW}" height="${H}" viewBox="0 0 ${railW} ${H}" xmlns="http://www.w3.org/2000/svg">

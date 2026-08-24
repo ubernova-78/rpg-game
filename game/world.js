@@ -358,13 +358,7 @@ const INTERIOR_OBJECTS = {
     { id: 'deepBoulder3', kind: 'decor', img: boulderImg, col: 1, row: 7 },
     { id: 'deepBoulder4', kind: 'decor', img: boulderImg, col: 9, row: 7 },
   ],
-  // Wall-mounted weapons for atmosphere — cropped from the existing weapon equip-art
-  // (see dojo_assets.js). The old physical kiosk/table is gone; talking to the Dojo
-  // Master (see npcs.js/dojo.js) is now how a student starts or joins a battle.
-  dojo: [
-    { id: 'wallShield', kind: 'decor', img: loadImage('assets/dojo/shield.png'), col: 2, row: 1 },
-    { id: 'wallSpear', kind: 'decor', img: loadImage('assets/dojo/spear.png'), col: 10, row: 1 },
-  ],
+  dojo: [],
 };
 // The cave's boulder pile physically blocks the approach to the sealed door (its solid
 // footprint sits right on the door's trigger tile) until the dagger chest is claimed,

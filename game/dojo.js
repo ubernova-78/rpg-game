@@ -45,11 +45,11 @@ function dojoRandomLook(weaponId) {
 }
 const DOJO_SPARRERS = [
   // pair 1 — swords
-  { sheet: buildStaticSheet(dojoRandomLook('sword1')), col: 8, row: 3 },
-  { sheet: buildStaticSheet(dojoRandomLook('sword1')), col: 12, row: 3 },
+  { sheet: buildStaticSheet(dojoRandomLook('sword1')), col: 7, row: 3 },
+  { sheet: buildStaticSheet(dojoRandomLook('sword1')), col: 13, row: 3 },
   // pair 2 — spears
-  { sheet: buildStaticSheet(dojoRandomLook('spear1')), col: 8, row: 6 },
-  { sheet: buildStaticSheet(dojoRandomLook('spear1')), col: 12, row: 6 },
+  { sheet: buildStaticSheet(dojoRandomLook('spear1')), col: 7, row: 6 },
+  { sheet: buildStaticSheet(dojoRandomLook('spear1')), col: 13, row: 6 },
 ];
 const DOJO_SPAR_CYCLE_MS = 2000; // one full exchange within a pair: A's turn, then B's turn
 // This sheet's column layout has real attack-lunge frames beyond the plain 3-frame walk
@@ -64,11 +64,7 @@ function dojoAttackFrame(progress) {
   return DOJO_ATTACK_COLS[idx];
 }
 function drawDojoSparrers() {
-  // Sized down from the usual NPC scale (FRAME*SCALE, used for the Dojo Master and world
-  // NPCs who each have plenty of open space) — two of these standing only a few tiles
-  // apart at full size would overlap each other, which is what was making them read as a
-  // single confused blob instead of two separate people facing off.
-  const size = FRAME * SCALE * 0.55;
+  const size = FRAME * SCALE;
   const LUNGE = 7, RECOIL = 4;
 
   // Each pair runs on its own independent clock (pair 2 offset by half a cycle) so the
