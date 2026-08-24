@@ -268,6 +268,46 @@
     cursor:grab;
   }
   .tape-wrap:active{cursor:grabbing;}
+  .unit-badge{
+    position:absolute;
+    top:10px;
+    left:12px;
+    font-size:1.4rem;
+    font-weight:900;
+    color:var(--charcoal);
+    background:rgba(255,255,255,0.85);
+    padding:2px 12px;
+    border-radius:6px;
+    border:2px solid var(--charcoal);
+    z-index:5;
+    pointer-events:none;
+  }
+  .zoom-inset{
+    position:relative;
+    border:2px solid var(--accent);
+    border-radius:8px;
+    background:#fff;
+    overflow-x:auto;
+    overflow-y:hidden;
+    height:110px;
+    margin-bottom:10px;
+  }
+  .zoom-inner{
+    position:relative;
+    height:100%;
+    display:flex;
+    align-items:flex-end;
+  }
+  .zoom-label{
+    position:absolute;
+    top:6px;
+    right:10px;
+    font-size:0.72rem;
+    font-weight:700;
+    color:var(--accent);
+    z-index:5;
+    pointer-events:none;
+  }
   .tape-inner{
     position:relative;
     height:100%;
@@ -510,6 +550,10 @@
       <div class="tape-wrap" id="tape-wrap">
         <div class="tape-inner" id="tape-inner"></div>
       </div>
+      <div class="zoom-inset hidden" id="zoom-inset">
+        <span class="zoom-label">Zoom</span>
+        <div class="zoom-inner" id="zoom-inner"></div>
+      </div>
       <div class="answer-row">
         <input type="text" id="read-answer" placeholder="Your reading">
         <select class="unit-select" id="read-unit"></select>
@@ -587,6 +631,8 @@
     tapeWrap: document.getElementById('tape-wrap'),
     tapeInner: document.getElementById('tape-inner'),
     tapeScaleLabel: document.getElementById('tape-scale-label'),
+    zoomInset: document.getElementById('zoom-inset'),
+    zoomInner: document.getElementById('zoom-inner'),
     readAnswer: document.getElementById('read-answer'),
     readUnit: document.getElementById('read-unit'),
     submitRead: document.getElementById('submit-read'),
@@ -945,10 +991,14 @@
     inner.innerHTML = '';
     inner.style.width = totalWidth + 'px';
 
-    // The bar is added FIRST so it paints BELOW the tick marks and their numbers — its
-    // bottom edge sits right at the top of the short ticks (see .measure-bar's CSS), so it
-    // reads like an object laid directly on the ruler instead of floating above it, and
-    // any tick/label it reaches up into stays fully visible on top of it.
+    // Big unit label in upper-left corner
+    const badge = document.createElement('div');
+    badge.className = 'unit-badge';
+    badge.textContent = scale;
+    els.tapeWrap.querySelectorAll('.unit-badge').forEach(e=>e.remove());
+    els.tapeWrap.appendChild(badge);
+
+    // The bar is added FIRST so it paints BELOW the tick marks and their numbers
     const bar = document.createElement('div');
     bar.className = 'measure-bar';
     bar.style.left = REC_START+'px';
@@ -1002,15 +1052,7 @@
         tick.style.left = x+'px';
         tick.style.height = isBold ? '48px' : '26px';
         inner.appendChild(tick);
-        // The mm bench has 60px between cm ticks (plenty of room for every one to carry a
-        // label), but the cm bench only has ~20px between them at its scale — labeling
-        // every single tick there crowds into unreadable overlapping text. Label every cm
-        // on the mm bench, but only every 5th on the cm bench, with a bare number (no "cm"
-        // suffix — the scale caption above already says what unit these are) so what IS
-        // shown stays comfortably spaced. The un-labeled cm ticks between them are still
-        // real, countable tick marks, just without their own text.
-        const showLabel = scale==='mm' || c%5===0;
-        if(showLabel){
+        if(c > 0){
           const lbl = document.createElement('div');
           lbl.className = 'tick-label'+(isBold?' bold10':'');
           lbl.style.left = x+'px';
@@ -1029,6 +1071,84 @@
       const barEndX = REC_START + valueMM*pxPerMM;
       els.tapeWrap.scrollLeft = Math.max(0, barEndX - wrapWidth*0.6);
     });
+
+    // Zoom inset for cm scale — magnified view of the bar end so students can
+    // count individual mm ticks and read to 0.1 cm precision
+    if(scale === 'cm'){
+      els.zoomInset.classList.remove('hidden');
+      const zi = els.zoomInner;
+      zi.innerHTML = '';
+
+      const zoomPx = 6; // same px/mm as the mm-scale ruler
+      const windowMM = 30; // show ±15mm around bar end
+      const centerMM = valueMM;
+      const startMM = Math.max(0, centerMM - 15);
+      const endMM = centerMM + 15;
+      const zoomWidth = (endMM - startMM) * zoomPx + 80;
+      zi.style.width = zoomWidth + 'px';
+
+      const zoomStart = 40; // left padding
+
+      // Zoomed bar
+      const zBar = document.createElement('div');
+      zBar.className = 'measure-bar';
+      const barStartInZoom = zoomStart + Math.max(0, 0 - startMM) * zoomPx;
+      const barEndInZoom = zoomStart + (valueMM - startMM) * zoomPx;
+      zBar.style.left = barStartInZoom + 'px';
+      zBar.style.width = Math.max(0, barEndInZoom - barStartInZoom) + 'px';
+      zi.appendChild(zBar);
+
+      // Zoomed mm background
+      const zBg = document.createElement('div');
+      zBg.className = 'mm-bg';
+      zBg.style.left = zoomStart + 'px';
+      zBg.style.width = ((endMM - startMM) * zoomPx) + 'px';
+      zBg.style.backgroundImage = `repeating-linear-gradient(to right, var(--charcoal) 0, var(--charcoal) 1px, transparent 1px, transparent ${zoomPx}px)`;
+      // Align the mm grid to actual mm boundaries
+      const offsetPx = (startMM % 1) * zoomPx;
+      zBg.style.backgroundPositionX = -offsetPx + 'px';
+      zi.appendChild(zBg);
+
+      // Zoomed 5mm and cm ticks
+      const firstCM = Math.floor(startMM / 10);
+      const lastCM = Math.ceil(endMM / 10);
+      for(let h = firstCM * 2 + 1; h <= lastCM * 2; h++){
+        const mm = h * 5;
+        if(mm < startMM || mm > endMM || mm % 10 === 0) continue;
+        const x = zoomStart + (mm - startMM) * zoomPx;
+        const tick = document.createElement('div');
+        tick.className = 'tick half-cm';
+        tick.style.left = x + 'px';
+        tick.style.height = '21px';
+        zi.appendChild(tick);
+      }
+      for(let c = firstCM; c <= lastCM; c++){
+        const mm = c * 10;
+        if(mm < startMM || mm > endMM) continue;
+        const x = zoomStart + (mm - startMM) * zoomPx;
+        const tick = document.createElement('div');
+        tick.className = 'tick cm';
+        tick.style.left = x + 'px';
+        tick.style.height = '26px';
+        zi.appendChild(tick);
+        if(c > 0){
+          const lbl = document.createElement('div');
+          lbl.className = 'tick-label';
+          lbl.style.left = x + 'px';
+          lbl.textContent = `${c}`;
+          zi.appendChild(lbl);
+        }
+      }
+
+      // Center the zoom view on the bar end
+      requestAnimationFrame(()=>{
+        const insetWidth = els.zoomInset.clientWidth;
+        const barEndZoom = zoomStart + (valueMM - startMM) * zoomPx;
+        els.zoomInset.scrollLeft = Math.max(0, barEndZoom - insetWidth / 2);
+      });
+    } else {
+      els.zoomInset.classList.add('hidden');
+    }
   }
 
   // draggable scroll for the ruler/tape
