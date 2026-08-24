@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Measure Distance Workbench</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<style>
+  :root{
+    --charcoal:#262b31;
+    --steel:#3f6b8a;
+    --tape-yellow:#f2c230;
+    --paper:#f3efe4;
+    --teal:#1f7a6c;
+    --miss:#c1443a;
+    --ink:#20242a;
+    --line:#d8d1bd;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Verdana, sans-serif;
+    background:var(--charcoal);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .app{
+    width:100%;
+    max-width:720px;
+    background:var(--paper);
+    border-radius:14px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.4);
+    overflow:hidden;
+    border:3px solid var(--charcoal);
+  }
+  .titlebar{
+    background:repeating-linear-gradient(135deg, var(--tape-yellow) 0 18px, #e0ac1a 18px 36px);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:3px solid var(--charcoal);
+  }
+  .titlebar h1{
+    margin:0;
+    font-size:1.3rem;
+    letter-spacing:0.5px;
+    color:var(--charcoal);
+    text-shadow:0 1px 0 rgba(255,255,255,0.4);
+  }
+  .titlebar .badge{
+    background:var(--charcoal);
+    color:var(--tape-yellow);
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:bold;
+    font-size:0.85rem;
+  }
+  .screen{padding:24px;}
+  .hidden{display:none !important;}
+
+  label{display:block; font-weight:600; margin:14px 0 6px; color:var(--charcoal);}
+  input[type=text], select{
+    width:100%;
+    padding:10px 12px;
+    font-size:1rem;
+    border:2px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+  }
+  .diffrow{display:flex; gap:10px; margin-top:8px;}
+  .diffbtn{
+    flex:1;
+    padding:12px 8px;
+    border-radius:8px;
+    border:2px solid var(--steel);
+    background:#fff;
+    color:var(--steel);
+    font-weight:700;
+    cursor:pointer;
+    font-size:0.95rem;
+  }
+  .diffbtn.selected{background:var(--steel); color:#fff;}
+  .primary{
+    margin-top:22px;
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:10px;
+    background:var(--teal);
+    color:#fff;
+    font-size:1.1rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .primary:disabled{background:#9aa2a8; cursor:not-allowed;}
+  .primary:hover:not(:disabled){filter:brightness(1.08);}
+
+  .pin-hint{
+    font-size:0.78rem;
+    color:#6a6156;
+    margin:4px 0 0;
+  }
+  .login-error{
+    background:#f6e0dd;
+    border:2px solid var(--miss);
+    color:var(--miss);
+    font-weight:700;
+    font-size:0.85rem;
+    padding:8px 12px;
+    border-radius:8px;
+    margin-top:10px;
+  }
+  .embed-welcome{
+    background:#e6f1ee;
+    border:2px solid var(--teal);
+    color:var(--teal);
+    font-weight:700;
+    padding:10px 14px;
+    border-radius:8px;
+    margin-bottom:10px;
+  }
+
+  .level-block{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .level-badge{
+    background:var(--charcoal);
+    color:var(--tape-yellow);
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:800;
+    font-size:0.82rem;
+    white-space:nowrap;
+  }
+  .exp-bar-wrap{
+    width:70px;
+    height:8px;
+    background:#4a4038;
+    border-radius:5px;
+    overflow:hidden;
+  }
+  .exp-bar-fill{
+    height:100%;
+    background:var(--tape-yellow);
+    width:0%;
+    transition:width .3s;
+  }
+  .coin-badge{
+    background:#fff8e0;
+    border:2px solid var(--tape-yellow);
+    color:var(--charcoal);
+    padding:5px 10px;
+    border-radius:20px;
+    font-weight:800;
+    font-size:0.82rem;
+    white-space:nowrap;
+  }
+
+  .level-up-banner{
+    background:linear-gradient(90deg, var(--tape-yellow), #ffe08a);
+    border:2px solid var(--charcoal);
+    border-radius:10px;
+    padding:10px 14px;
+    font-weight:800;
+    color:var(--charcoal);
+    margin:14px 0;
+    display:none;
+  }
+  .level-up-banner.show{display:block;}
+
+  .reward-row{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    margin:14px 0;
+    font-weight:700;
+    color:var(--charcoal);
+  }
+  .reward-row span.exp-val{color:var(--steel);}
+  .reward-row span.coin-val{color:#b8860b;}
+
+  .hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+    font-weight:700;
+    color:var(--charcoal);
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .pill{
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:20px;
+    padding:5px 12px;
+    font-size:0.9rem;
+  }
+  .progressbar{
+    height:10px;
+    background:#e4ddc8;
+    border-radius:6px;
+    overflow:hidden;
+    margin-bottom:18px;
+    border:1px solid var(--line);
+  }
+  .progressfill{
+    height:100%;
+    background:var(--teal);
+    width:0%;
+    transition:width .3s;
+  }
+
+  .qhead{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .qtext{
+    font-size:1.15rem;
+    font-weight:700;
+    color:var(--charcoal);
+    margin:0 0 14px;
+    flex:1;
+  }
+  .howto-btn{
+    background:var(--tape-yellow);
+    border:2px solid var(--charcoal);
+    color:var(--charcoal);
+    border-radius:50%;
+    width:34px;
+    height:34px;
+    font-weight:900;
+    cursor:pointer;
+    flex-shrink:0;
+    font-size:1.05rem;
+  }
+  .howto-box{
+    background:#fff8e0;
+    border:2px dashed var(--tape-yellow);
+    border-radius:8px;
+    padding:10px 14px;
+    margin-bottom:14px;
+    font-size:0.95rem;
+    color:var(--charcoal);
+  }
+
+  /* Ruler / tape reading mode */
+  .tape-wrap{
+    position:relative;
+    border:2px solid var(--charcoal);
+    border-radius:8px;
+    background:#fff;
+    overflow-x:auto;
+    overflow-y:hidden;
+    height:150px;
+    margin-bottom:14px;
+    cursor:grab;
+  }
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{
+    position:relative;
+    height:100%;
+    display:flex;
+    align-items:flex-end;
+  }
+  .tick{
+    position:absolute;
+    bottom:0;
+    width:2px;
+    background:var(--charcoal);
+  }
+  .tick.cm{ width:2px; }
+  .tick.bold10{ width:3px; background:var(--charcoal); }
+  .tick.meter{ width:4px; background:var(--miss); }
+  .mm-bg{
+    position:absolute;
+    bottom:0;
+    left:0;
+    height:16px;
+  }
+  .tick-label{
+    position:absolute;
+    bottom:38px;
+    font-size:0.78rem;
+    color:var(--charcoal);
+    transform:translateX(-50%);
+    white-space:nowrap;
+  }
+  .tick-label.bold10{
+    font-size:0.9rem;
+    font-weight:800;
+    bottom:58px;
+  }
+  .tick-label.meter{
+    font-size:0.98rem;
+    font-weight:900;
+    color:var(--miss);
+    bottom:78px;
+  }
+  /* The plain rectangle laid along the ruler from 0 to the value being measured — replaces
+     the old thin "flag" marker so students are reading an actual shape's length, not an
+     abstract point. Deliberately NOT black, so it stays visually distinct from the dark
+     caliper body used elsewhere in this same workshop. */
+  .measure-bar{
+    position:absolute;
+    bottom:26px; /* sits right at the top of the short (regular mm) tick marks, matching
+                    the ticks' own bottom:0 anchoring, instead of floating with a gap */
+    height:26px;
+    background:var(--steel);
+    border:2px solid #26445a;
+    border-radius:3px;
+  }
+  .tape-scale-label{
+    font-size:0.95rem;
+    font-weight:700;
+    color:var(--steel);
+    margin:0 0 6px;
+  }
+
+  /* Caliper reading mode */
+  .caliper-wrap{
+    overflow-x:auto;
+    margin-bottom:14px;
+    padding:10px 0 4px;
+    background:#fff;
+    border:2px solid var(--charcoal);
+    border-radius:8px;
+  }
+  .caliper-wrap svg{ display:block; }
+
+  .answer-row{display:flex; gap:10px; align-items:center;}
+  .answer-row input{flex:1;}
+  .unit-select{width:110px; flex-shrink:0;}
+
+  .options-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .optbtn{
+    padding:14px 10px;
+    border:2px solid var(--steel);
+    background:#fff;
+    color:var(--charcoal);
+    border-radius:10px;
+    font-size:0.95rem;
+    font-weight:600;
+    cursor:pointer;
+    text-align:left;
+  }
+  .optbtn:hover{background:#eaf2f6;}
+  .optbtn.correct{background:var(--teal); color:#fff; border-color:var(--teal);}
+  .optbtn.wrong{background:var(--miss); color:#fff; border-color:var(--miss);}
+  .optbtn:disabled{cursor:default;}
+
+  .submitbtn{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    background:var(--charcoal);
+    color:var(--tape-yellow);
+    font-weight:700;
+    font-size:1rem;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .submitbtn:disabled{background:#9aa2a8; color:#eee;}
+
+  .feedback{
+    margin-top:12px;
+    padding:10px 14px;
+    border-radius:8px;
+    font-weight:700;
+    display:none;
+  }
+  .feedback.show{display:block;}
+  .feedback.good{background:#dff0ec; color:var(--teal); border:2px solid var(--teal);}
+  .feedback.bad{background:#f6e0dd; color:var(--miss); border:2px solid var(--miss);}
+
+  .end-screen{text-align:center;}
+  .end-screen h2{color:var(--charcoal); font-size:1.6rem;}
+  .end-score{
+    font-size:2.4rem;
+    font-weight:900;
+    color:var(--teal);
+    margin:10px 0;
+  }
+  .leaderboard{
+    text-align:left;
+    margin-top:20px;
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:10px;
+    padding:12px 16px;
+  }
+  .leaderboard h3{margin:0 0 8px; color:var(--charcoal);}
+  .leaderboard ol{margin:0; padding-left:22px;}
+  .leaderboard li{padding:3px 0;}
+
+  .demo-note{
+    font-size:0.8rem;
+    color:#8a8272;
+    text-align:center;
+    margin-top:12px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>📏 Measure Distance Workshop</h1>
+    <div class="level-block" id="titlebar-level-block">
+      <div class="level-badge" id="hud-level-badge">Lvl 1</div>
+      <div class="exp-bar-wrap"><div class="exp-bar-fill" id="hud-exp-fill"></div></div>
+      <div class="coin-badge" id="hud-coin-badge">🪙 0</div>
+    </div>
+  </div>
+
+  <!-- START SCREEN -->
+  <div class="screen" id="screen-start">
+    <p class="embed-welcome hidden" id="embed-welcome"></p>
+    <div id="login-fields">
+      <label for="pname">Your name</label>
+      <input type="text" id="pname" placeholder="Type your name">
+
+      <label for="ppin">Your PIN (4 digits)</label>
+      <input type="text" id="ppin" placeholder="e.g. 4271" maxlength="4" inputmode="numeric">
+      <p class="pin-hint">First time? Pick any 4-digit PIN — that becomes your login. Played before? Enter the same name + PIN to keep your EXP and coins.</p>
+      <p class="login-error hidden" id="login-error"></p>
+
+      <label for="period">Class period</label>
+      <select id="period">
+        <option value="">Select period</option>
+        <option value="2">Period 2</option>
+        <option value="6">Period 6</option>
+        <option value="7">Period 7</option>
+      </select>
+    </div>
+
+    <label id="bench-label">Which work bench?</label>
+    <div class="diffrow" id="bench-row">
+      <button class="diffbtn" data-bench="unit">Choose the Right Unit</button>
+      <button class="diffbtn" data-bench="mm">Measure to the Millimeter</button>
+      <button class="diffbtn" data-bench="cm">Measure to the Centimeter</button>
+      <button class="diffbtn" data-bench="m">Measure to the Meter</button>
+      <button class="diffbtn" data-bench="mixed">Mixed Practice</button>
+    </div>
+
+    <button class="primary" id="btn-start" disabled>Start</button>
+    <div class="demo-note" id="demo-note">
+      <label style="display:inline; font-weight:400;">
+        <input type="checkbox" id="demo-mode" style="width:auto; margin-right:6px;">
+        Demo mode (no name/PIN needed, EXP and coins won't be saved)
+      </label>
+    </div>
+    <button class="primary" id="btn-leaderboard" style="background:var(--steel); margin-top:10px;">View leaderboard</button>
+  </div>
+
+  <!-- LEADERBOARD SCREEN -->
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3>Top scores</h3>
+      <div class="diffrow" style="margin-bottom:10px;">
+        <button class="diffbtn" data-period="2">P2</button>
+        <button class="diffbtn" data-period="6">P6</button>
+        <button class="diffbtn" data-period="7">P7</button>
+      </div>
+      <ol id="lb-list"></ol>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:var(--steel); margin-top:16px;">Back</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-mode">Read</div>
+      <div class="pill" id="hud-score">EXP: 0 · 🪙 0</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+
+    <div class="qhead">
+      <p class="qtext" id="qtext">Question</p>
+      <button class="howto-btn hidden" id="howto-btn" title="How do I answer this?">?</button>
+    </div>
+    <div class="howto-box hidden" id="howto-box"></div>
+
+    <!-- Choose the Right Unit mode -->
+    <div id="mode-unit" class="hidden">
+      <div class="options-grid" id="unit-options"></div>
+    </div>
+
+    <!-- Read mode (also used by the Centimeter and Meter benches, reconfigured) -->
+    <div id="mode-read" class="hidden">
+      <p class="tape-scale-label" id="tape-scale-label">Scale: —</p>
+      <div class="tape-wrap" id="tape-wrap">
+        <div class="tape-inner" id="tape-inner"></div>
+      </div>
+      <div class="answer-row">
+        <input type="text" id="read-answer" placeholder="Your reading">
+        <select class="unit-select" id="read-unit"></select>
+      </div>
+      <button class="submitbtn" id="submit-read">Submit</button>
+    </div>
+
+    <!-- Caliper mode (the Millimeter bench's other half) -->
+    <div id="mode-caliper" class="hidden">
+      <div class="caliper-wrap" id="caliper-wrap"></div>
+      <div class="answer-row">
+        <input type="text" id="caliper-answer" placeholder="Your reading">
+        <select class="unit-select" id="caliper-unit"><option value="mm">mm</option></select>
+      </div>
+      <button class="submitbtn" id="submit-caliper">Submit</button>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <!-- END SCREEN -->
+  <div class="screen hidden" id="screen-end">
+    <div class="end-screen">
+      <h2 id="end-title">Round complete!</h2>
+      <div class="reward-row">
+        <span>EXP earned: <span class="exp-val" id="end-exp-earned">0</span></span>
+        <span>Coins earned: <span class="coin-val" id="end-coins-earned">0</span></span>
+      </div>
+      <div class="level-up-banner" id="level-up-banner"></div>
+      <div class="level-block" style="justify-content:center; margin-bottom:8px;">
+        <div class="level-badge" id="end-level-badge">Lvl 1</div>
+        <div class="exp-bar-wrap" style="width:140px;"><div class="exp-bar-fill" id="end-exp-fill"></div></div>
+      </div>
+      <p id="end-message"></p>
+      <button class="primary" id="btn-play-again">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- State ----------
+  let state = {
+    name:'', pin:'', period:'', bench:null, demo:false, teacher:false, embedded:false,
+    round:0, totalRounds:12, roundEXP:0, roundCoins:0, roundStart:0, locked:false,
+    modeSequence:[], currentQ:null,
+    record:null // the student's shared EXP/coins/level record, loaded at login
+  };
+
+  const els = {
+    start: document.getElementById('screen-start'),
+    lb: document.getElementById('screen-leaderboard'),
+    game: document.getElementById('screen-game'),
+    end: document.getElementById('screen-end'),
+    pname: document.getElementById('pname'),
+    ppin: document.getElementById('ppin'),
+    loginError: document.getElementById('login-error'),
+    embedWelcome: document.getElementById('embed-welcome'),
+    period: document.getElementById('period'),
+    btnStart: document.getElementById('btn-start'),
+    demoMode: document.getElementById('demo-mode'),
+    levelBadge: document.getElementById('hud-level-badge'),
+    expFill: document.getElementById('hud-exp-fill'),
+    coinBadge: document.getElementById('hud-coin-badge'),
+    hudRound: document.getElementById('hud-round'),
+    hudMode: document.getElementById('hud-mode'),
+    hudScore: document.getElementById('hud-score'),
+    progressfill: document.getElementById('progressfill'),
+    qtext: document.getElementById('qtext'),
+    howtoBtn: document.getElementById('howto-btn'),
+    howtoBox: document.getElementById('howto-box'),
+    modeUnit: document.getElementById('mode-unit'),
+    unitOptions: document.getElementById('unit-options'),
+    modeRead: document.getElementById('mode-read'),
+    tapeWrap: document.getElementById('tape-wrap'),
+    tapeInner: document.getElementById('tape-inner'),
+    tapeScaleLabel: document.getElementById('tape-scale-label'),
+    readAnswer: document.getElementById('read-answer'),
+    readUnit: document.getElementById('read-unit'),
+    submitRead: document.getElementById('submit-read'),
+    modeCaliper: document.getElementById('mode-caliper'),
+    caliperWrap: document.getElementById('caliper-wrap'),
+    caliperAnswer: document.getElementById('caliper-answer'),
+    submitCaliper: document.getElementById('submit-caliper'),
+    feedback: document.getElementById('feedback'),
+    endTitle: document.getElementById('end-title'),
+    endExpEarned: document.getElementById('end-exp-earned'),
+    endCoinsEarned: document.getElementById('end-coins-earned'),
+    levelUpBanner: document.getElementById('level-up-banner'),
+    endLevelBadge: document.getElementById('end-level-badge'),
+    endExpFill: document.getElementById('end-exp-fill'),
+    endMessage: document.getElementById('end-message'),
+    btnPlayAgain: document.getElementById('btn-play-again'),
+    btnLeaderboard: document.getElementById('btn-leaderboard'),
+    btnBackFromLb: document.getElementById('btn-back-from-lb'),
+    lbList: document.getElementById('lb-list')
+  };
+
+  function showScreen(name){
+    [els.start, els.lb, els.game, els.end].forEach(s=>s.classList.add('hidden'));
+    name.classList.remove('hidden');
+  }
+
+  // ---------- Leveling curve (defined in shared-student.js so every game uses the same one) ----------
+  function getLevelInfo(totalEXP){ return Shared.getLevelInfo(totalEXP); }
+  function paintLevelUI(totalEXP, coins, levelBadgeEl, fillEl, coinBadgeEl){
+    const info = getLevelInfo(totalEXP);
+    levelBadgeEl.textContent = `Lvl ${info.level}`;
+    fillEl.style.width = `${Math.round(info.progress*100)}%`;
+    if(coinBadgeEl) coinBadgeEl.textContent = `🪙 ${coins}`;
+    return info;
+  }
+
+  // ---------- Student record (shared across every mini-game, via shared-student.js) ----------
+  async function loadOrCreateRecord(name, pin, period){
+    return Shared.loadOrCreateStudent(name, pin, period);
+  }
+  async function saveRecord(nameKey, record){
+    return Shared.saveStudent(nameKey, record);
+  }
+
+  // ---------- This game's OWN leaderboard (separate from the shared total-EXP record) ----------
+  // Mirrors Place Value Workbench's "scores" path, but at its own "measure_scores" path,
+  // so this game's leaderboard only ever reflects THIS game, not the whole account's EXP.
+  async function saveMeasureRun(rec){
+    if(!Shared.DB_OK) return false;
+    try{ await Shared.DB.ref('measure_scores').push(rec); return true; }
+    catch(e){ console.warn('measure score save failed', e); return false; }
+  }
+  async function loadMeasureLeaderboard(period){
+    if(!Shared.DB_OK) return [];
+    try{
+      const snap = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(period).once('value');
+      const entries = [];
+      snap.forEach(child=> entries.push(child.val()));
+      entries.sort((a,b)=> (b.expEarned||0)-(a.expEarned||0));
+      return entries;
+    }catch(e){ console.warn('measure leaderboard load failed', e); return []; }
+  }
+
+  // ---------- Start screen ----------
+  document.querySelectorAll('#bench-row .diffbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#bench-row .diffbtn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.bench = btn.dataset.bench;
+      validateStart();
+    });
+  });
+  els.pname.addEventListener('input', validateStart);
+  els.ppin.addEventListener('input', ()=>{
+    els.ppin.value = els.ppin.value.replace(/\D/g,'').slice(0,4);
+    validateStart();
+  });
+  els.period.addEventListener('change', validateStart);
+  els.demoMode.addEventListener('change', ()=>{
+    els.pname.disabled = els.demoMode.checked;
+    els.ppin.disabled = els.demoMode.checked;
+    els.period.disabled = els.demoMode.checked;
+    validateStart();
+  });
+  function validateStart(){
+    if(state.embedded){
+      els.btnStart.disabled = !(state.record && state.bench);
+      return;
+    }
+    if(els.demoMode.checked){
+      els.btnStart.disabled = !state.bench;
+      return;
+    }
+    els.btnStart.disabled = !(els.pname.value.trim() && els.ppin.value.length===4 && els.period.value && state.bench);
+  }
+
+  // ---------- Embedding: accept a login handoff from a parent hub page ----------
+  window.addEventListener('message', async (e)=>{
+    if(!e.data || e.data.type !== 'mb-login') return;
+    const { name, pin, period, demo, teacher, bench } = e.data;
+    state.embedded = true;
+    state.bench = bench || 'mixed';
+    document.getElementById('login-fields').classList.add('hidden');
+    document.getElementById('demo-note').classList.add('hidden');
+    // The student already chose which table to walk up to in-game — no need to ask again.
+    document.getElementById('bench-label').classList.add('hidden');
+    document.getElementById('bench-row').classList.add('hidden');
+
+    if(demo){
+      state.demo = true;
+      state.name = 'Demo'; state.pin=''; state.period = period || '2';
+      state.record = { name:'Demo', totalEXP:0, coins:0, inventory:[], equipped:{} };
+      els.embedWelcome.textContent = `Signed in as Demo (preview mode — nothing is saved). Ready when you are.`;
+      els.embedWelcome.classList.remove('hidden');
+      validateStart();
+      return;
+    }
+
+    els.embedWelcome.textContent = teacher
+      ? `Signed in as ${name} (teacher — hidden from leaderboards). Ready when you are.`
+      : `Signed in as ${name}. Ready when you are.`;
+    els.embedWelcome.classList.remove('hidden');
+
+    const result = await loadOrCreateRecord(name, pin, period);
+    if(result.ok){
+      state.name = name; state.pin = pin; state.period = period;
+      state.record = result.record;
+      state.nameKey = result.nameKey;
+      state.teacher = !!teacher;
+      try{ await saveRecord(state.nameKey, state.record); }catch(err){ /* ignore */ }
+    } else {
+      els.embedWelcome.textContent = `Sign-in error: ${result.error}`;
+    }
+    validateStart();
+  });
+
+  els.btnStart.addEventListener('click', async ()=>{
+    els.loginError.classList.add('hidden');
+
+    if(state.embedded){
+      // already logged in via postMessage from the hub
+    } else {
+    state.demo = els.demoMode.checked;
+
+    if(state.demo){
+      state.name = 'Demo'; state.pin=''; state.period = '2';
+      state.record = { name:'Demo', totalEXP:0, coins:0, inventory:[], equipped:{} };
+    } else {
+      els.btnStart.disabled = true;
+      els.btnStart.textContent = 'Checking...';
+      const name = els.pname.value.trim();
+      const pin = els.ppin.value.trim();
+      const period = els.period.value;
+      const result = await loadOrCreateRecord(name, pin, period);
+      els.btnStart.textContent = 'Start';
+      els.btnStart.disabled = false;
+      if(!result.ok){
+        els.loginError.textContent = result.error;
+        els.loginError.classList.remove('hidden');
+        return;
+      }
+      state.name = name; state.pin = pin; state.period = period;
+      state.record = result.record;
+      state.nameKey = result.nameKey;
+      if(!state.demo){
+        try{ await saveRecord(state.nameKey, state.record); }catch(e){ /* ignore */ }
+      }
+    }
+    } // end non-embedded branch
+
+    state.round = 0;
+    state.roundEXP = 0;
+    state.roundCoins = 0;
+    state.roundStart = Date.now();
+    state.modeSequence = buildModeSequence();
+    paintLevelUI(state.record.totalEXP, state.record.coins, els.levelBadge, els.expFill, els.coinBadge);
+    showScreen(els.game);
+    nextRound();
+  });
+
+  // Every round type used across all 5 benches, as one canonical list — 'unit' has no
+  // scale; the other four pair a scale (mm/cm/m) with a display kind (ruler or caliper).
+  // Only the mm bench (and Mixed Practice) ever uses 'caliper'.
+  const ROUND_TYPES = ['unit', 'mm-read', 'mm-caliper', 'cm-read', 'm-read'];
+
+  function buildModeSequence(){
+    const bench = state.bench;
+    let pool;
+    if(bench === 'unit') pool = ['unit'];
+    else if(bench === 'mm') pool = ['mm-read', 'mm-caliper'];
+    else if(bench === 'cm') pool = ['cm-read'];
+    else if(bench === 'm') pool = ['m-read'];
+    else pool = ROUND_TYPES; // 'mixed' — every type, evenly likely each round
+
+    const modes = [];
+    for(let i=0;i<state.totalRounds;i++) modes.push(pick(pool));
+    return modes;
+  }
+
+  // ---------- Bench parameters ----------
+  // Every bench works to the same tolerance model as before (grade() applies it via
+  // tolerancePct) — what differs per bench is the realistic range of values and how many
+  // decimal places the reading actually has.
+  function benchParams(scale){
+    if(scale === 'mm') return { minMM:5, maxMM:80, decimals:0, tolerancePct:0, exp:10 };
+    if(scale === 'cm') return { minMM:30, maxMM:300, decimals:1, tolerancePct:0, exp:12 }; // tenths of a cm = whole mm
+    if(scale === 'm') return { minMM:1000, maxMM:9990, decimals:2, tolerancePct:0, exp:15 }; // hundredths of a m = whole cm
+    return { exp:8 }; // 'unit' bench doesn't measure a length at all
+  }
+
+  const UNIT_TO_MM = { mm:1, cm:10, m:1000 };
+  function toMM(v,u){ return v*UNIT_TO_MM[u]; }
+  function fromMM(vmm,u){ return vmm/UNIT_TO_MM[u]; }
+
+  function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  function pick(arr){ return arr[randInt(0,arr.length-1)]; }
+
+  // ---------- Benchmarks for the "Choose the Right Unit" bench ----------
+  // `unit` is the canonical correct answer — a real teaching judgment call (a credit card
+  // could technically be read out in mm, but cm is the natural unit a person would reach
+  // for), not just derived from magnitude.
+  const BENCHMARKS = [
+    {name:'a grain of rice', mm:6, unit:'mm'},
+    {name:'a fingernail width', mm:12, unit:'mm'},
+    {name:'a paperclip', mm:30, unit:'mm'},
+    {name:'an AA battery', mm:50, unit:'mm'},
+    {name:'a credit card (long side)', mm:86, unit:'cm'},
+    {name:'a smartphone', mm:150, unit:'cm'},
+    {name:'a sheet of paper (long side)', mm:280, unit:'cm'},
+    {name:'a school ruler', mm:300, unit:'cm'},
+    {name:'a skateboard', mm:800, unit:'cm'},
+    {name:'a bike wheel across', mm:660, unit:'cm'},
+    {name:'a classroom door height', mm:2000, unit:'m'},
+    {name:'a dinner table length', mm:1500, unit:'m'},
+    {name:'a car length', mm:4500, unit:'m'},
+    {name:'a school bus length', mm:12000, unit:'m'},
+    {name:'a basketball court length', mm:28000, unit:'m'},
+    {name:'a football field length', mm:91000, unit:'m'},
+    {name:'a football field including end zones', mm:110000, unit:'m'},
+    {name:'a city block', mm:80000, unit:'m'}
+  ];
+
+  // ---------- Round flow ----------
+  const MODE_LABELS = {
+    'unit': 'Choose the Unit',
+    'mm-read': 'Millimeter (Ruler)',
+    'mm-caliper': 'Millimeter (Caliper)',
+    'cm-read': 'Centimeter',
+    'm-read': 'Meter',
+  };
+
+  function nextRound(){
+    if(state.round >= state.totalRounds){
+      finishGame();
+      return;
+    }
+    state.locked = false;
+    els.submitRead.disabled = false;
+    els.submitCaliper.disabled = false;
+    const mode = state.modeSequence[state.round];
+    state.round++;
+    els.hudRound.textContent = `Round ${state.round} / ${state.totalRounds}`;
+    els.hudMode.textContent = MODE_LABELS[mode] || mode;
+    els.progressfill.style.width = `${(state.round/state.totalRounds)*100}%`;
+    els.feedback.classList.remove('show','good','bad');
+    els.feedback.textContent = '';
+
+    els.modeUnit.classList.add('hidden');
+    els.modeRead.classList.add('hidden');
+    els.modeCaliper.classList.add('hidden');
+    els.howtoBtn.classList.add('hidden');
+    els.howtoBox.classList.add('hidden');
+
+    if(mode === 'unit') setupUnit();
+    else if(mode === 'mm-caliper') setupCaliper();
+    else setupRuler(mode); // 'mm-read' | 'cm-read' | 'm-read'
+  }
+
+  els.howtoBtn.addEventListener('click', ()=>{
+    els.howtoBox.classList.toggle('hidden');
+  });
+
+  // --- CHOOSE THE UNIT MODE ---
+  function setupUnit(){
+    els.modeUnit.classList.remove('hidden');
+    const correct = pick(BENCHMARKS);
+    els.qtext.textContent = `Which unit makes the most sense for measuring ${correct.name}?`;
+
+    const opts = ['mm','cm','m'].sort(()=>Math.random()-0.5);
+    els.unitOptions.innerHTML = '';
+    opts.forEach(u=>{
+      const btn = document.createElement('button');
+      btn.className = 'optbtn';
+      btn.textContent = u;
+      btn.addEventListener('click', ()=>{
+        if(state.locked) return;
+        state.locked = true;
+        document.querySelectorAll('#unit-options .optbtn').forEach(b=>b.disabled=true);
+        if(u === correct.unit){
+          btn.classList.add('correct');
+          grade(true, correct.unit, benchParams('unit').exp);
+        } else {
+          btn.classList.add('wrong');
+          document.querySelectorAll('#unit-options .optbtn').forEach(b=>{
+            if(b.textContent === correct.unit) b.classList.add('correct');
+          });
+          grade(false, correct.unit, benchParams('unit').exp);
+        }
+      });
+      els.unitOptions.appendChild(btn);
+    });
+    state.currentQ = { type:'unit' };
+  }
+
+  // --- RULER MODE (mm / cm / m — a plain rectangle laid along a ruled scale) ---
+  const RULER_SCALE = { mm:{ pxPerMM:6, needsScroll:false }, cm:{ pxPerMM:2, needsScroll:false }, m:{ pxPerMM:0.6, needsScroll:true } };
+  function setupRuler(mode){
+    const scale = mode.split('-')[0]; // 'mm' | 'cm' | 'm'
+    const params = benchParams(scale);
+    let valueMM = randInt(params.minMM, params.maxMM);
+    if(scale === 'cm') valueMM = Math.round(valueMM); // whole mm -> exact tenths of a cm
+    if(scale === 'm') valueMM = Math.round(valueMM/10)*10; // whole cm -> exact hundredths of a m
+
+    els.modeRead.classList.remove('hidden');
+    els.qtext.textContent = scale === 'm'
+      ? 'Scroll the tape to see the whole bar, then read its length.'
+      : 'Read the length of the bar against the ruler.';
+    els.howtoBtn.classList.remove('hidden');
+    els.howtoBox.textContent = scale === 'mm'
+      ? 'Every small tick is 1 mm. The bar starts at 0 — count the ticks to its right edge.'
+      : scale === 'cm'
+      ? 'Every small tick is 1 mm — that\u2019s a tenth of a cm. Read the nearest cm, then count leftover mm ticks as tenths (e.g. 2 past the 21 cm mark is 21.2 cm).'
+      : 'Every small tick is 1 cm — that\u2019s a hundredth of a m. Read the nearest full meter (red tick), then count leftover cm ticks as hundredths (e.g. 15 cm past the 5 m mark is 5.15 m).';
+
+    populateUnitSelect(els.readUnit, [scale], scale);
+    buildRuler(scale, valueMM);
+
+    state.currentQ = { type:'ruler', scale, valueMM, decimals: params.decimals, exp: params.exp };
+    els.readAnswer.value = '';
+  }
+
+  function buildRuler(scale, valueMM){
+    const { pxPerMM } = RULER_SCALE[scale];
+    const REC_START = 60;
+    els.tapeScaleLabel.textContent = scale === 'mm'
+      ? 'Scale: small ticks = mm'
+      : scale === 'cm'
+      ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
+      : 'Scale: small ticks = cm \u00b7 red ticks = each meter';
+
+    const padMM = scale === 'm' ? 100 : 20; // a little scroll room past the bar
+    const totalMM = valueMM + padMM;
+    const totalWidth = REC_START + totalMM*pxPerMM + 40;
+
+    const inner = els.tapeInner;
+    inner.innerHTML = '';
+    inner.style.width = totalWidth + 'px';
+
+    // The bar is added FIRST so it paints BELOW the tick marks and their numbers — its
+    // bottom edge sits right at the top of the short ticks (see .measure-bar's CSS), so it
+    // reads like an object laid directly on the ruler instead of floating above it, and
+    // any tick/label it reaches up into stays fully visible on top of it.
+    const bar = document.createElement('div');
+    bar.className = 'measure-bar';
+    bar.style.left = REC_START+'px';
+    bar.style.width = (valueMM*pxPerMM)+'px';
+    inner.appendChild(bar);
+
+    if(scale === 'm'){
+      // cm-resolution ticks (no mm sub-ticks — a meter tape isn't read to the mm)
+      const totalCM = Math.ceil(totalMM/10);
+      for(let c=0; c<=totalCM; c++){
+        const x = REC_START + c*10*pxPerMM;
+        const isMeter = c>0 && c%100===0;
+        const isBold = c>0 && c%10===0 && !isMeter;
+        const tick = document.createElement('div');
+        tick.className = 'tick cm' + (isMeter?' meter':(isBold?' bold10':''));
+        tick.style.left = x+'px';
+        tick.style.height = isMeter ? '86px' : (isBold ? '64px' : '28px');
+        inner.appendChild(tick);
+        if(isMeter || isBold){
+          const lbl = document.createElement('div');
+          lbl.className = 'tick-label' + (isMeter?' meter':' bold10');
+          lbl.style.left = x+'px';
+          lbl.textContent = isMeter ? `${c/100} m` : `${c}cm`;
+          inner.appendChild(lbl);
+        }
+      }
+    } else {
+      // mm sub-ticks as a lightweight repeating background, cm ticks numbered
+      const mmBg = document.createElement('div');
+      mmBg.className = 'mm-bg';
+      mmBg.style.left = REC_START+'px';
+      mmBg.style.width = (totalWidth-REC_START)+'px';
+      mmBg.style.backgroundImage = `repeating-linear-gradient(to right, var(--charcoal) 0, var(--charcoal) 1px, transparent 1px, transparent ${pxPerMM}px)`;
+      inner.appendChild(mmBg);
+
+      const totalCM = Math.ceil(totalMM/10);
+      for(let c=0; c<=totalCM; c++){
+        const x = REC_START + c*10*pxPerMM;
+        const isBold = c>0 && c%10===0;
+        const tick = document.createElement('div');
+        tick.className = 'tick cm'+(isBold?' bold10':'');
+        tick.style.left = x+'px';
+        tick.style.height = isBold ? '48px' : '26px';
+        inner.appendChild(tick);
+        // The mm bench has 60px between cm ticks (plenty of room for every one to carry a
+        // label), but the cm bench only has ~20px between them at its scale — labeling
+        // every single tick there crowds into unreadable overlapping text. Label every cm
+        // on the mm bench, but only every 5th on the cm bench, with a bare number (no "cm"
+        // suffix — the scale caption above already says what unit these are) so what IS
+        // shown stays comfortably spaced. The un-labeled cm ticks between them are still
+        // real, countable tick marks, just without their own text.
+        const showLabel = scale==='mm' || c%5===0;
+        if(showLabel){
+          const lbl = document.createElement('div');
+          lbl.className = 'tick-label'+(isBold?' bold10':'');
+          lbl.style.left = x+'px';
+          lbl.textContent = scale==='mm' ? `${c*10}` : `${c}`;
+          inner.appendChild(lbl);
+        }
+      }
+    }
+
+    // the actual bar being measured — a plain, NON-black rectangle laid from the ruler's
+    // zero point to the value being read, not a small flag marker (drawn earlier in this
+    // function, before the ticks, so it paints beneath them — see the note above).
+
+    requestAnimationFrame(()=>{
+      const wrapWidth = els.tapeWrap.clientWidth;
+      const barEndX = REC_START + valueMM*pxPerMM;
+      els.tapeWrap.scrollLeft = Math.max(0, barEndX - wrapWidth*0.6);
+    });
+  }
+
+  // draggable scroll for the ruler/tape
+  (function enableDragScroll(el){
+    let isDown=false, startX, scrollLeft;
+    el.addEventListener('mousedown', e=>{ isDown=true; startX=e.pageX-el.offsetLeft; scrollLeft=el.scrollLeft; });
+    el.addEventListener('mouseleave', ()=>isDown=false);
+    el.addEventListener('mouseup', ()=>isDown=false);
+    el.addEventListener('mousemove', e=>{
+      if(!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      el.scrollLeft = scrollLeft - (x-startX);
+    });
+    el.addEventListener('touchstart', e=>{ startX = e.touches[0].pageX - el.offsetLeft; scrollLeft = el.scrollLeft; }, {passive:true});
+    el.addEventListener('touchmove', e=>{
+      const x = e.touches[0].pageX - el.offsetLeft;
+      el.scrollLeft = scrollLeft - (x-startX);
+    }, {passive:true});
+  })(els.tapeWrap);
+
+  els.submitRead.addEventListener('click', ()=>{
+    if(state.locked) return;
+    const raw = parseFloat(els.readAnswer.value);
+    if(isNaN(raw)){ shake(els.readAnswer); return; }
+    state.locked = true;
+    els.submitRead.disabled = true;
+    const q = state.currentQ;
+    const givenMM = toMM(raw, q.scale);
+    const diff = Math.abs(givenMM - q.valueMM);
+    const tolMM = q.scale === 'mm' ? 0.5 : q.scale === 'cm' ? 0.5 : 5; // sub-smallest-tick rounding slack
+    grade(diff <= tolMM, formatMM(q.valueMM, q.scale), q.exp);
+  });
+
+  // --- CALIPER MODE (the Millimeter bench's other half) ---
+  function setupCaliper(){
+    els.modeCaliper.classList.remove('hidden');
+    const params = benchParams('mm');
+    const valueMM = randInt(params.minMM, params.maxMM);
+
+    els.qtext.textContent = 'Read the calipers\u2019 scale to find the length.';
+    els.howtoBtn.classList.remove('hidden');
+    els.howtoBox.textContent = 'The fixed jaw sits at 0. Read the small arrow on the sliding jaw against the scale above it \u2014 every tick is 1 mm.';
+
+    els.caliperWrap.innerHTML = buildCaliperSVG(valueMM, params.maxMM);
+    state.currentQ = { type:'caliper', scale:'mm', valueMM, decimals: params.decimals, exp: params.exp };
+    els.caliperAnswer.value = '';
+  }
+
+  // Modeled on a real plastic sliding caliper (fixed jaw at 0, a distinct clamped slider
+  // block riding the ruled beam, a hook-shaped jaw on each) rather than a schematic —
+  // simplified to one pair of jaws and a plain top scale (no vernier sub-scale), which is
+  // what makes it actually readable at a glance for a student.
+  function buildCaliperSVG(valueMM, maxMM){
+    const pxPerMM = 6;
+    const beamX = 30, beamW = maxMM*pxPerMM;
+    const railW = beamX + beamW + 30;
+    const beamY = 26, beamH = 30; // shifted down to leave room for a handle above the beam
+    // jawW is deliberately narrow — at the old 14px width, the fixed and sliding jaws
+    // started visually overlapping each other once the reading dropped below ~2.3mm
+    // (jawW/pxPerMM), well short of a true 0 reading. At 6px the same math only kicks in
+    // under 1mm, so the arrow can actually reach all the way down to 0.
+    const jawH = 46, jawW = 6;
+    const barY = beamY+beamH+14, barH = 24; // the measured object, gripped by the jaws
+
+    let ticks = '';
+    for(let mm=0; mm<=maxMM; mm++){
+      const x = beamX + mm*pxPerMM;
+      const isCM = mm%10===0;
+      // Ticks live only in the lower part of the beam, well clear of the numbers row —
+      // and the numbers themselves are the actual mm value (10, 20, 30…), not a
+      // centimeter shorthand, matching how the ruler view already labels mm.
+      ticks += `<line x1="${x}" y1="${beamY+beamH}" x2="${x}" y2="${beamY+beamH-(isCM?16:9)}" stroke="#fff" stroke-width="${isCM?1.4:0.8}"/>`;
+      if(isCM) ticks += `<text x="${x}" y="${beamY+10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${mm}</text>`;
+    }
+
+    const fixedX = beamX, slideX = beamX + valueMM*pxPerMM;
+    const H = barY + barH + 20;
+
+    const fixedJaw = `<path d="M${fixedX-jawW/2} ${beamY+beamH} h${jawW} v${jawH} h-${jawW} Z" fill="#14171a"/>`;
+    // The slider used to be a wide block spanning the whole tick zone, which hid the exact
+    // ticks a student needs to read right where the reading is. It's now a thin marker
+    // line through the beam (doesn't obscure neighboring ticks/numbers at all) plus a
+    // small handle shape that sits entirely ABOVE the beam, clear of both the number row
+    // and the tick row.
+    const handle = `<rect x="${slideX-9}" y="${beamY-20}" width="18" height="16" rx="2" fill="#2c3138" stroke="#14171a" stroke-width="1.5"/>`;
+    // Only connects the handle down to the TOP of the beam — it must never enter the
+    // tick zone itself, or it covers the exact tick the arrow is pointing at (which is
+    // always a real tick, since caliper readings are always whole mm).
+    const slideLine = `<rect x="${slideX-1.5}" y="${beamY-4}" width="3" height="4" fill="#2c3138"/>`;
+    const slideJaw = `<path d="M${slideX-jawW/2} ${beamY+beamH} h${jawW} v${jawH} h-${jawW} Z" fill="#2c3138"/>`;
+    const pointer = `<polygon points="${slideX},${beamY+beamH+2} ${slideX-5},${beamY+beamH+12} ${slideX+5},${beamY+beamH+12}" fill="#f2c230"/>`;
+
+    return `<svg width="${railW}" height="${H}" viewBox="0 0 ${railW} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${beamX-14}" y="${beamY-6}" width="${beamW+28}" height="${beamH+12}" rx="3" fill="#1a1d21"/>
+      ${ticks}
+      <rect x="${Math.min(fixedX,slideX)}" y="${barY}" width="${Math.abs(slideX-fixedX)}" height="${barH}" rx="3" fill="#3f6b8a" stroke="#26445a" stroke-width="1.5"/>
+      ${fixedJaw}
+      ${handle}
+      ${slideLine}
+      ${slideJaw}
+      ${pointer}
+    </svg>`;
+  }
+
+  els.submitCaliper.addEventListener('click', ()=>{
+    if(state.locked) return;
+    const raw = parseFloat(els.caliperAnswer.value);
+    if(isNaN(raw)){ shake(els.caliperAnswer); return; }
+    state.locked = true;
+    els.submitCaliper.disabled = true;
+    const q = state.currentQ;
+    const diff = Math.abs(raw - q.valueMM);
+    grade(diff <= 0.5, formatMM(q.valueMM, 'mm'), q.exp);
+  });
+
+  function formatMM(mm, unit){
+    unit = unit || (mm<10?'mm':mm<1000?'cm':'m');
+    const v = fromMM(mm, unit);
+    return `${round2(v)} ${unit}`;
+  }
+  function round2(v){ return Math.round(v*100)/100; }
+
+  function populateUnitSelect(selectEl, units, selected){
+    selectEl.innerHTML = '';
+    selectEl.disabled = false;
+    units.forEach(u=>{
+      const opt = document.createElement('option');
+      opt.value = u; opt.textContent = u;
+      if(u===selected) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function shake(el){
+    el.style.borderColor = 'var(--miss)';
+    setTimeout(()=>{ el.style.borderColor=''; }, 500);
+  }
+
+  function grade(isCorrect, correctText, exp){
+    if(isCorrect){
+      const coins = Math.floor(exp/2);
+      state.roundEXP += exp;
+      state.roundCoins += coins;
+      els.feedback.textContent = `Correct! +${exp} EXP, +${coins} 🪙 (${correctText})`;
+      els.feedback.className = 'feedback show good';
+    } else {
+      els.feedback.textContent = `Not quite — the answer was ${correctText}.`;
+      els.feedback.className = 'feedback show bad';
+    }
+    // live-preview totals in the titlebar (not yet saved until round ends)
+    const previewEXP = state.record.totalEXP + state.roundEXP;
+    const previewCoins = state.record.coins + state.roundCoins;
+    paintLevelUI(previewEXP, previewCoins, els.levelBadge, els.expFill, els.coinBadge);
+    els.hudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    setTimeout(nextRound, 1400);
+  }
+
+  // ---------- End of game ----------
+  async function finishGame(){
+    showScreen(els.end);
+    els.endExpEarned.textContent = state.roundEXP;
+    els.endCoinsEarned.textContent = state.roundCoins;
+
+    const beforeInfo = getLevelInfo(state.record.totalEXP);
+    const newTotalEXP = state.record.totalEXP + state.roundEXP;
+    const newCoins = state.record.coins + state.roundCoins;
+    const afterInfo = paintLevelUI(newTotalEXP, newCoins, els.endLevelBadge, els.endExpFill, null);
+
+    if(afterInfo.level > beforeInfo.level){
+      els.levelUpBanner.textContent = `🎉 Level up! You're now Level ${afterInfo.level}!`;
+      els.levelUpBanner.classList.add('show');
+    } else {
+      els.levelUpBanner.classList.remove('show');
+    }
+
+    if(state.roundEXP >= 100){
+      els.endTitle.textContent = '🏆 Full Marks Run!';
+      els.endMessage.textContent = 'Great work — show your teacher for a reward!';
+    } else if(state.roundEXP >= 70){
+      els.endTitle.textContent = '💪 Solid round!';
+      els.endMessage.textContent = 'Nice measuring. Try again to earn even more EXP.';
+    } else {
+      els.endTitle.textContent = 'Round complete';
+      els.endMessage.textContent = 'Keep practicing — try Easy or Medium to build up your skills.';
+    }
+
+    state.record.totalEXP = newTotalEXP;
+    state.record.coins = newCoins;
+    paintLevelUI(newTotalEXP, newCoins, els.levelBadge, els.expFill, els.coinBadge);
+
+    if(!state.demo){
+      try{ await saveRecord(state.nameKey, state.record); }
+      catch(e){ console.error('Could not save record', e); }
+    }
+
+    // This game's own leaderboard entry — separate from the shared total-EXP record above,
+    // and (like the shared record) never saved for demo or teacher accounts.
+    if(!state.demo && !state.teacher){
+      const timeSec = Math.round((Date.now() - (state.roundStart||Date.now())) / 1000);
+      saveMeasureRun({
+        name: state.name,
+        nameKey: state.nameKey,
+        period: state.period,
+        bench: state.bench,
+        expEarned: state.roundEXP,
+        timeSec,
+        ts: Date.now()
+      }).catch(()=>{});
+    }
+  }
+
+  els.btnPlayAgain.addEventListener('click', ()=>{
+    showScreen(els.start);
+  });
+
+  // ---------- Leaderboard ----------
+  els.btnLeaderboard.addEventListener('click', ()=>{
+    showScreen(els.lb);
+    loadLeaderboard('2');
+  });
+  els.btnBackFromLb.addEventListener('click', ()=>{ showScreen(els.start); });
+  document.querySelectorAll('#screen-leaderboard .diffbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#screen-leaderboard .diffbtn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      loadLeaderboard(btn.dataset.period);
+    });
+  });
+
+  async function loadLeaderboard(period){
+    els.lbList.innerHTML = '<li>Loading…</li>';
+    if(!Shared.DB_OK){
+      els.lbList.innerHTML = '<li>Leaderboard unavailable offline.</li>';
+      return;
+    }
+    try{
+      const entries = await loadMeasureLeaderboard(period);
+      els.lbList.innerHTML = '';
+      if(entries.length === 0){
+        els.lbList.innerHTML = '<li>No runs yet for this period.</li>';
+        return;
+      }
+      entries.slice(0,10).forEach(e=>{
+        const li = document.createElement('li');
+        li.textContent = `${e.name} — ${e.expEarned||0} EXP (${e.bench||'?'})`;
+        els.lbList.appendChild(li);
+      });
+    }catch(e){
+      els.lbList.innerHTML = '<li>Could not load leaderboard.</li>';
+    }
+  }
+
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>

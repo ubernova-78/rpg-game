@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/nicholaswright/Downloads/elements_core_pack_2/**)",
+      "Read(//Users/nicholaswright/Downloads/action_monsters_10/**)",
+      "Read(//Users/nicholaswright/Downloads/elements_hometown_6/**)"
+    ]
+  }
+}

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quest Game — Character &amp; World</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<link rel="stylesheet" href="placevalue.css">
+<style>
+  :root {
+    --bg: #1e2530;
+    --panel: #2a3342;
+    --panel-border: #3d4a5e;
+    --text: #e8ecf1;
+    --muted: #9aa7b8;
+    --accent: #5fa8d3;
+    --accent-hover: #7cbde3;
+  }
+  * { box-sizing: border-box; }
+  .hidden { display: none !important; }
+  body {
+    margin: 0;
+    font-family: 'Trebuchet MS', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 12px;
+  }
+  h1 { font-size: 20px; margin: 0; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-top: -8px; text-align: center; max-width: 640px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  #mapWrap { position: relative; }
+  #mapCanvas {
+    image-rendering: pixelated;
+    display: block;
+    border-radius: 6px;
+    background: #000;
+  }
+  .wb-modal {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,14,20,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    z-index: 5;
+  }
+  .wb-modal.hidden { display: none; }
+  .wb-modal-inner {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    max-width: 320px;
+    text-align: center;
+  }
+  .wb-modal-title { font-size: 15px; font-weight: bold; margin-bottom: 8px; }
+  .wb-modal-body { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.4; }
+
+  #chestModal .wb-modal-inner { max-width: 420px; width: 92%; }
+  .wb-modal-inner button {
+    background: var(--accent);
+    color: #10151d;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .wb-modal-inner button:hover { background: var(--accent-hover); }
+  #hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* ---- Creator (closet) modal ---- */
+  .creator-inner {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 18px;
+    max-width: 460px;
+    width: 92%;
+    max-height: 90%;
+    overflow-y: auto;
+  }
+  .creator-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; text-align: center; }
+  .creator-body { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  #creatorPreviewCanvas { image-rendering: pixelated; background: #10151d; border-radius: 6px; }
+  .creator-controls { flex: 1; min-width: 200px; }
+  .creator-controls h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); margin: 12px 0 6px; border-bottom: 1px solid var(--panel-border); padding-bottom: 4px;
+  }
+  .creator-controls h3:first-child { margin-top: 0; }
+  .swatches { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+  .swatch-btn {
+    width: 26px; height: 26px; border-radius: 4px;
+    border: 2px solid var(--panel-border); background: #333; cursor: pointer; padding: 0; overflow: hidden;
+  }
+  .swatch-btn.active { border-color: var(--accent); }
+  .skin-row { display: flex; gap: 6px; margin-bottom: 4px; }
+  .skin-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--panel-border); cursor: pointer; }
+  .skin-btn.active { border-color: var(--accent); }
+  .outfit-btn {
+    display: block; width: 100%; text-align: left;
+    background: #1a2029; color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font-size: 13px;
+  }
+  .outfit-btn.active { border-color: var(--accent); background: #22303e; }
+  .creator-close-row { text-align: center; margin-top: 14px; }
+  .creator-close-row button {
+    background: var(--accent); color: #10151d; border: none; border-radius: 6px;
+    padding: 7px 20px; font-size: 13px; font-weight: bold; cursor: pointer;
+  }
+  .creator-close-row button:hover { background: var(--accent-hover); }
+
+  /* ---- Inventory ---- */
+  #inventoryBtn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 4;
+  }
+  #inventoryBtn.hidden { display: none; }
+  #inventoryBtn:hover { background: #334052; }
+  .inv-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 52px);
+    gap: 6px;
+    margin: 10px 0 14px;
+  }
+  .inv-slot {
+    width: 52px; height: 52px;
+    background: #1a2029;
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .inv-slot.equipped { border-color: var(--accent); }
+  .inv-slot canvas { image-rendering: pixelated; }
+  .inv-slot .inv-empty { color: var(--muted); font-size: 10px; }
+  .inv-slot .inv-tag {
+    position: absolute; bottom: 1px; left: 1px; right: 1px;
+    font-size: 8px; text-align: center; color: var(--accent); background: rgba(0,0,0,0.6);
+    border-radius: 2px; line-height: 1.3;
+  }
+
+  /* ---- Login screen (matches the Class Quest hub) ---- */
+  .login-card {
+    max-width: 420px;
+    margin: 60px auto;
+    background: var(--panel);
+    border: 3px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .login-card h1 { margin: 0 0 4px; font-size: 1.6rem; color: #f2c230; }
+  .login-card .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 18px; }
+  .login-card label { display: block; font-weight: 700; margin: 14px 0 6px; font-size: 0.9rem; }
+  .login-card input[type=text], .login-card select {
+    width: 100%; padding: 10px 12px; font-size: 1rem;
+    border: 2px solid var(--panel-border); border-radius: 8px; background: #fff; color: #222;
+  }
+  .login-card .hint { font-size: 0.78rem; color: var(--muted); margin: 4px 0 0; }
+  .login-card .err {
+    background: #3a2624; border: 2px solid #c1443a; color: #ffb3ac; font-weight: 700;
+    font-size: 0.85rem; padding: 8px 12px; border-radius: 8px; margin-top: 10px; display: none;
+  }
+  .login-card .primary {
+    margin-top: 20px; width: 100%; padding: 13px; border: none; border-radius: 10px;
+    background: var(--accent); color: #10151d; font-size: 1.05rem; font-weight: 700; cursor: pointer;
+  }
+  .login-card .primary:disabled { background: #5a6068; cursor: not-allowed; }
+  .login-card .primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .login-card .demo-note { margin-top: 14px; text-align: center; }
+  .login-card .demo-note label {
+    display: inline; font-weight: 400; font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* ---- Town HUD ---- */
+  #townHud {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 4px 10px; max-width: 720px; margin: 0 auto;
+  }
+  #townHud h2 { margin: 0; font-size: 1.1rem; color: #f2c230; }
+  #townHud .hud-right { display: flex; align-items: center; gap: 10px; }
+  .level-badge {
+    background: var(--bg); color: #f2c230; padding: 5px 12px; border-radius: 8px;
+    font-weight: 800; font-size: 0.85rem; border: 1px solid var(--panel-border);
+  }
+  .exp-bar-wrap { width: 80px; height: 9px; background: #181b1f; border-radius: 5px; overflow: hidden; border: 1px solid var(--panel-border); }
+  .exp-bar-fill { height: 100%; background: #f2c230; width: 0%; transition: width .3s; }
+  .coin-badge {
+    background: #2f2a1a; border: 1px solid #d6a03c; color: #d6a03c;
+    padding: 5px 12px; border-radius: 20px; font-weight: 800; font-size: 0.85rem;
+  }
+
+  /* ---- Mini-game overlay ---- */
+  #gameOverlay {
+    position: fixed; inset: 0; background: rgba(10,12,14,0.92); z-index: 80;
+    display: flex; flex-direction: column; align-items: center; padding: 16px;
+  }
+  #gameOverlay.hidden { display: none; }
+  .game-overlay-bar {
+    width: 100%; max-width: 760px; display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 10px;
+  }
+  .backbtn {
+    background: var(--bg); color: var(--text); border: 2px solid var(--panel-border);
+    border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer;
+  }
+  #gameOverlay iframe {
+    width: 100%; max-width: 760px; flex: 1; border: none; border-radius: 14px; background: #fff;
+  }
+
+  /* ---- Battle overlay: full-width question on top (like the Workbench mini-game),
+     player/monster + HP bars in a row below it ---- */
+  #battleOverlay {
+    position: fixed; inset: 0; background: rgba(10,12,14,0.94); z-index: 90;
+    display: flex; flex-direction: column; align-items: center; padding: 20px 16px;
+    overflow-y: auto;
+  }
+  #battleOverlay.hidden { display: none; }
+  .battle-frame {
+    display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 920px; margin: 0 auto;
+  }
+  .battle-left {
+    width: 100%; box-sizing: border-box; background: #1d3038; border: 1px solid #27424c; border-radius: 10px;
+    padding: 20px 24px 24px; display: flex; flex-direction: column;
+  }
+  .battle-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .battle-mode-tag {
+    font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; font-size: 15px;
+    color: #dbe5de; display: flex; align-items: center; gap: 8px;
+  }
+  .battle-mode-tag .dot { width: 8px; height: 8px; border-radius: 50%; background: #d6a03c; }
+  .battle-right {
+    width: 100%; display: flex; flex-direction: row; justify-content: center;
+    align-items: flex-start; gap: 56px; flex-wrap: wrap; padding: 4px 4px 8px;
+  }
+  .battle-combatant { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .battle-hp-wrap { width: 140px; }
+  .battle-hp-name {
+    font-size: 12px; font-weight: 700; color: #e8ecf1; text-align: center; margin-bottom: 3px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .battle-hp-bar { background: #14232a; border: 1px solid #27424c; border-radius: 6px; height: 12px; overflow: hidden; }
+  .battle-hp-fill { height: 100%; background: #39a08c; transition: width 0.3s ease; }
+  .battle-hp-fill.low { background: #d1553c; }
+  .battle-sprite-wrap {
+    width: 100px; height: 100px; display: flex; align-items: flex-end; justify-content: center;
+  }
+  .battle-sprite { image-rendering: pixelated; }
+  #battlePlayerSprite { width: 100px; height: 100px; }
+  #battleMonsterSprite { width: 100px; height: 100px; object-fit: contain; }
+
+  @keyframes battleLungeUp {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-22px); }
+  }
+  @keyframes battleLungeDown {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(22px); }
+  }
+  @keyframes battleHitFlash {
+    0%, 100% { filter: none; }
+    30%, 60% { filter: brightness(2) saturate(0) sepia(1) hue-rotate(-40deg) saturate(6); }
+  }
+  .battle-attack-up { animation: battleLungeUp 0.5s ease; }
+  .battle-attack-down { animation: battleLungeDown 0.5s ease; }
+  .battle-hit-flash { animation: battleHitFlash 0.5s ease; }
+
+  .battle-left .gate-btn {
+    background: #39a08c; color: #07171a; border: 2px solid #39a08c; border-radius: 4px;
+    padding: 10px 18px; font-size: 14px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.05em; cursor: pointer; margin: 4px 6px 4px 0; font-family: inherit;
+  }
+  .battle-left .gate-btn:hover { background: #45b39d; border-color: #45b39d; }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-card" id="screenLogin">
+    <h1>🗺️ Class Quest</h1>
+    <p class="sub">Sign in once — your EXP and coins carry across every game.</p>
+
+    <label for="pname">Your name</label>
+    <input type="text" id="pname" placeholder="Type your name">
+
+    <label for="ppin">Your PIN (4 digits)</label>
+    <input type="text" id="ppin" placeholder="e.g. 4271" maxlength="4" inputmode="numeric">
+    <p class="hint">First time? Pick any 4-digit PIN — that becomes your login. Played before? Enter the same name + PIN.</p>
+
+    <label for="period">Class period</label>
+    <select id="period">
+      <option value="">Select period</option>
+      <option value="2">Period 2</option>
+      <option value="6">Period 6</option>
+      <option value="7">Period 7</option>
+    </select>
+
+    <p class="err" id="loginError"></p>
+    <button class="primary" id="btnEnter" disabled>Enter the town</button>
+    <div class="demo-note">
+      <label><input type="checkbox" id="demoMode" style="width:auto; margin-right:6px;"> Demo mode (preview only — nothing is saved to Firebase)</label>
+    </div>
+    <div class="demo-note">
+      <label><input type="checkbox" id="teacherMode" style="width:auto; margin-right:6px;"> Teacher account (builds up a character, hidden from every leaderboard)</label>
+    </div>
+  </div>
+
+  <!-- TOWN SCREEN -->
+  <div class="hidden" id="screenTown">
+    <div id="townHud">
+      <h2 id="welcomeText">Welcome</h2>
+      <div class="hud-right">
+        <div class="level-badge" id="hudLevel">Lvl 1</div>
+        <div class="exp-bar-wrap"><div class="exp-bar-fill" id="hudExpFill"></div></div>
+        <div class="coin-badge" id="hudCoins">🪙 0</div>
+        <div class="coin-badge" id="hudHp">❤ 5/5</div>
+      </div>
+    </div>
+    <div class="subtitle">Walk into a building's door to go inside, and use arrow keys or WASD to move.</div>
+
+    <div class="panel">
+      <div id="mapWrap">
+        <canvas id="mapCanvas" width="720" height="480"></canvas>
+
+        <button id="inventoryBtn" class="hidden">🎒 Inventory</button>
+
+        <div id="workbenchModal" class="wb-modal hidden">
+          <div class="wb-modal-inner">
+            <div class="wb-modal-title" id="wbTitle">Workbench</div>
+            <div class="wb-modal-body" id="wbBody">Mini-game coming soon.</div>
+            <button id="wbCloseBtn">Close</button>
+          </div>
+        </div>
+
+        <div id="creatorModal" class="wb-modal hidden">
+          <div class="creator-inner">
+            <div class="creator-title">Look in the Mirror</div>
+            <div class="creator-body">
+              <canvas id="creatorPreviewCanvas" width="144" height="144"></canvas>
+              <div class="creator-controls">
+              <h3>Skin Tone</h3>
+              <div class="skin-row" id="creatorSkinRow"></div>
+              <h3>Hair</h3>
+              <div id="creatorHairSelect"></div>
+              <div class="swatches" id="creatorHairSwatches"></div>
+              <h3>Outfit</h3>
+              <div id="creatorOutfitButtons"></div>
+            </div>
+          </div>
+          <div class="creator-close-row"><button id="creatorCloseBtn">Done</button></div>
+        </div>
+      </div>
+
+      <div id="inventoryModal" class="wb-modal hidden">
+        <div class="creator-inner">
+          <div class="creator-title">Inventory</div>
+          <div class="creator-body">
+            <canvas id="invPreviewCanvas" width="144" height="144"></canvas>
+            <div class="creator-controls">
+              <h3>Items (tap to equip / unequip)</h3>
+              <div class="inv-grid" id="invGrid"></div>
+              <h3>Equipped</h3>
+              <div id="equippedList" style="font-size:12px; color: var(--muted); line-height:1.6;"></div>
+            </div>
+          </div>
+          <div class="creator-close-row"><button id="invCloseBtn">Close</button></div>
+        </div>
+      </div>
+
+      <div id="chestModal" class="wb-modal hidden">
+        <div class="wb-modal-inner">
+          <div class="wb-modal-title" id="chestTitle">Chest</div>
+          <div id="chestBody"></div>
+        </div>
+      </div>
+
+      <div id="shopModal" class="wb-modal hidden">
+        <div class="wb-modal-inner">
+          <div class="wb-modal-title" id="shopTitle">Shop</div>
+          <div id="shopBody"></div>
+        </div>
+      </div>
+    </div>
+    <div id="hint">Arrow keys / WASD to walk</div>
+  </div>
+  </div>
+
+  <!-- MINI-GAME OVERLAY -->
+  <div class="hidden" id="gameOverlay">
+    <div class="game-overlay-bar">
+      <button class="backbtn" id="btnBackToTown">← Back to town</button>
+      <span id="overlayTitle" style="font-weight:800;color:#f2c230"></span>
+    </div>
+    <iframe id="gameFrame" src=""></iframe>
+  </div>
+
+  <!-- BATTLE OVERLAY: full-screen like the mini-game overlay above, question on the left,
+       player/monster + HP bars on the right -->
+  <div class="hidden" id="battleOverlay">
+    <div class="battle-frame">
+      <div class="battle-left">
+        <div class="battle-topbar">
+          <span class="battle-mode-tag"><span class="dot"></span><span id="battleModeTag">Battle</span></span>
+          <button class="backbtn" id="battleLeaveBtn">Leave Battle</button>
+        </div>
+        <div id="battleBody"></div>
+      </div>
+      <div class="battle-right">
+        <div class="battle-combatant">
+          <div class="battle-hp-wrap">
+            <div class="battle-hp-name" id="battleMonsterName">Monster</div>
+            <div class="battle-hp-bar"><div class="battle-hp-fill" id="battleMonsterHpFill"></div></div>
+          </div>
+          <div class="battle-sprite-wrap"><img id="battleMonsterSprite" class="battle-sprite" alt=""></div>
+        </div>
+        <div class="battle-combatant">
+          <div class="battle-hp-wrap">
+            <div class="battle-hp-name">You</div>
+            <div class="battle-hp-bar"><div class="battle-hp-fill" id="battlePlayerHpFill"></div></div>
+          </div>
+          <div class="battle-sprite-wrap"><canvas id="battlePlayerSprite" class="battle-sprite" width="100" height="100"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="manifest.js"></script>
+  <script src="assets_data.js"></script>
+  <script src="monster_assets.js"></script>
+  <script src="dojo_assets.js"></script>
+  <script src="character.js"></script>
+  <script src="world.js"></script>
+  <script src="placevalue.js"></script>
+  <script src="quests.js"></script>
+  <script src="battle.js"></script>
+  <script src="pvp.js"></script>
+  <script src="items.js"></script>
+  <script src="gameplay.js"></script>
+  <script src="npcs.js"></script>
+  <script src="dojo.js"></script>
+  <script src="session.js"></script>
+</body>
+</html>

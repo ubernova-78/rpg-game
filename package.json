@@ -1,0 +1,10 @@
+{
+  "name": "rpg-learning-game",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test_battle.js && node tests/test_dojo_matchmaking.js && node tests/test_pvp_duel.js && node tests/test_workbench_zero.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.0"
+  }
+}

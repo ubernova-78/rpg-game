@@ -1,0 +1,1275 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Place Value Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="shared-student.js"></script>
+<script src="placevalue.js"></script>
+<link rel="stylesheet" href="placevalue.css">
+
+<style>
+:root{
+  --bench:#14232a;
+  --bench2:#1d3038;
+  --bench3:#27424c;
+  --enamel:#dbe5de;
+  --enamel-dim:#aebbb4;
+  --brass:#d6a03c;
+  --brass-dim:#8a6a2c;
+  --teal:#39a08c;
+  --teal-deep:#1f6d5f;
+  --signal:#d1553c;
+  --ink:#0c1a1f;
+  --disp:'Big Shoulders Display','Arial Narrow',sans-serif;
+  --body:'Atkinson Hyperlegible',system-ui,sans-serif;
+  --mono:'Space Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bench);
+  background-image:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 1px,transparent 1px 46px),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 46px);
+  color:var(--enamel);
+  font-family:var(--body);
+  min-height:100vh;
+  padding:18px 16px 40px;
+}
+.wrap{max-width:940px;margin:0 auto}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+h1{
+  font-family:var(--disp);font-weight:800;letter-spacing:.055em;text-transform:uppercase;
+  font-size:clamp(26px,5vw,42px);line-height:.95;margin:0;color:var(--enamel);
+}
+h1 .sub{display:block;font-family:var(--body);font-weight:400;text-transform:none;letter-spacing:0;
+  font-size:13px;color:var(--enamel-dim);margin-top:6px}
+.score{text-align:right;flex-shrink:0}
+.score .n{font-family:var(--mono);font-weight:700;font-size:38px;color:var(--brass);line-height:1}
+.score .l{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--enamel-dim)}
+
+/* ---------- progress rail ---------- */
+.rail{position:relative;height:14px;background:var(--bench2);border:1px solid var(--bench3);
+  border-radius:2px;margin:0 0 22px;overflow:visible}
+.rail .fill{height:100%;background:linear-gradient(90deg,var(--teal-deep),var(--teal));width:0%;
+  transition:width .45s cubic-bezier(.3,.9,.3,1)}
+.rail .notch{position:absolute;top:-5px;width:2px;height:24px;background:var(--bench3)}
+.rail .notch.lit{background:var(--brass);box-shadow:0 0 8px rgba(214,160,60,.7)}
+
+/* ---------- panel ---------- */
+.panel{background:var(--bench2);border:1px solid var(--bench3);border-radius:4px;
+  padding:20px 20px 24px;position:relative}
+.mode-tag{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.14em;
+  font-size:20px;display:inline-flex;align-items:center;gap:10px;margin:0 0 4px}
+.mode-tag .dot{width:9px;height:9px;border-radius:50%;background:var(--brass)}
+.prompt{color:var(--enamel-dim);font-size:14px;margin:0 0 18px}
+.round{position:absolute;top:20px;right:20px;font-family:var(--mono);font-size:12px;color:var(--enamel-dim)}
+
+/* ---------- money tray ---------- */
+.tray{background:#0f1c22;border:1px solid var(--bench3);border-radius:3px;
+  padding:14px;min-height:150px;display:flex;flex-direction:column;gap:9px;justify-content:center}
+.tray.build{gap:6px}
+.denom-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:34px}
+.denom-row .items{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pop{animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* stepper row for build mode */
+.step-row{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:3px;
+  background:rgba(255,255,255,.028)}
+.step-row .art{width:52px;display:flex;justify-content:center;flex-shrink:0}
+.step-row .place{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--enamel-dim);
+  width:88px;flex-shrink:0}
+.stepper{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.stepper button{width:34px;height:34px;font-size:20px;line-height:1;border-radius:3px;
+  border:1px solid var(--bench3);background:var(--bench2);color:var(--enamel);cursor:pointer;
+  font-family:var(--mono);padding:0}
+.stepper button:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
+.stepper button:disabled{opacity:.3;cursor:default}
+.stepper .cnt{width:34px;text-align:center;font-family:var(--mono);font-weight:700;font-size:19px;color:var(--brass)}
+.step-row .mini{display:flex;gap:3px;flex-wrap:wrap;align-items:center;flex:1;min-width:0}
+
+/* ---------- pull-it-out mode ---------- */
+.tray.pull{gap:10px;justify-content:flex-start}
+.supply{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:4px 4px 10px;
+  border-bottom:1px dashed var(--bench3)}
+.supply-tile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 9px;
+  border:1px solid var(--bench3);border-radius:3px;background:var(--bench2);cursor:grab;
+  touch-action:none;user-select:none;min-width:66px}
+.supply-tile:hover{border-color:var(--teal)}
+.supply-tile:active{cursor:grabbing}
+.supply-tile.maxed{opacity:.35;cursor:default}
+.supply-tile .lbl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--enamel-dim);text-align:center;line-height:1.2}
+.dropzone{min-height:126px;border:2px dashed var(--bench3);border-radius:3px;padding:9px;
+  display:flex;flex-direction:column;gap:7px;justify-content:center;transition:border-color .15s}
+.dropzone.over{border-color:var(--brass);background:rgba(214,160,60,.08)}
+.dz-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dz-row .tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--enamel-dim);width:86px;flex-shrink:0}
+.dz-item{cursor:pointer;border-radius:50%}
+.dz-item:hover{outline:2px solid var(--signal);outline-offset:1px}
+.dz-empty{text-align:center;color:#4b5f67;font-size:13px}
+.ghost{position:fixed;pointer-events:none;z-index:99;opacity:.9;transform:translate(-50%,-50%)}
+
+/* ---------- place-the-point mode ---------- */
+.places.pointmode{flex-direction:column;gap:16px;align-items:center}
+.pointrow{display:flex;justify-content:center;align-items:flex-end;gap:0}
+.pdigit{width:clamp(40px,8vw,56px);height:62px;border:2px solid var(--bench3);border-radius:3px;
+  background:#0f1c22;color:var(--enamel);font-family:var(--mono);font-weight:700;font-size:30px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pgap{width:28px;height:62px;display:flex;align-items:flex-end;justify-content:center;
+  cursor:pointer;border-radius:3px;flex-shrink:0;transition:background .12s}
+.pgap:hover{background:rgba(214,160,60,.16)}
+.pgap.over{background:rgba(214,160,60,.3)}
+.pgap .slotdot{width:10px;height:10px;border-radius:50%;
+  border:1px dashed var(--brass-dim);margin-bottom:13px}
+.pgap.filled .slotdot{border:none;background:var(--brass);width:13px;height:13px;margin-bottom:11px}
+.pgap.good{background:rgba(57,160,140,.24)}
+.pgap.good .slotdot{background:var(--teal)}
+.pgap.bad{background:rgba(209,85,60,.22)}
+.pgap.bad .slotdot{background:var(--signal)}
+.tokenbar{display:flex;align-items:center;gap:11px;justify-content:center}
+.tokenbar .cap{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--enamel-dim)}
+.ptoken{width:46px;height:46px;border-radius:3px;border:1px solid var(--bench3);
+  background:var(--bench2);display:flex;align-items:flex-end;justify-content:center;
+  cursor:grab;touch-action:none;user-select:none;padding-bottom:9px}
+.ptoken:hover{border-color:var(--brass)}
+.ptoken:active{cursor:grabbing}
+.ptoken .dot{width:13px;height:13px;border-radius:50%;background:var(--brass)}
+.ptoken.spent{opacity:.3;cursor:default}
+
+/* ---------- sign-in, results, leaderboard, teacher ---------- */
+.field{text-align:left;margin-bottom:13px}
+.field label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--enamel-dim);margin-bottom:6px}
+.field input,.field select{width:100%;padding:12px 13px;border-radius:3px;
+  border:2px solid var(--bench3);background:#0f1c22;color:var(--enamel);
+  font-family:var(--body);font-size:16px;min-height:48px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--brass)}
+.lvl:disabled{opacity:.35;cursor:default}
+.lvl:disabled:hover{border-color:var(--bench3)}
+.who{font-size:12px;color:var(--enamel-dim);margin-bottom:14px}
+.reward-card{border-color:var(--brass)!important;box-shadow:0 0 42px rgba(214,160,60,.3)}
+.reward-band{background:var(--brass);color:#241704;font-family:var(--disp);font-weight:800;
+  text-transform:uppercase;letter-spacing:.13em;font-size:19px;padding:11px;border-radius:3px;
+  margin:0 0 16px}
+.bigscore{font-family:var(--mono);font-weight:700;font-size:52px;color:var(--brass);line-height:1}
+.statrow{display:flex;justify-content:center;gap:26px;margin:12px 0 18px}
+.statrow div{text-align:center}
+.statrow .v{font-family:var(--mono);font-weight:700;font-size:21px;color:var(--enamel)}
+.statrow .k{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--enamel-dim)}
+.lb{margin:16px 0 6px;text-align:left}
+.lb h3{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.12em;
+  font-size:15px;color:var(--enamel-dim);margin:0 0 9px}
+.lb table{width:100%;border-collapse:collapse;font-size:13px}
+.lb th{text-align:left;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--enamel-dim);padding:0 6px 6px;font-weight:400}
+.lb td{padding:6px;border-top:1px solid var(--bench3)}
+.lb td.rk{font-family:var(--mono);color:var(--brass);width:26px}
+.lb td.sc,.lb td.tm{font-family:var(--mono);text-align:right;width:58px}
+.lb tr.me td{background:rgba(214,160,60,.12);color:var(--brass)}
+.lb .none{font-size:12px;color:var(--enamel-dim);font-style:italic}
+.tpanel{max-width:840px;text-align:left}
+.tpanel table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.tpanel th{text-align:left;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--enamel-dim);padding:0 6px 6px;font-weight:400}
+.tpanel td{padding:5px 6px;border-top:1px solid var(--bench3)}
+.tpanel .yes{color:var(--teal);font-weight:700}
+.tscroll{max-height:46vh;overflow:auto;margin-bottom:14px}
+.tbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.tbar select{padding:8px 10px;border-radius:3px;border:1px solid var(--bench3);
+  background:#0f1c22;color:var(--enamel);font-family:var(--body);font-size:13px}
+.warn{font-size:12px;color:var(--signal);margin-top:10px}
+
+/* ---------- leaderboard panel ---------- */
+.lbpanel table{width:100%;border-collapse:collapse;margin-top:16px}
+.lbpanel th{text-align:left;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--enamel-dim);padding:0 8px 8px;font-weight:400}
+.lbpanel td{padding:9px 8px;border-top:1px solid var(--bench3);text-align:left}
+.lbpanel tr.top1 td{background:rgba(232,196,104,.10)}
+.lbpanel tr.top2 td{background:rgba(199,205,210,.08)}
+.lbpanel tr.top3 td{background:rgba(201,138,85,.09)}
+.medal{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;
+  border-radius:50%;font-family:var(--mono);font-weight:700;font-size:13px;flex-shrink:0}
+.medal.plain{background:transparent;color:var(--enamel-dim)}
+.medal.g1{background:linear-gradient(160deg,#f3d789,#c99a3a);color:#241704}
+.medal.g2{background:linear-gradient(160deg,#e2e7ea,#a8b1b8);color:#1a1f22}
+.medal.g3{background:linear-gradient(160deg,#d59d6c,#9e6738);color:#241704}
+.lbtabs{display:block!important;text-align:center!important}
+
+/* ---------- the scale (signature) ---------- */
+.scale{margin:22px 0 4px;position:relative}
+.scale-line{position:absolute;left:0;right:0;top:52px;height:1px;background:var(--brass-dim)}
+.places{display:flex;justify-content:center;align-items:flex-end;gap:0;position:relative;z-index:1}
+.place-col{display:flex;flex-direction:column;align-items:center;width:clamp(44px,9.5vw,66px)}
+.place-col.pt{width:clamp(20px,3.5vw,28px)}
+.tick{width:1px;height:12px;background:var(--brass-dim)}
+.tick.on{background:var(--brass);width:2px;height:17px}
+.plabel{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--enamel-dim);
+  margin-bottom:5px;text-align:center;line-height:1.15;height:22px;display:flex;align-items:flex-end;justify-content:center}
+.place-col.off .plabel{color:#42555c}
+.box{width:100%;max-width:56px;height:60px;margin-top:8px;border:2px solid var(--bench3);
+  border-radius:3px;background:#0f1c22;color:var(--enamel);font-family:var(--mono);font-weight:700;
+  font-size:30px;text-align:center;padding:0;-moz-appearance:textfield}
+.box::-webkit-outer-spin-button,.box::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.box:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(214,160,60,.28)}
+.box.locked{background:repeating-linear-gradient(45deg,#0f1c22 0 5px,#152229 5px 10px);
+  border-color:#22353d;color:#3b4e56}
+.box.good{border-color:var(--teal);background:rgba(57,160,140,.16);color:#8fe0cf}
+.box.bad{border-color:var(--signal);background:rgba(209,85,60,.14);color:#f0a292}
+.box.reveal{border-color:var(--brass);color:var(--brass);background:rgba(214,160,60,.1)}
+.dpoint{font-family:var(--mono);font-weight:700;font-size:34px;color:var(--brass);
+  height:60px;margin-top:8px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+.target{font-family:var(--mono);font-weight:700;font-size:clamp(30px,6vw,44px);color:var(--brass);
+  text-align:center;letter-spacing:.05em;padding:10px 0}
+
+/* ---------- feedback + actions ---------- */
+.feedback{min-height:30px;margin:14px 0 4px;text-align:center;font-size:15px;font-weight:700}
+.feedback.ok{color:var(--teal)}
+.feedback.no{color:var(--signal)}
+.feedback.info{color:var(--brass)}
+.actions{display:block!important;text-align:center!important;margin-top:6px}
+.btn{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.11em;
+  font-size:18px;padding:12px 30px!important;border-radius:3px;border:2px solid var(--teal);
+  background:var(--teal);color:#07171a;cursor:pointer!important;min-height:48px;
+  display:inline-block!important;position:relative!important;float:none!important;
+  top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+  transform:none!important;width:auto!important;
+  z-index:2!important;pointer-events:auto!important;
+  vertical-align:top;margin:6px 9px!important;white-space:nowrap!important}
+.btn:hover{background:#45b39d;border-color:#45b39d}
+.btn.ghost{background:transparent;color:var(--enamel-dim);border-color:var(--bench3)}
+.btn.ghost:hover{color:var(--enamel);border-color:var(--enamel-dim);background:transparent}
+.btn.brass{background:var(--brass);border-color:var(--brass);color:#241704}
+.btn.brass:hover{background:#e8b354;border-color:#e8b354}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+
+/* ---------- shelf ---------- */
+.shelf-wrap{margin-top:26px}
+.shelf-head{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.14em;
+  font-size:17px;color:var(--enamel-dim);margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline}
+.shelf{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--bench2);
+  border:1px solid var(--bench3);border-bottom:none;border-radius:3px 3px 0 0}
+.slot{padding:14px 8px 12px;text-align:center;border-right:1px solid var(--bench3);min-height:132px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px}
+.slot:last-child{border-right:none}
+.slot .art{height:56px;display:flex;align-items:flex-end;justify-content:center}
+.slot .nm{font-size:11px;line-height:1.3;font-weight:700}
+.slot .req{font-family:var(--mono);font-size:11px;color:#4b5f67}
+.slot.locked .art{opacity:.18}
+.slot.locked .nm{color:#4b5f67;font-weight:400}
+.slot.unlocked .nm{color:var(--brass)}
+.slot.unlocked .art{animation:rise .5s ease}
+@keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.plank{height:12px;background:linear-gradient(180deg,#6b4a2a,#4a3219);border-radius:0 0 3px 3px;
+  box-shadow:0 3px 7px rgba(0,0,0,.45)}
+
+/* ---------- start / win overlay ---------- */
+.overlay{position:fixed;inset:0;background:rgba(9,20,25,.94);display:flex;align-items:center;
+  justify-content:center;padding:24px;z-index:50;overflow-y:auto}
+.card{background:var(--bench2);border:1px solid var(--brass);border-radius:4px;padding:34px;
+  max-width:520px;width:100%;text-align:center;max-height:calc(100vh - 48px);overflow-y:auto;
+  margin:auto}
+.card h2{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+  font-size:30px;margin:0 0 6px}
+.card p{color:var(--enamel-dim);font-size:14px;margin:0 0 20px;line-height:1.6}
+.levels{display:flex;flex-direction:column;gap:9px;margin-bottom:6px}
+.lvl{text-align:left;padding:13px 16px;border:2px solid var(--bench3);border-radius:3px;
+  background:transparent;color:var(--enamel);cursor:pointer;font-family:var(--body);min-height:48px}
+.lvl:hover{border-color:var(--teal)}
+.lvl b{display:block;font-family:var(--disp);font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;font-size:17px}
+.lvl span{font-size:12px;color:var(--enamel-dim)}
+
+@media (max-width:620px){
+  .step-row .place{width:100%;order:-1}
+  .step-row{flex-wrap:wrap}
+  .shelf{grid-template-columns:repeat(2,1fr)}
+  .slot:nth-child(2){border-right:none}
+  .slot:nth-child(-n+2){border-bottom:1px solid var(--bench3)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>The Place Value Workbench
+      <span class="sub">Hundreds to thousandths &middot; read the pile, build the number</span></h1>
+    <div class="score"><div class="n" id="score">0</div><div class="l">of 120 points</div></div>
+  </header>
+
+  <div class="rail"><div class="fill" id="fill"></div>
+    <div class="notch" id="n1" style="left:25%"></div>
+    <div class="notch" id="n2" style="left:50%"></div>
+    <div class="notch" id="n3" style="left:75%"></div>
+    <div class="notch" id="n4" style="left:calc(100% - 2px)"></div>
+  </div>
+
+  <div class="panel">
+    <div class="round" id="round">Round 1</div>
+    <div class="mode-tag"><span class="dot"></span><span id="modeName">Read it</span></div>
+    <p class="prompt" id="prompt">Count what is on the bench. Type the number.</p>
+
+    <div class="tray" id="tray"></div>
+
+    <div class="scale" id="scaleWrap">
+      <div class="scale-line"></div>
+      <div class="places" id="places"></div>
+    </div>
+
+    <!-- Read It / Build It / Place the Point render entirely into this one container via
+         the shared placevalue.js engine (same code battle uses) — #tray/#scaleWrap above
+         are only used for Pull It Out, which isn't part of the shared engine (see
+         placevalue.js's header comment for why). render() below toggles which pair is
+         visible depending on the round's mode. -->
+    <div class="pv-engine-host" id="pvEngineHost" style="display:none;"></div>
+
+    <div class="feedback" id="feedback"></div>
+    <div class="actions" id="actions"></div>
+  </div>
+
+  <div class="shelf-wrap">
+    <div class="shelf-head"><span>The physics shelf</span><span id="shelfCount">0 of 4</span></div>
+    <div class="shelf" id="shelf"></div>
+    <div class="plank"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+/* ============================================================
+   FIREBASE SETUP.
+   The connection itself (config + firebase.initializeApp) now lives
+   in shared-student.js, loaded above, so every game in Class Quest
+   uses the exact same project without initializing it twice. This
+   file reuses that connection for its own "scores" path + teacher auth.
+   ============================================================ */
+const PERIODS = ['2','6','7'];
+const ROUNDS  = 12;
+const CANDY_MIN = 100;          // full range + this score = candy
+
+let DB=Shared.DB, AUTH=null, DB_OK=Shared.DB_OK, LOCAL=[], LOCAL_N=0, TEACHER=null;
+(function initAuth(){
+  if(!DB_OK) return;
+  try{
+    AUTH=firebase.auth();
+    AUTH.onAuthStateChanged(u=>{
+      TEACHER=u;
+      if(location.hash==='#teacher' && typeof renderTeacher==='function') renderTeacher();
+    });
+  }catch(e){ console.warn('Auth off:',e); }
+})();
+
+function saveRun(rec){
+  LOCAL.push(Object.assign({_key:'local'+(++LOCAL_N)},rec));
+  if(!DB_OK) return Promise.resolve(false);
+  return DB.ref('scores').push(rec).then(()=>true).catch(e=>{
+    console.warn('save failed',e); return false;
+  });
+}
+
+/* ---- shared student record (name+PIN, EXP, coins, leveling) — defined once in shared-student.js ---- */
+function loadOrCreateStudent(name, pinVal, period){ return Shared.loadOrCreateStudent(name, pinVal, period); }
+function saveStudent(nameKey, record){ return Shared.saveStudent(nameKey, record); }
+function getLevelInfo(totalEXP){ return Shared.getLevelInfo(totalEXP); }
+// Station difficulty -> EXP per correct round (10 pts = 1 correct round), matches Measure Distance Workbench's easy/medium/hard rates.
+const LEVEL_EXP_RATE = { warmup:5, standard:10, full:20 };
+
+// ---- Embedding: accept a login handoff from a hub page ----
+let EMBED_LOGIN = null;
+window.addEventListener('message', e=>{
+  if(e.data && e.data.type === 'pvb-login'){
+    EMBED_LOGIN = e.data;
+    // The login often arrives AFTER start() already rendered the sign-in card
+    // (the parent only posts once this iframe finishes loading). Re-render so
+    // the card picks up EMBED_LOGIN instead of asking for name/PIN again.
+    if(location.hash!=='#teacher' && typeof start==='function') start();
+  }
+});
+function loadRuns(){
+  if(!DB_OK) return Promise.resolve(LOCAL.slice());
+  return DB.ref('scores').once('value')
+    .then(sn=>{ const out=[]; sn.forEach(c=>{ const v=c.val()||{}; v._key=c.key; out.push(v); }); return out; })
+    .catch(e=>{ console.warn('load failed',e); return LOCAL.slice(); });
+}
+function renameRecords(keys, newName){
+  const nk=newName.trim().toLowerCase();
+  if(!DB_OK){
+    LOCAL.forEach(r=>{ if(keys.indexOf(r._key)>-1){ r.name=newName.trim(); r.nameKey=nk; } });
+    return Promise.resolve(true);
+  }
+  const up={};
+  keys.forEach(k=>{ up[k+'/name']=newName.trim(); up[k+'/nameKey']=nk; });
+  return DB.ref('scores').update(up).then(()=>true).catch(e=>{console.warn(e);return false;});
+}
+function deleteRecords(keys){
+  if(!DB_OK){
+    LOCAL = LOCAL.filter(r=>keys.indexOf(r._key)===-1);
+    return Promise.resolve(true);
+  }
+  const up={};
+  keys.forEach(k=>{ up[k]=null; });
+  return DB.ref('scores').update(up).then(()=>true).catch(e=>{console.warn(e);return false;});
+}
+
+// best run per student (per level), for leaderboard + export
+function bestBy(runs, keyFn){
+  const m={};
+  runs.forEach(r=>{
+    const k=keyFn(r); const cur=m[k];
+    if(!cur || r.score>cur.score || (r.score===cur.score && r.timeSec<cur.timeSec)) m[k]=r;
+  });
+  return Object.values(m);
+}
+const fmtTime=sec=>{
+  sec=Math.max(0,Math.round(sec));
+  return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
+};
+
+/* ============ money artwork ============ */
+function bill(v,w){
+  const h=Math.round(w*0.44);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 100 44" aria-hidden="true">
+    <rect x="1" y="1" width="98" height="42" rx="2" fill="#2f5c46" stroke="#1c3b2c" stroke-width="1.5"/>
+    <rect x="6" y="6" width="88" height="32" rx="1" fill="none" stroke="#79a68d" stroke-width="1"/>
+    <circle cx="50" cy="22" r="12" fill="#3d7358" stroke="#79a68d" stroke-width="1"/>
+    <text x="50" y="22" font-family="Space Mono, monospace" font-size="13" font-weight="700"
+      dominant-baseline="central" text-anchor="middle" style="fill:#dbeae1">${v}</text>
+    <text x="12" y="14" font-family="Space Mono, monospace" font-size="8" style="fill:#a8c9b6">${v}</text>
+    <text x="88" y="36" font-family="Space Mono, monospace" font-size="8" text-anchor="end" style="fill:#a8c9b6">${v}</text>
+  </svg>`;
+}
+function coin(kind,d){
+  if(kind==='dime') return `<svg width="${d}" height="${d}" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="20" cy="20" r="18.5" fill="#9aa6ab" stroke="#6c777c" stroke-width="1.6"/>
+    <circle cx="20" cy="20" r="14" fill="none" stroke="#b8c2c6" stroke-width="1"/>
+    <text x="20" y="17" font-family="Space Mono, monospace" font-size="11" font-weight="700"
+      text-anchor="middle" style="fill:#3b4448">10</text>
+    <text x="20" y="28" font-family="Space Mono, monospace" font-size="7"
+      text-anchor="middle" style="fill:#3b4448">CENT</text></svg>`;
+  return `<svg width="${d}" height="${d}" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="20" cy="20" r="18.5" fill="#b5723f" stroke="#7d4a25" stroke-width="1.6"/>
+    <circle cx="20" cy="20" r="14" fill="none" stroke="#d49c70" stroke-width="1"/>
+    <text x="20" y="17" font-family="Space Mono, monospace" font-size="11" font-weight="700"
+      text-anchor="middle" style="fill:#4a2c14">1</text>
+    <text x="20" y="28" font-family="Space Mono, monospace" font-size="7"
+      text-anchor="middle" style="fill:#4a2c14">CENT</text></svg>`;
+}
+function mill(d){
+  return `<svg width="${d}" height="${d}" viewBox="0 0 40 40" aria-hidden="true">
+    <path d="M20 20 L20 1.5 A18.5 18.5 0 0 1 30.87 5.03 Z" fill="#b5723f" stroke="#7d4a25" stroke-width="1.4"/>
+    <circle cx="20" cy="20" r="18.5" fill="none" stroke="#4a5b62" stroke-width="1" stroke-dasharray="2 3"/>
+    <text x="23.5" y="10" font-family="Space Mono, monospace" font-size="6" font-weight="700"
+      text-anchor="middle" style="fill:#3a2110">1/10</text></svg>`;
+}
+
+/* ============ places ============ */
+// .art() now delegates to the shared placevalue.js art generators (same visual size as
+// battle uses) — .small() stays local since it's only used by Pull It Out's dropzone
+// display, which isn't part of the shared engine (see placevalue.js's header comment).
+const PLACES=[
+  {key:'hundreds',   label:'Hundreds',    art:()=>pvBill(100,64), small:()=>bill(100,40)},
+  {key:'tens',       label:'Tens',        art:()=>pvBill(10,58),  small:()=>bill(10,38)},
+  {key:'ones',       label:'Ones',        art:()=>pvBill(1,52),   small:()=>bill(1,36)},
+  {key:'tenths',     label:'Tenths',      art:()=>pvCoin('dime',38), small:()=>coin('dime',22)},
+  {key:'hundredths', label:'Hundredths',  art:()=>pvCoin('penny',39),small:()=>coin('penny',23)},
+  {key:'thousandths',label:'Thousandths', art:()=>pvMill(39),     small:()=>mill(23)}
+];
+const LEVELS={
+  warmup:  {lo:2,hi:4,name:'Warm-up',  desc:'Ones, tenths, hundredths. Dollars, dimes, pennies.'},
+  standard:{lo:1,hi:5,name:'Standard', desc:'Tens down to thousandths. Mill wedges are in play.'},
+  full:    {lo:0,hi:5,name:'Full range',desc:'Every place, hundreds to thousandths.'}
+};
+
+/* ============ rewards ============ */
+const REWARDS=[
+  {at:30, name:'Slightly Bent Paperclip', art:`<svg width="46" height="52" viewBox="0 0 46 52">
+     <path d="M14 46 L14 16 A8 8 0 0 1 30 16 L30 38 A5.5 5.5 0 0 1 19 38 L19 22"
+       fill="none" stroke="#c9d2d6" stroke-width="3.4" stroke-linecap="round"/>
+     <path d="M14 46 l-4 5" fill="none" stroke="#c9d2d6" stroke-width="3.4" stroke-linecap="round"/></svg>`},
+  {at:60, name:'Calipers That Close All The Way', art:`<svg width="58" height="52" viewBox="0 0 58 52">
+     <rect x="5" y="20" width="48" height="9" rx="1.5" fill="#8e9aa0" stroke="#5c686e" stroke-width="1.4"/>
+     <rect x="7" y="10" width="7" height="12" fill="#8e9aa0" stroke="#5c686e" stroke-width="1.4"/>
+     <rect x="30" y="10" width="7" height="12" fill="#b7c1c6" stroke="#5c686e" stroke-width="1.4"/>
+     <rect x="28" y="16" width="14" height="18" rx="1.5" fill="#d6a03c" stroke="#8a6a2c" stroke-width="1.4"/>
+     <path d="M8 29 l0 9 M12 29 l0 6 M16 29 l0 6 M20 29 l0 9 M24 29 l0 6" stroke="#5c686e" stroke-width="1.2"/></svg>`},
+  {at:90, name:'Stopwatch, Cracked But Honest', art:`<svg width="48" height="52" viewBox="0 0 48 52">
+     <rect x="20" y="3" width="8" height="7" rx="1.5" fill="#8e9aa0" stroke="#5c686e" stroke-width="1.3"/>
+     <circle cx="24" cy="29" r="18" fill="#dbe5de" stroke="#5c686e" stroke-width="2.4"/>
+     <circle cx="24" cy="29" r="13.5" fill="none" stroke="#9aa6ab" stroke-width="1"/>
+     <path d="M24 29 L24 18 M24 29 L32 34" stroke="#14232a" stroke-width="2" stroke-linecap="round"/>
+     <path d="M13 18 L21 31 L16 33 L26 44" fill="none" stroke="#8a9299" stroke-width="1.2"/></svg>`},
+  {at:120,name:'The Golden Mill', art:`<svg width="50" height="54" viewBox="0 0 50 54">
+     <path d="M11 8 h28 v13 a14 14 0 0 1 -28 0 Z" fill="#d6a03c" stroke="#8a6a2c" stroke-width="1.6"/>
+     <path d="M11 11 h-6 a6 6 0 0 0 6 10 M39 11 h6 a6 6 0 0 1 -6 10" fill="none" stroke="#8a6a2c" stroke-width="2"/>
+     <rect x="21" y="34" width="8" height="8" fill="#b8862b"/>
+     <rect x="13" y="42" width="24" height="7" rx="1.5" fill="#6b4a2a" stroke="#4a3219" stroke-width="1.3"/>
+     <path d="M25 12 L25 19 A7 7 0 0 0 29.1 17.7 Z" fill="#fbeec4"/></svg>`}
+];
+
+/* ============ state ============ */
+const GOAL=120;
+let S={score:0,round:1,mode:'read',level:'standard',digits:[],counts:[],attempt:1,
+       solved:false,name:'',period:'',t0:0,demo:false};
+
+const $=id=>document.getElementById(id);
+const rnd=n=>Math.floor(Math.random()*n);
+// The actual active window is now randomized per round (see newProblem() below) — always
+// a subset of the chosen level's range, never the fixed level range itself. That's the
+// actual fix for "the decimal point always lands in the same spot": it used to be
+// active()==LEVELS[S.level] every single round, so within one level every problem had
+// literally the same shape. S.active stores whichever window this round's problem
+// actually got.
+const active=()=>S.active||[];
+
+function newProblem(){
+  const L=LEVELS[S.level];
+  const pile=generatePVDigits({lo:L.lo,hi:L.hi});
+  S.active=pile.active;
+  S.digits=pile.digits;
+  S.counts=[0,0,0,0,0,0];
+  S.attempt=1;
+  S.solved=false;
+  S.mode = ['read','build','pull','point'][(S.round-1)%4];
+  render();
+}
+
+/* ============ rendering ============ */
+// Only ever called for Pull It Out now — read/build/point render entirely through the
+// shared engine (see render() above).
+function renderTray(){
+  const tray=$('tray'); tray.innerHTML='';
+  tray.className='tray pull';
+  renderPull(tray);
+}
+function renderPull(tray){
+  // Every denomination is offered, not just the ones in play this round — the same
+  // "don't reveal the scope through what's on offer" reasoning as Build It's rows above.
+  const allPlaces=[0,1,2,3,4,5];
+  const sup=document.createElement('div'); sup.className='supply'; sup.id='supply';
+  allPlaces.forEach(i=>{
+    const t=document.createElement('div');
+    t.className='supply-tile'; t.dataset.place=i;
+    t.setAttribute('role','button'); t.tabIndex=0;
+    t.setAttribute('aria-label','Take one '+PLACES[i].label);
+    t.innerHTML=`${PLACES[i].art()}<div class="lbl">${PLACES[i].label}</div>`;
+    sup.appendChild(t);
+  });
+  const dz=document.createElement('div'); dz.className='dropzone'; dz.id='dropzone';
+  tray.appendChild(sup); tray.appendChild(dz);
+  paintDrop(); wireDrag();
+}
+function paintDrop(){
+  const dz=$('dropzone'); if(!dz) return;
+  dz.innerHTML='';
+  const a=active(); let any=false;
+  a.forEach(i=>{
+    const n=S.counts[i]; if(!n) return; any=true;
+    const row=document.createElement('div'); row.className='dz-row';
+    const tag=document.createElement('div'); tag.className='tag'; tag.textContent=PLACES[i].label;
+    row.appendChild(tag);
+    for(let k=0;k<n;k++){
+      const sp=document.createElement('span'); sp.className='dz-item';
+      sp.innerHTML=PLACES[i].small();
+      sp.title='Put it back';
+      sp.onclick=()=>{ if(S.solved) return; S.counts[i]=Math.max(0,S.counts[i]-1); paintDrop(); };
+      row.appendChild(sp);
+    }
+    dz.appendChild(row);
+  });
+  if(!any){
+    const e=document.createElement('div'); e.className='dz-empty';
+    e.textContent='Drag money down here, or tap a piece above.';
+    dz.appendChild(e);
+  }
+  document.querySelectorAll('.supply-tile').forEach(t=>{
+    t.classList.toggle('maxed', S.counts[+t.dataset.place]>=9);
+  });
+}
+function addPiece(i){
+  if(S.solved) return;
+  if(S.counts[i]>=9){
+    const fb=$('feedback');
+    fb.textContent='Nine is as high as one place goes.'; fb.className='feedback info';
+    return;
+  }
+  S.counts[i]++; paintDrop();
+}
+function wireDrag(){
+  const dz=$('dropzone');
+  const inDz=(x,y)=>{const r=dz.getBoundingClientRect();
+    return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;};
+  document.querySelectorAll('.supply-tile').forEach(t=>{
+    const i=+t.dataset.place;
+    t.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();addPiece(i);} };
+    t.onpointerdown=e=>{
+      if(S.solved) return;
+      e.preventDefault();
+      const sx=e.clientX, sy=e.clientY;
+      let moved=false, ghost=null;
+      const move=ev=>{
+        if(!moved && Math.hypot(ev.clientX-sx,ev.clientY-sy)>6){
+          moved=true;
+          ghost=document.createElement('div'); ghost.className='ghost';
+          ghost.innerHTML=PLACES[i].art();
+          document.body.appendChild(ghost);
+        }
+        if(ghost){
+          ghost.style.left=ev.clientX+'px';
+          ghost.style.top=ev.clientY+'px';
+          dz.classList.toggle('over', inDz(ev.clientX,ev.clientY));
+        }
+      };
+      const up=ev=>{
+        window.removeEventListener('pointermove',move);
+        window.removeEventListener('pointerup',up);
+        dz.classList.remove('over');
+        if(ghost) ghost.remove();
+        if(!moved){ addPiece(i); return; }
+        if(inDz(ev.clientX,ev.clientY)) addPiece(i);
+      };
+      window.addEventListener('pointermove',move);
+      window.addEventListener('pointerup',up);
+    };
+  });
+}
+function paintMini(i){
+  const m=$('mini'+i); if(!m) return;
+  m.innerHTML='';
+  for(let k=0;k<S.counts[i];k++){const s=document.createElement('span');s.className='pop';s.innerHTML=PLACES[i].small();m.appendChild(s);}
+}
+function bump(i,dir){
+  if(S.solved) return;
+  S.counts[i]=Math.max(0,Math.min(9,S.counts[i]+dir));
+  $('cnt'+i).textContent=S.counts[i];
+  paintMini(i);
+  const dec=document.querySelector(`[data-dec="${i}"]`), inc=document.querySelector(`[data-inc="${i}"]`);
+  if(dec) dec.disabled=S.counts[i]===0; if(inc) inc.disabled=S.counts[i]===9;
+}
+
+// Only ever called for Pull It Out now (read/build/point render through the shared
+// engine) — shows the target digits as a read-only reveal above the drag-and-drop tray,
+// dimming the places outside this round's actual window.
+function renderScale(){
+  const p=$('places'); p.className='places';
+  const line=$('scaleWrap').querySelector('.scale-line'); if(line) line.style.display='';
+  p.innerHTML='';
+  const a=active();
+  PLACES.forEach((pl,i)=>{
+    if(i===3){ // decimal marker sits before tenths
+      const c=document.createElement('div'); c.className='place-col pt';
+      c.innerHTML=`<div class="plabel"></div><div class="tick on"></div><div class="dpoint">.</div>`;
+      p.appendChild(c);
+    }
+    const on=a.includes(i);
+    const col=document.createElement('div'); col.className='place-col'+(on?'':' off');
+    const short=pl.label.replace('Thousandths','Thou-<br>sandths').replace('Hundredths','Hun-<br>dredths');
+    col.innerHTML=`<div class="plabel">${short}</div><div class="tick${on?' on':''}"></div>`;
+    const box=document.createElement('input');
+    box.className='box'+(on?' reveal':' locked');
+    box.type='text'; box.inputMode='numeric'; box.maxLength=1; box.id='b'+i;
+    box.setAttribute('aria-label',pl.label+' digit');
+    box.disabled=true; box.readOnly=true; box.value=on?S.digits[i]:'';
+    col.appendChild(box);
+    p.appendChild(col);
+  });
+}
+
+function renderActions(){
+  const act=$('actions'); act.innerHTML='';
+  const usesSharedEngine = S.mode!=='pull'; // read/build/point provide their own Check it button
+  if(S.solved){
+    const last = S.round>=ROUNDS;
+    const b=document.createElement('button');
+    b.className='btn'+(last?' brass':'');
+    b.textContent = last ? 'See your results' : 'Next round';
+    b.onclick = last ? endGame : (()=>{S.round++;newProblem();});
+    act.appendChild(b);
+  }else if(!usesSharedEngine){
+    const b=document.createElement('button'); b.className='btn'; b.textContent='Check it';
+    b.onclick=check; act.appendChild(b);
+  }
+  if(S.mode==='pull' && !S.solved){
+    const c=document.createElement('button'); c.className='btn ghost'; c.textContent='Clear tray';
+    c.onclick=()=>{ S.counts=[0,0,0,0,0,0]; paintDrop();
+      $('feedback').textContent=''; $('feedback').className='feedback'; };
+    act.appendChild(c);
+  }
+  const r=document.createElement('button'); r.className='btn ghost'; r.textContent='Start over';
+  r.onclick=start; act.appendChild(r);
+}
+
+function render(){
+  $('round').textContent='Round '+S.round+' of '+ROUNDS;
+  $('modeName').textContent = S.mode==='read' ? 'Read it'
+    : S.mode==='pull' ? 'Pull it out'
+    : S.mode==='point' ? 'Place the point' : 'Build it';
+  $('feedback').textContent=''; $('feedback').className='feedback';
+
+  if(S.mode==='pull'){
+    $('pvEngineHost').style.display='none';
+    $('tray').style.display=''; $('scaleWrap').style.display=''; $('prompt').style.display='';
+    $('prompt').textContent='Drag money out of the bank to make this number. Tap a piece in the tray to put it back.';
+    renderTray(); renderScale();
+  }else{
+    $('tray').style.display='none'; $('scaleWrap').style.display='none'; $('prompt').style.display='none';
+    const host=$('pvEngineHost');
+    host.style.display='';
+    const key = S.mode==='read' ? 'place-value-read' : S.mode==='point' ? 'place-value-point' : 'place-value-build';
+    const bound = LEVELS[S.level];
+    const presetPile = { active: S.active, digits: S.digits }; // this round's problem was
+    // already generated by newProblem() — pass it through so the engine renders THIS
+    // number instead of quietly generating a different one.
+    QUESTION_MODULES[key].render(host, {
+      presetPile, bound,
+      onCorrect: award,
+      onWrong: () => {
+        S.attempt=2; // any miss after the first drops the point value for this round, same as before
+        const fb=$('feedback');
+        fb.textContent='Not quite — check your answer and try again.';
+        fb.className='feedback no';
+      },
+    });
+  }
+  renderActions();
+  renderShelf();
+}
+
+/* ============ checking ============ */
+function award(){
+  const pts=S.attempt===1?10:5;
+  S.score=Math.min(GOAL,S.score+pts);
+  S.solved=true;
+  const fb=$('feedback');
+  fb.textContent = S.attempt===1 ? `Correct. +${pts} points.` : `Correct on the second try. +${pts} points.`;
+  fb.className='feedback ok';
+  bumpScore(); renderActions();
+}
+
+// Only ever called for Pull It Out now — Read It/Build It/Place the Point are checked
+// internally by the shared engine (placevalue.js), which calls award() via onCorrect.
+function check(){
+  if(S.solved) return;
+  const a=active();
+  const fb=$('feedback');
+  const wrong=a.filter(i=>S.counts[i]!==S.digits[i]);
+
+  if(!wrong.length){ award(); return; }
+
+  if(S.attempt===1){
+    S.attempt=2;
+    const names=wrong.map(i=>PLACES[i].label.toLowerCase());
+    fb.textContent=`Not yet. Recount the ${names.join(' and ')}.`;
+    fb.className='feedback no';
+  }else{
+    S.solved=true;
+    fb.className='feedback info';
+    a.forEach(i=>{S.counts[i]=S.digits[i];});
+    paintDrop();
+    fb.textContent='Here is the correct pile. Look at it, then go again.';
+    renderActions();
+  }
+}
+
+function bumpScore(){
+  $('score').textContent=S.score;
+  $('fill').style.width=(S.score/GOAL*100)+'%';
+  REWARDS.forEach((r,k)=>{ if(S.score>=r.at) $('n'+(k+1)).classList.add('lit'); });
+  renderShelf();
+}
+
+/* ============ shelf ============ */
+function renderShelf(){
+  const sh=$('shelf'); sh.innerHTML='';
+  let got=0;
+  REWARDS.forEach(r=>{
+    const un=S.score>=r.at; if(un)got++;
+    const d=document.createElement('div'); d.className='slot '+(un?'unlocked':'locked');
+    d.innerHTML=`<div class="art">${r.art}</div>
+      <div class="nm">${un?r.name:'Empty slot'}</div>
+      <div class="req">${un?r.at+' pts':'at '+r.at+' pts'}</div>`;
+    sh.appendChild(d);
+  });
+  $('shelfCount').textContent=got+' of 4';
+}
+
+/* ============ overlays ============ */
+function start(){
+  S={score:0,round:1,mode:'read',level:S.level||'standard',digits:[],counts:[],attempt:1,
+     solved:false,name:S.name||'',period:S.period||'',t0:0,demo:false,teacher:false};
+  $('score').textContent=0; $('fill').style.width='0%';
+  [1,2,3,4].forEach(v=>$('n'+v).classList.remove('lit'));
+  $('overlay').style.display='flex';
+  $('card').className='card';
+  $('card').innerHTML=`<h2>The Place Value Workbench</h2>
+    <p>Twelve rounds, ten points each. Rounds cycle through four jobs:
+    <b>read</b> a pile and write the number, <b>build</b> a number with the counters,
+    <b>pull</b> money out of the bank to match a number, and
+    <b>place the point</b> in a number that is missing its decimal.
+    Reach 120 points and the physics shelf fills up.</p>
+    <div class="field">
+      <label for="nm">Your name</label>
+      <input id="nm" type="text" maxlength="40" autocomplete="off"
+             placeholder="First and last name" value="${(S.name||'').replace(/"/g,'&quot;')}">
+    </div>
+    <div class="field">
+      <label for="pin">Your PIN (4 digits)</label>
+      <input id="pin" type="text" maxlength="4" inputmode="numeric" autocomplete="off"
+             placeholder="e.g. 4271" value="${(S.pin||'').replace(/"/g,'&quot;')}">
+      <div style="font-size:12px;color:var(--enamel-dim);margin-top:4px">
+        First time? Pick any 4-digit PIN. Played Measure Bench or this game before? Use the same name + PIN to keep your EXP and coins.
+      </div>
+      <div id="pinError" style="display:none;color:var(--signal);font-size:12px;font-weight:700;margin-top:6px"></div>
+    </div>
+    <div class="field">
+      <label for="pd">Class period</label>
+      <select id="pd">
+        <option value="">Choose your period</option>
+        ${PERIODS.map(x=>`<option value="${x}"${S.period===x?' selected':''}>Period ${x}</option>`).join('')}
+      </select>
+    </div>
+    <div class="levels">
+      ${Object.entries(LEVELS).map(([k,v])=>
+        `<button class="lvl" data-lvl="${k}" disabled><b>${v.name}</b><span>${v.desc}</span></button>`).join('')}
+    </div>
+    ${DB_OK?'':'<div class="warn">Scores are not being saved &mdash; the teacher needs to add the database settings.</div>'}
+    <div style="margin-top:26px;padding-top:22px;border-top:1px solid var(--bench3);text-align:center">
+      <button class="btn ghost" id="lbOpenBtn" style="padding:12px 26px;font-size:14px">
+        View leaderboards</button>
+      <div style="margin-top:10px">
+        <a href="#" id="demoBtn"
+          style="display:inline-block;color:var(--enamel-dim);font-size:13px;text-decoration:underline;
+                 text-underline-offset:3px;cursor:pointer;padding:6px 4px">
+          Skip sign-in and preview the game &mdash; nothing is saved</a>
+      </div>
+    </div>`;
+
+  const nm=$('nm'), pd=$('pd'), pin=$('pin');
+  const gate=()=>{
+    const ok = nm.value.trim().length>0 && pd.value!=='' && /^\d{4}$/.test(pin.value.trim());
+    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=!ok);
+  };
+  nm.oninput=gate; pd.onchange=gate; gate();
+  pin.oninput=()=>{ pin.value=pin.value.replace(/\D/g,'').slice(0,4); gate(); };
+  nm.onkeydown=e=>{ if(e.key==='Enter') pin.focus(); };
+  pin.onkeydown=e=>{ if(e.key==='Enter') pd.focus(); };
+
+  if(EMBED_LOGIN && EMBED_LOGIN.demo){
+    S.demo = true;
+    nm.closest('.field').style.display='none';
+    pin.closest('.field').style.display='none';
+    pd.closest('.field').style.display='none';
+    const welcome=document.createElement('p');
+    welcome.style.cssText='font-weight:800;color:var(--brass)';
+    welcome.textContent='Signed in as Demo (preview mode — nothing is saved). Choose a level below.';
+    $('card').querySelector('.levels').before(welcome);
+    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=false);
+  } else if(EMBED_LOGIN){
+    nm.value = EMBED_LOGIN.name; pin.value = EMBED_LOGIN.pin; pd.value = EMBED_LOGIN.period;
+    nm.closest('.field').style.display='none';
+    pin.closest('.field').style.display='none';
+    pd.closest('.field').style.display='none';
+    const welcome=document.createElement('p');
+    welcome.style.cssText='font-weight:800;color:var(--teal)';
+    welcome.textContent = EMBED_LOGIN.teacher
+      ? `Signed in as ${EMBED_LOGIN.name} (teacher — hidden from leaderboards). Choose a level below.`
+      : `Signed in as ${EMBED_LOGIN.name}. Choose a level below.`;
+    $('card').querySelector('.levels').before(welcome);
+    gate();
+  }
+
+  $('lbOpenBtn').onclick=()=>leaderboardPanel();
+  $('demoBtn').onclick=(e)=>{
+    e.preventDefault();
+    S.demo=true;
+    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=false);
+    const flag=document.createElement('p');
+    flag.style.cssText='font-size:12px;color:var(--brass);margin:16px 0 0;font-weight:700';
+    flag.textContent='Preview mode \u2014 pick a level below. Nothing you do will be saved.';
+    $('demoBtn').parentElement.replaceWith(flag);
+  };
+
+  $('card').querySelectorAll('.lvl').forEach(b=>b.onclick=async ()=>{
+    if(b.disabled) return;
+    if(S.demo){
+      S.name='Demo'; S.period=''; S.pin=''; S.studentRecord={totalEXP:0,coins:0};
+    } else {
+      b.disabled = true;
+      const errBox=$('pinError'); errBox.style.display='none';
+      const name=nm.value.trim(), pinVal=pin.value.trim(), period=pd.value;
+      const result = await loadOrCreateStudent(name, pinVal, period);
+      if(!result.ok){
+        errBox.textContent = result.error;
+        errBox.style.display='block';
+        gate();
+        return;
+      }
+      S.name=name; S.period=period; S.pin=pinVal;
+      S.teacher = !!(EMBED_LOGIN && EMBED_LOGIN.teacher);
+      // Sticky: once marked teacher, stays hidden from leaderboards/CSV export
+      // even if this account is later used without going through the hub's checkbox.
+      result.record.isTeacher = !!(result.record.isTeacher || S.teacher);
+      S.studentRecord=result.record; S.studentKey=result.nameKey;
+      saveStudent(result.nameKey, result.record).catch(()=>{});
+    }
+    S.level=b.dataset.lvl;
+    S.t0=Date.now();
+    $('overlay').style.display='none';
+    newProblem();
+  });
+  renderShelf();
+}
+
+/* ---------- end of game ---------- */
+function endGame(){
+  const timeSec=(Date.now()-S.t0)/1000;
+  const rec={ name:S.name, nameKey:S.name.toLowerCase(), period:S.period,
+              level:S.level, score:S.score, timeSec:Math.round(timeSec),
+              ts:Date.now() };
+
+  // Award EXP/coins to the shared student record (read by Measure Bench and, later, the RPG shell).
+  // Kept in a SEPARATE object from `rec` on purpose: `rec` gets pushed straight to
+  // Firebase's "scores" path, whose rules only allow the 7 named fields above —
+  // attaching extra fields to rec (as an earlier version of this did) makes the
+  // whole scores write get silently rejected by validation.
+  let expInfo = { expEarned:0, coinsEarned:0, leveledUp:false, newLevel:1 };
+  if(!S.demo && S.studentKey && S.studentRecord){
+    const correctRounds = Math.round(rec.score/10);
+    const rate = LEVEL_EXP_RATE[rec.level] || 5;
+    expInfo.expEarned = correctRounds * rate;
+    expInfo.coinsEarned = Math.floor(expInfo.expEarned/2);
+    const before = getLevelInfo(S.studentRecord.totalEXP||0);
+    S.studentRecord.totalEXP = (S.studentRecord.totalEXP||0) + expInfo.expEarned;
+    S.studentRecord.coins = (S.studentRecord.coins||0) + expInfo.coinsEarned;
+    const after = getLevelInfo(S.studentRecord.totalEXP);
+    expInfo.leveledUp = after.level > before.level;
+    expInfo.newLevel = after.level;
+    saveStudent(S.studentKey, S.studentRecord).catch(()=>{});
+  }
+
+  if(S.demo){
+    // demo runs never touch saveRun/Firebase — nothing to undo, nothing was ever written
+    showResults(rec, false, null, expInfo);
+    return;
+  }
+  if(S.teacher){
+    // teacher accounts keep building EXP/coins (already saved above) but never
+    // appear on the class scores/leaderboard or in the teacher CSV export.
+    showResults(rec, false, 'teacher', expInfo);
+    return;
+  }
+  const candy = S.level==='full' && S.score>=CANDY_MIN;
+  saveRun(rec).then(saved=>showResults(rec,candy,saved,expInfo));
+}
+
+function showResults(rec,candy,saved,expInfo){
+  expInfo = expInfo || { expEarned:0, coinsEarned:0, leveledUp:false, newLevel:1 };
+  $('overlay').style.display='flex';
+  $('card').className='card'+(candy?' reward-card':'');
+  const lvlName=LEVELS[rec.level].name;
+  const isDemo = saved===null;
+  const isTeacherRun = saved==='teacher';
+  $('card').innerHTML=`
+    ${candy?'<div class="reward-band">Show this to your teacher</div>':''}
+    <h2>${isDemo ? 'Demo finished' : isTeacherRun ? 'Run finished' : candy?'You earned it':'Nice work'}</h2>
+    <div class="bigscore">${rec.score}</div>
+    <div class="statrow">
+      <div><div class="v">${lvlName}</div><div class="k">level</div></div>
+      <div><div class="v">${fmtTime(rec.timeSec)}</div><div class="k">time</div></div>
+      <div><div class="v">${rec.score}/${GOAL}</div><div class="k">points</div></div>
+    </div>
+    ${isDemo ? '' : `<div class="statrow">
+      <div><div class="v">${expInfo.expEarned}</div><div class="k">EXP earned</div></div>
+      <div><div class="v">${expInfo.coinsEarned}</div><div class="k">coins earned</div></div>
+    </div>`}
+    ${(!isDemo && expInfo.leveledUp) ? `<p style="font-weight:800;color:var(--brass)">\ud83c\udf89 Level up! Now Level ${expInfo.newLevel}.</p>` : ''}
+    <p>${isDemo
+      ? 'This was a demo run &mdash; nothing was saved and it will never show up on a leaderboard or in the teacher export. Ready to play for real?'
+      : isTeacherRun
+      ? 'EXP and coins were saved to your teacher character. This run is not on the class leaderboard or in the student CSV export.'
+      : candy
+      ? 'You finished Full range with '+rec.score+' points. Show this screen to your teacher to collect your reward.'
+      : rec.level==='full'
+        ? 'Full range finished. Get to '+CANDY_MIN+' points on Full range to earn a reward.'
+        : 'Try Full range next &mdash; that is the one that earns a reward at '+CANDY_MIN+' points.'}</p>
+    ${(isDemo || isTeacherRun) ? '' : `<div class="lb" id="lbwrap"><h3>Period ${rec.period} &mdash; Full range leaders</h3>
+      <div class="none">Loading&hellip;</div></div>
+      ${saved?'':'<div class="warn">This score was not saved to the class list.</div>'}`}
+    <button class="btn brass" id="again">${isDemo?'Play for real':'Play again'}</button>`;
+  $('again').onclick=start;
+  if(!isDemo && !isTeacherRun) renderLeaderboard(rec);
+}
+
+function renderLeaderboard(rec){
+  loadRuns().then(runs=>{
+    const w=$('lbwrap'); if(!w) return;
+    const rows = bestBy(
+      runs.filter(r=>r.level==='full' && String(r.period)===String(rec.period)),
+      r=>r.nameKey||String(r.name||'').toLowerCase()
+    ).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+
+    let html=`<h3>Period ${rec.period} &mdash; Full range leaders</h3>`;
+    if(!rows.length){ html+='<div class="none">No Full range finishes in this period yet. You could be first.</div>'; }
+    else{
+      html+='<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+      rows.forEach((r,i)=>{
+        const me = (r.nameKey||'')===(rec.nameKey||'') && r.score===rec.score && r.timeSec===rec.timeSec;
+        html+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td>`+
+              `<td class="sc">${r.score}</td><td class="tm">${fmtTime(r.timeSec)}</td></tr>`;
+      });
+      html+='</table>';
+    }
+    w.innerHTML=html;
+  });
+}
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- standalone leaderboard panel (from the start screen) ---------- */
+let LB_ALL=[], LB_PERIOD=null;
+
+function leaderboardPanel(){
+  $('overlay').style.display='flex';
+  $('card').className='card lbpanel';
+  $('card').style.maxWidth='560px';
+  if(!DB_OK){
+    $('card').innerHTML=`<h2>Leaderboards</h2>
+      <p>The database is not connected yet, so there is nothing to show here.</p>
+      <button class="btn brass" id="lbcloseOffline" style="margin-top:6px">Back</button>`;
+    $('lbcloseOffline').onclick=()=>start();
+    return;
+  }
+  $('card').innerHTML='<h2>Leaderboards</h2><p style="margin:0">Loading&hellip;</p>';
+  loadRuns().then(runs=>{ LB_ALL=runs; renderLB(LB_PERIOD||PERIODS[0]); });
+}
+
+function renderLB(period){
+  LB_PERIOD=period;
+  const c=$('card'); if(!c) return;
+  const tabs = PERIODS.map(p=>
+    `<button class="btn ${String(p)===String(period)?'':'ghost'}" data-per="${p}"
+       style="padding:8px 20px;font-size:14px">Period ${p}</button>`).join('');
+
+  const rows = bestBy(
+    LB_ALL.filter(r=>r.level==='full' && String(r.period)===String(period)),
+    r=>r.nameKey||String(r.name||'').toLowerCase()
+  ).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+
+  let table;
+  if(!rows.length){
+    table='<p style="margin-top:18px">No Full range finishes in this period yet.</p>';
+  }else{
+    table='<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i)=>{
+      const rank=i+1;
+      const cls = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
+      const mcls = rank===1?'g1':rank===2?'g2':rank===3?'g3':'plain';
+      table+=`<tr class="${cls}"><td><span class="medal ${mcls}">${rank}</span></td>`+
+             `<td>${esc(r.name)}</td><td style="text-align:right;font-family:var(--mono)">${r.score}</td>`+
+             `<td style="text-align:right;font-family:var(--mono)">${fmtTime(r.timeSec)}</td></tr>`;
+    });
+    table+='</table>';
+  }
+
+  c.innerHTML=`<h2>Leaderboards</h2>
+    <p style="margin:0 0 4px">Full range &mdash; top 10, best score, fastest time breaks ties.</p>
+    <div class="lbtabs" style="margin-top:14px">${tabs}</div>
+    ${table}
+    <div class="actions">
+      <button class="btn ghost" id="lbrefresh">Refresh</button>
+      <button class="btn brass" id="lbclose">Back</button>
+    </div>`;
+
+  c.querySelectorAll('[data-per]').forEach(b=>b.onclick=()=>renderLB(b.dataset.per));
+  $('lbrefresh').onclick=()=>leaderboardPanel();
+  $('lbclose').onclick=()=>start();
+}
+
+/* ---------- teacher panel: open with #teacher in the URL ---------- */
+let T_ALL=[], T_EDIT=null, T_DEL=null;
+
+function teacherPanel(){
+  $('overlay').style.display='flex';
+  $('card').className='card tpanel';
+  $('card').innerHTML='<h2>Class results</h2><div id="tbody">Loading&hellip;</div>';
+  loadRuns().then(runs=>{ T_ALL=runs; renderTeacher(); });
+}
+
+function authBar(){
+  if(!DB_OK) return '<div class="warn">Database not connected &mdash; showing this session only. Editing is off.</div>';
+  if(TEACHER) return `<div class="tbar" style="border-bottom:1px solid var(--bench3);padding-bottom:10px">
+      <span style="font-size:12px;color:var(--enamel-dim)">Signed in as <b style="color:var(--brass)">${esc(TEACHER.email)}</b> &mdash; editing on</span>
+      <button class="btn ghost" id="tout" style="padding:7px 14px;font-size:13px">Sign out</button>
+    </div>`;
+  return `<div class="tbar" style="border-bottom:1px solid var(--bench3);padding-bottom:10px">
+      <input id="tem" type="email" placeholder="teacher email" autocomplete="username"
+        style="padding:8px 10px;border-radius:3px;border:1px solid var(--bench3);background:#0f1c22;color:var(--enamel);font-family:var(--body);font-size:13px;min-width:180px">
+      <input id="tpw" type="password" placeholder="password" autocomplete="current-password"
+        style="padding:8px 10px;border-radius:3px;border:1px solid var(--bench3);background:#0f1c22;color:var(--enamel);font-family:var(--body);font-size:13px;min-width:140px">
+      <button class="btn" id="tin" style="padding:8px 16px;font-size:13px">Sign in to edit</button>
+      <span id="terr" style="font-size:12px;color:var(--signal)"></span>
+    </div>`;
+}
+
+function renderTeacher(){
+  const body=$('tbody'); if(!body) return;
+  const can = !!TEACHER || !DB_OK;
+  body.innerHTML = authBar() + `
+    <div class="tbar">
+      <select id="fp"><option value="">All periods</option>
+        ${PERIODS.map(x=>`<option value="${x}">Period ${x}</option>`).join('')}</select>
+      <select id="fl"><option value="">All levels</option>
+        ${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('')}</select>
+      <button class="btn" id="csv" style="padding:9px 18px;font-size:14px">Download CSV</button>
+      <button class="btn ghost" id="refresh" style="padding:9px 18px;font-size:14px">Refresh</button>
+      <button class="btn ghost" id="close" style="padding:9px 18px;font-size:14px">Close</button>
+    </div>
+    <div class="tscroll" id="ttable"></div>
+    ${can?'<div style="font-size:11px;color:var(--enamel-dim)">Rename changes that student everywhere in their period. Remove deletes only the runs on that row.</div>'
+        :'<div style="font-size:11px;color:var(--enamel-dim)">Sign in above to rename or remove students.</div>'}`;
+
+  if(DB_OK && !TEACHER){
+    $('tin').onclick=()=>{
+      const em=$('tem').value.trim(), pw=$('tpw').value;
+      if(!em||!pw){ $('terr').textContent='Enter both.'; return; }
+      $('terr').textContent='';
+      AUTH.signInWithEmailAndPassword(em,pw).catch(e=>{
+        $('terr').textContent = e.code==='auth/invalid-credential' ? 'Wrong email or password.' : e.message;
+      });
+    };
+    $('tpw').onkeydown=e=>{ if(e.key==='Enter') $('tin').click(); };
+  }
+  if(DB_OK && TEACHER) $('tout').onclick=()=>AUTH.signOut();
+
+  $('close').onclick=()=>{ location.hash=''; start(); };
+  $('refresh').onclick=()=>{ T_EDIT=null; T_DEL=null; loadRuns().then(r=>{T_ALL=r;renderTeacher();}); };
+  $('fp').onchange=drawTable; $('fl').onchange=drawTable;
+  $('csv').onclick=downloadCSV;
+  drawTable();
+}
+
+function currentRows(){
+  const fp=$('fp')?$('fp').value:'', fl=$('fl')?$('fl').value:'';
+  const groups={};
+  T_ALL.forEach(r=>{
+    const nk=r.nameKey||String(r.name||'').toLowerCase();
+    const g=nk+'|'+r.period+'|'+r.level;
+    (groups[g]=groups[g]||[]).push(r);
+  });
+  let rows=Object.keys(groups).map(g=>{
+    const list=groups[g];
+    const best=list.slice().sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec)[0];
+    const nk=best.nameKey||String(best.name||'').toLowerCase();
+    return { g, best, keys:list.map(r=>r._key).filter(Boolean),
+             attempts:list.length, nameKey:nk,
+             studentKeys:T_ALL.filter(r=>(r.nameKey||String(r.name||'').toLowerCase())===nk
+                          && String(r.period)===String(best.period))
+                          .map(r=>r._key).filter(Boolean) };
+  });
+  if(fp) rows=rows.filter(r=>String(r.best.period)===fp);
+  if(fl) rows=rows.filter(r=>r.best.level===fl);
+  rows.sort((a,b)=> String(a.best.period).localeCompare(String(b.best.period))
+                 || String(a.best.name).localeCompare(String(b.best.name))
+                 || String(a.best.level).localeCompare(String(b.best.level)));
+  return rows;
+}
+
+function drawTable(){
+  const t=$('ttable'); if(!t) return;
+  const rows=currentRows();
+  const can = !!TEACHER || !DB_OK;
+  if(!rows.length){ t.innerHTML='<div class="none" style="font-size:12px;color:var(--enamel-dim);font-style:italic">No results yet.</div>'; return; }
+  let h='<table><tr><th>Name</th><th>Per</th><th>Level</th><th style="text-align:right">Best</th>'+
+        '<th style="text-align:right">Time</th><th style="text-align:right">Tries</th><th>Reward</th><th>Last played</th>'+
+        (can?'<th></th>':'')+'</tr>';
+  rows.forEach(r=>{
+    const b=r.best, candy = b.level==='full' && b.score>=CANDY_MIN;
+    const nameCell = (T_EDIT===r.g)
+      ? `<input id="ed_${r.g.replace(/[^a-z0-9]/gi,'_')}" value="${esc(b.name)}" maxlength="40"
+           style="width:130px;padding:5px 7px;border-radius:3px;border:1px solid var(--brass);background:#0f1c22;color:var(--enamel);font-family:var(--body);font-size:12px">`
+      : esc(b.name);
+    let act='';
+    if(can){
+      if(T_EDIT===r.g)      act=`<button class="btn" data-save="${r.g}" style="padding:4px 10px;font-size:12px">Save</button> <button class="btn ghost" data-cancel="1" style="padding:4px 8px;font-size:12px">Cancel</button>`;
+      else if(T_DEL===r.g)  act=`<button class="btn" data-yes="${r.g}" style="padding:4px 10px;font-size:12px;background:#d1553c;border-color:#d1553c;color:#fff">Delete</button> <button class="btn ghost" data-cancel="1" style="padding:4px 8px;font-size:12px">Keep</button>`;
+      else                  act=`<button class="btn ghost" data-edit="${r.g}" style="padding:4px 10px;font-size:12px">Rename</button> <button class="btn ghost" data-del="${r.g}" style="padding:4px 10px;font-size:12px">Remove</button>`;
+    }
+    h+=`<tr><td>${nameCell}</td><td>${esc(b.period)}</td><td>${LEVELS[b.level]?LEVELS[b.level].name:esc(b.level)}</td>`+
+       `<td style="text-align:right;font-family:var(--mono)">${b.score}</td>`+
+       `<td style="text-align:right;font-family:var(--mono)">${fmtTime(b.timeSec)}</td>`+
+       `<td style="text-align:right;font-family:var(--mono);color:var(--enamel-dim)">${r.attempts}</td>`+
+       `<td class="${candy?'yes':''}">${candy?'YES':'-'}</td>`+
+       `<td>${new Date(b.ts).toLocaleDateString()}</td>`+
+       (can?`<td style="white-space:nowrap">${act}</td>`:'')+`</tr>`;
+  });
+  t.innerHTML=h+'</table>';
+
+  t.querySelectorAll('[data-edit]').forEach(x=>x.onclick=()=>{T_EDIT=x.dataset.edit;T_DEL=null;drawTable();});
+  t.querySelectorAll('[data-del]').forEach(x=>x.onclick=()=>{T_DEL=x.dataset.del;T_EDIT=null;drawTable();});
+  t.querySelectorAll('[data-cancel]').forEach(x=>x.onclick=()=>{T_EDIT=null;T_DEL=null;drawTable();});
+  t.querySelectorAll('[data-save]').forEach(x=>x.onclick=()=>{
+    const g=x.dataset.save, row=currentRows().find(r=>r.g===g); if(!row) return;
+    const inp=document.getElementById('ed_'+g.replace(/[^a-z0-9]/gi,'_'));
+    const v=(inp&&inp.value||'').trim();
+    if(!v){ return; }
+    x.textContent='Saving';
+    renameRecords(row.studentKeys, v).then(ok=>{
+      T_EDIT=null;
+      if(!ok){ alertBar('Could not save. Are you signed in?'); }
+      loadRuns().then(r=>{T_ALL=r;drawTable();});
+    });
+  });
+  t.querySelectorAll('[data-yes]').forEach(x=>x.onclick=()=>{
+    const g=x.dataset.yes, row=currentRows().find(r=>r.g===g); if(!row) return;
+    x.textContent='Deleting';
+    deleteRecords(row.keys).then(ok=>{
+      T_DEL=null;
+      if(!ok){ alertBar('Could not delete. Are you signed in?'); }
+      loadRuns().then(r=>{T_ALL=r;drawTable();});
+    });
+  });
+}
+
+function alertBar(msg){
+  const t=$('ttable'); if(!t) return;
+  const d=document.createElement('div');
+  d.className='warn'; d.textContent=msg;
+  t.parentNode.insertBefore(d,t);
+  setTimeout(()=>d.remove(),4000);
+}
+
+function downloadCSV(){
+  const rows=currentRows();
+  const head=['Name','Period','Level','Best score','Time (mm:ss)','Time (sec)','Attempts','Earned reward','Last played'];
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines=[head.map(q).join(',')];
+  rows.forEach(r=>{
+    const b=r.best;
+    lines.push([ b.name, b.period, LEVELS[b.level]?LEVELS[b.level].name:b.level, b.score,
+      fmtTime(b.timeSec), b.timeSec, r.attempts,
+      (b.level==='full'&&b.score>=CANDY_MIN)?'YES':'NO',
+      new Date(b.ts).toLocaleString() ].map(q).join(','));
+  });
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='place-value-scores-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},400);
+}
+
+function boot(){ if(location.hash==='#teacher') teacherPanel(); else start(); }
+window.addEventListener('hashchange',boot);
+boot();
+</script>
