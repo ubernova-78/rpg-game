@@ -268,10 +268,13 @@
     cursor:grab;
   }
   .tape-wrap:active{cursor:grabbing;}
+  .tape-wrap-outer{
+    position:relative;
+  }
   .unit-badge{
     position:absolute;
-    top:10px;
-    left:12px;
+    top:12px;
+    left:14px;
     font-size:1.4rem;
     font-weight:900;
     color:var(--charcoal);
@@ -355,12 +358,13 @@
      caliper body used elsewhere in this same workshop. */
   .measure-bar{
     position:absolute;
-    bottom:26px; /* sits right at the top of the short (regular mm) tick marks, matching
-                    the ticks' own bottom:0 anchoring, instead of floating with a gap */
+    bottom:26px;
     height:26px;
     background:var(--steel);
     border:2px solid #26445a;
-    border-radius:3px;
+    border-radius:3px 1px 1px 3px;
+    box-sizing:content-box;
+    margin-right:-2px;
   }
   .tape-scale-label{
     font-size:0.95rem;
@@ -547,8 +551,11 @@
     <!-- Read mode (also used by the Centimeter and Meter benches, reconfigured) -->
     <div id="mode-read" class="hidden">
       <p class="tape-scale-label" id="tape-scale-label">Scale: —</p>
-      <div class="tape-wrap" id="tape-wrap">
-        <div class="tape-inner" id="tape-inner"></div>
+      <div class="tape-wrap-outer" id="tape-wrap-outer">
+        <div class="unit-badge hidden" id="unit-badge"></div>
+        <div class="tape-wrap" id="tape-wrap">
+          <div class="tape-inner" id="tape-inner"></div>
+        </div>
       </div>
       <div class="zoom-inset hidden" id="zoom-inset">
         <span class="zoom-label">Zoom</span>
@@ -631,6 +638,7 @@
     tapeWrap: document.getElementById('tape-wrap'),
     tapeInner: document.getElementById('tape-inner'),
     tapeScaleLabel: document.getElementById('tape-scale-label'),
+    unitBadge: document.getElementById('unit-badge'),
     zoomInset: document.getElementById('zoom-inset'),
     zoomInner: document.getElementById('zoom-inner'),
     readAnswer: document.getElementById('read-answer'),
@@ -992,11 +1000,8 @@
     inner.style.width = totalWidth + 'px';
 
     // Big unit label in upper-left corner
-    const badge = document.createElement('div');
-    badge.className = 'unit-badge';
-    badge.textContent = scale;
-    els.tapeWrap.querySelectorAll('.unit-badge').forEach(e=>e.remove());
-    els.tapeWrap.appendChild(badge);
+    els.unitBadge.textContent = scale;
+    els.unitBadge.classList.remove('hidden');
 
     // The bar is added FIRST so it paints BELOW the tick marks and their numbers
     const bar = document.createElement('div');
@@ -1021,7 +1026,7 @@
           const lbl = document.createElement('div');
           lbl.className = 'tick-label' + (isMeter?' meter':' bold10');
           lbl.style.left = x+'px';
-          lbl.textContent = isMeter ? `${c/100} m` : `${c}cm`;
+          lbl.textContent = isMeter ? `${c/100} m` : `${c % 100}cm`;
           inner.appendChild(lbl);
         }
       }
