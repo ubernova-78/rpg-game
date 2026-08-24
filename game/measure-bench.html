@@ -1004,7 +1004,7 @@
     const bar = document.createElement('div');
     bar.className = 'measure-bar';
     bar.style.left = REC_START+'px';
-    bar.style.width = (valueMM*pxPerMM)+'px';
+    bar.style.width = (valueMM*pxPerMM + 1)+'px';
     inner.appendChild(bar);
 
     if(scale === 'm'){
@@ -1098,7 +1098,7 @@
       const barStartInZoom = zoomStart + Math.max(0, 0 - startMM) * zoomPx;
       const barEndInZoom = zoomStart + (valueMM - startMM) * zoomPx;
       zBar.style.left = barStartInZoom + 'px';
-      zBar.style.width = Math.max(0, barEndInZoom - barStartInZoom) + 'px';
+      zBar.style.width = Math.max(0, barEndInZoom - barStartInZoom + 1) + 'px';
       zi.appendChild(zBar);
 
       // Zoomed mm background
