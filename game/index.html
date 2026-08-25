@@ -300,6 +300,124 @@
     letter-spacing: 0.05em; cursor: pointer; margin: 4px 6px 4px 0; font-family: inherit;
   }
   .battle-left .gate-btn:hover { background: #45b39d; border-color: #45b39d; }
+
+  /* ---- Measurement question styles (ruler / caliper / choose-unit) ---- */
+  .mq-tape-scale-label {
+    font-size: 0.9rem; font-weight: 700; color: #5fa8d3; margin: 0 0 6px;
+  }
+  .mq-tape-wrap {
+    position: relative;
+    border: 2px solid #3d4a5e;
+    border-radius: 8px;
+    background: #fff;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 150px;
+    margin-bottom: 14px;
+    cursor: grab;
+  }
+  .mq-tape-wrap:active { cursor: grabbing; }
+  .mq-tape-inner {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+  .mq-unit-badge {
+    position: absolute;
+    top: 12px; left: 14px;
+    font-size: 1.4rem; font-weight: 900;
+    color: #1e2530;
+    background: rgba(255,255,255,0.85);
+    padding: 2px 12px;
+    border-radius: 6px;
+    border: 2px solid #1e2530;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .mq-measure-bar {
+    position: absolute;
+    bottom: 26px;
+    height: 26px;
+    background: #3f6b8a;
+    border-radius: 3px 0 0 3px;
+  }
+  .mq-tick {
+    position: absolute;
+    bottom: 0;
+    width: 2px;
+    background: #1e2530;
+  }
+  .mq-tick.mq-cm { width: 2px; }
+  .mq-tick.mq-half-cm { width: 1.5px; }
+  .mq-tick.mq-bold10 { width: 3px; background: #1e2530; }
+  .mq-mm-bg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 16px;
+  }
+  .mq-tick-label {
+    position: absolute;
+    bottom: 38px;
+    font-size: 0.78rem;
+    color: #1e2530;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .mq-tick-label.mq-bold10 {
+    font-size: 0.9rem;
+    font-weight: 800;
+    bottom: 58px;
+  }
+  .mq-caliper-wrap {
+    overflow-x: auto;
+    margin-bottom: 14px;
+    padding: 10px 0 4px;
+    background: #fff;
+    border: 2px solid #3d4a5e;
+    border-radius: 8px;
+  }
+  .mq-caliper-wrap svg { display: block; }
+  .mq-answer-row {
+    display: flex; gap: 10px; align-items: center; margin-top: 8px;
+  }
+  .mq-answer-input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 1rem;
+    border: 2px solid #3d4a5e;
+    border-radius: 8px;
+    background: #fff;
+    color: #222;
+  }
+  .mq-unit-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--muted);
+    min-width: 30px;
+  }
+  .mq-options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .mq-optbtn {
+    padding: 14px 10px;
+    border: 2px solid #5fa8d3;
+    background: #1a2029;
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+  }
+  .mq-optbtn:hover { background: #22303e; }
+  .mq-optbtn.correct { background: #39a08c; color: #07171a; border-color: #39a08c; }
+  .mq-optbtn.wrong { background: #c1443a; color: #fff; border-color: #c1443a; }
+  .mq-optbtn:disabled { cursor: default; }
 </style>
 </head>
 <body>
@@ -460,6 +578,7 @@
   <script src="character.js"></script>
   <script src="world.js"></script>
   <script src="placevalue.js"></script>
+  <script src="measure.js"></script>
   <script src="quests.js"></script>
   <script src="battle.js"></script>
   <script src="pvp.js"></script>

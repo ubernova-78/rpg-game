@@ -92,8 +92,8 @@ function onPvpBattleChange(data) {
   const bothReady = typeof data.hostHp === 'number' && typeof data.guestHp === 'number';
   if (bothReady && !data.status && pvpRole === 'host') {
     const roundKey = pickRoundKey();
-    const pile = generatePVDigits();
-    Shared.startBattleRound(pvpCode, 1, { moduleKey: roundKey, active: pile.active, digits: pile.digits });
+    const preset = QUESTION_MODULES[roundKey].generate();
+    Shared.startBattleRound(pvpCode, 1, { moduleKey: roundKey, preset });
     return;
   }
 
@@ -113,12 +113,13 @@ function onPvpBattleChange(data) {
 
 function renderPvpQuestion(data) {
   pvpClearTimers();
-  battleModeTag.textContent = QUESTION_MODULES[data.question.moduleKey].name.replace('Place Value \u2014 ', '');
+  const mod = QUESTION_MODULES[data.question.moduleKey];
+  battleModeTag.textContent = mod.name.replace('Place Value \u2014 ', '');
   battleBody.innerHTML = '';
   const qHost = document.createElement('div');
   battleBody.appendChild(qHost);
-  QUESTION_MODULES[data.question.moduleKey].render(qHost, {
-    presetPile: { active: data.question.active, digits: data.question.digits },
+  mod.render(qHost, {
+    presetPile: data.question.preset,
     onCorrect: () => pvpSubmit(true),
     onWrong: () => pvpSubmit(false),
   });
@@ -172,11 +173,11 @@ function resolvePvpRound(data) {
     });
   } else {
     const roundKey = pickRoundKey();
-    const pile = generatePVDigits();
+    const preset = QUESTION_MODULES[roundKey].generate();
     Shared.applyBattleResolution(pvpCode, {
       hostHp: newHostHp, guestHp: newGuestHp,
       status: 'question', round: (data.round || 1) + 1,
-      question: { moduleKey: roundKey, active: pile.active, digits: pile.digits },
+      question: { moduleKey: roundKey, preset },
       hostAnswer: null, guestAnswer: null,
       roundStartedAt: (typeof firebase !== 'undefined' && firebase.database && firebase.database.ServerValue)
         ? firebase.database.ServerValue.TIMESTAMP : Date.now(),

@@ -174,11 +174,23 @@ function nearbyCaveMonster(x, y) {
 }
 
 // ---------- Round-type mix ----------
-// "Place the Point" shows up about twice as often as the other two, per request — still a
-// random mix each turn, not a fixed rotation.
-const PV_ROUND_WEIGHTS = { 'place-value-read': 1, 'place-value-build': 1, 'place-value-point': 2 };
+// BATTLE_QUESTION_POOL controls which skills appear in monster battles and
+// PvP duels.  Edit this ONE object to add or remove question types — comment
+// out a line to disable that skill, or change the weight to make it show up
+// more or less often.  Every key must match an entry in QUESTION_MODULES
+// (defined in placevalue.js and measure.js).
+const BATTLE_QUESTION_POOL = {
+  'place-value-read':    1,
+  'place-value-build':   1,
+  'place-value-point':   2,
+  'measure-unit':        1,
+  'measure-mm-read':     1,
+  'measure-mm-caliper':  1,
+  // 'measure-cm-read':  1,   // centimeter ruler — enable when ready
+  // 'measure-m-read':   1,   // meter tape — enable when ready
+};
 function pickRoundKey() {
-  const entries = Object.entries(PV_ROUND_WEIGHTS);
+  const entries = Object.entries(BATTLE_QUESTION_POOL);
   const total = entries.reduce((sum, [, w]) => sum + w, 0);
   let r = Math.random() * total;
   for (const [key, w] of entries) {
