@@ -962,9 +962,7 @@
     if(scale === 'm') valueMM = Math.round(valueMM/10)*10; // whole cm -> exact hundredths of a m
 
     els.modeRead.classList.remove('hidden');
-    els.qtext.textContent = scale === 'm'
-      ? 'Scroll the tape to see the whole bar, then read its length.'
-      : 'Read the length of the bar against the ruler.';
+    els.qtext.textContent = 'How long is the blue bar?';
     els.howtoBtn.classList.remove('hidden');
     els.howtoBox.textContent = scale === 'mm'
       ? 'Every small tick is 1 mm. The bar starts at 0 — count the ticks to its right edge.'
@@ -1192,7 +1190,7 @@
     const params = benchParams('mm');
     const valueMM = randInt(params.minMM, params.maxMM);
 
-    els.qtext.textContent = 'Read the calipers\u2019 scale to find the length.';
+    els.qtext.textContent = 'How long is the blue bar?';
     els.howtoBtn.classList.remove('hidden');
     els.howtoBox.textContent = 'The fixed jaw sits at 0. Read the small arrow on the sliding jaw against the scale above it \u2014 every tick is 1 mm.';
 

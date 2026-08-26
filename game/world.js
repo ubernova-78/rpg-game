@@ -320,8 +320,8 @@ const INTERIOR_OBJECTS = {
     { id: 'unitBench', kind: 'workbench', img: workbenchImg, col: 2, row: 2, label: 'Choose the Right Unit Work Bench', shortLabel: 'Choose the Unit', src: 'measure-bench.html', messageType: 'mb-login', bench: 'unit' },
     { id: 'mmBench', kind: 'workbench', img: workbenchImg, col: 6, row: 2, label: 'Measure to the Millimeter Work Bench', shortLabel: 'Millimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
     { id: 'cmBench', kind: 'workbench', img: workbenchImg, col: 10, row: 2, label: 'Measure to the Centimeter Work Bench', shortLabel: 'Centimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'cm' },
-    { id: 'mBench', kind: 'workbench', img: workbenchImg, col: 1, row: 5, label: 'Measure to the Meter Work Bench', shortLabel: 'Meter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
-    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 11, row: 5, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
+    { id: 'mBench', kind: 'workbench', img: workbenchImg, col: 1, row: 7, label: 'Measure to the Meter Work Bench', shortLabel: 'Meter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
+    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 11, row: 7, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
   ],
   blue: [
     { id: 'placevalue', kind: 'workbench', img: workbenchImg, col: INTERIORS.blue.exitCol, row: 1, label: 'Place Value Work Bench', shortLabel: 'Place Value', src: 'place-value-bench.html', messageType: 'pvb-login' },
