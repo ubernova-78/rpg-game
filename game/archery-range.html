@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archery Range</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<style>
+  :root{
+    --charcoal:#262b31;
+    --steel:#3f6b8a;
+    --tape-yellow:#f2c230;
+    --paper:#f3efe4;
+    --teal:#1f7a6c;
+    --miss:#c1443a;
+    --ink:#20242a;
+    --line:#d8d1bd;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Verdana, sans-serif;
+    background:var(--charcoal);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .app{
+    width:100%;
+    max-width:720px;
+    background:var(--paper);
+    border-radius:14px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.4);
+    overflow:hidden;
+    border:3px solid var(--charcoal);
+  }
+  .titlebar{
+    background:repeating-linear-gradient(135deg, var(--tape-yellow) 0 18px, #e0ac1a 18px 36px);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:3px solid var(--charcoal);
+  }
+  .titlebar h1{
+    margin:0;
+    font-size:1.3rem;
+    letter-spacing:0.5px;
+    color:var(--charcoal);
+    text-shadow:0 1px 0 rgba(255,255,255,0.4);
+  }
+  .level-block{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .level-badge{
+    background:var(--charcoal);
+    color:var(--tape-yellow);
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:800;
+    font-size:0.82rem;
+    white-space:nowrap;
+  }
+  .exp-bar-wrap{
+    width:70px;
+    height:8px;
+    background:#4a4038;
+    border-radius:5px;
+    overflow:hidden;
+  }
+  .exp-bar-fill{
+    height:100%;
+    background:var(--tape-yellow);
+    width:0%;
+    transition:width .3s;
+  }
+  .coin-badge{
+    background:#fff8e0;
+    border:2px solid var(--tape-yellow);
+    color:var(--charcoal);
+    padding:5px 10px;
+    border-radius:20px;
+    font-weight:800;
+    font-size:0.82rem;
+    white-space:nowrap;
+  }
+
+  .screen{padding:24px;}
+  .hidden{display:none !important;}
+
+  label{display:block; font-weight:600; margin:14px 0 6px; color:var(--charcoal);}
+  input[type=text], select{
+    width:100%;
+    padding:10px 12px;
+    font-size:1rem;
+    border:2px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+  }
+  .pin-hint{
+    font-size:0.78rem;
+    color:#6a6156;
+    margin:4px 0 0;
+  }
+  .login-error{
+    background:#f6e0dd;
+    border:2px solid var(--miss);
+    color:var(--miss);
+    font-weight:700;
+    font-size:0.85rem;
+    padding:8px 12px;
+    border-radius:8px;
+    margin-top:10px;
+  }
+  .embed-welcome{
+    background:#e6f1ee;
+    border:2px solid var(--teal);
+    color:var(--teal);
+    font-weight:700;
+    padding:10px 14px;
+    border-radius:8px;
+    margin-bottom:10px;
+  }
+  .primary{
+    margin-top:22px;
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:10px;
+    background:var(--teal);
+    color:#fff;
+    font-size:1.1rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .primary:disabled{background:#9aa2a8; cursor:not-allowed;}
+  .primary:hover:not(:disabled){filter:brightness(1.08);}
+
+  .hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+    font-weight:700;
+    color:var(--charcoal);
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .pill{
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:20px;
+    padding:5px 12px;
+    font-size:0.9rem;
+  }
+
+  .reward-row{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    margin:14px 0;
+    font-weight:700;
+    color:var(--charcoal);
+  }
+  .reward-row span.exp-val{color:var(--steel);}
+  .reward-row span.coin-val{color:#b8860b;}
+
+  .level-up-banner{
+    background:linear-gradient(90deg, var(--tape-yellow), #ffe08a);
+    border:2px solid var(--charcoal);
+    border-radius:10px;
+    padding:10px 14px;
+    font-weight:800;
+    color:var(--charcoal);
+    margin:14px 0;
+    display:none;
+  }
+  .level-up-banner.show{display:block;}
+
+  .feedback{
+    padding:10px 14px;
+    border-radius:8px;
+    font-weight:700;
+    font-size:0.95rem;
+    margin-top:14px;
+    display:none;
+  }
+  .feedback.show{display:block;}
+  .feedback.good{background:#e6f5ec; border:2px solid var(--teal); color:var(--teal);}
+  .feedback.bad{background:#f6e0dd; border:2px solid var(--miss); color:var(--miss);}
+
+  /* ---------- Scene canvas ---------- */
+  #scene-canvas{
+    width:100%;
+    border:2px solid var(--charcoal);
+    border-radius:8px;
+    background:#b5d9e8;
+    display:block;
+    margin-bottom:14px;
+  }
+
+  /* ---------- Power meter ---------- */
+  .controls-row{
+    display:flex;
+    gap:16px;
+    align-items:stretch;
+    margin-bottom:14px;
+  }
+  .power-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .power-label{
+    font-weight:700;
+    font-size:0.85rem;
+    margin-bottom:6px;
+    color:var(--charcoal);
+  }
+  .power-bar-outer{
+    width:100%;
+    height:32px;
+    background:#e4ddc8;
+    border:2px solid var(--charcoal);
+    border-radius:6px;
+    overflow:hidden;
+    position:relative;
+  }
+  .power-bar-fill{
+    height:100%;
+    background:linear-gradient(90deg, var(--teal), var(--tape-yellow), var(--miss));
+    width:0%;
+    transition:none;
+  }
+  .power-text{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-weight:800;
+    font-size:0.9rem;
+    color:var(--charcoal);
+    text-shadow:0 1px 0 rgba(255,255,255,0.6);
+  }
+  .angle-wrap{
+    width:120px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .angle-label{
+    font-weight:700;
+    font-size:0.85rem;
+    margin-bottom:6px;
+    color:var(--charcoal);
+  }
+  .angle-display{
+    font-size:1.6rem;
+    font-weight:800;
+    color:var(--steel);
+    line-height:1;
+  }
+  .angle-hint{
+    font-size:0.72rem;
+    color:#6a6156;
+    margin-top:4px;
+  }
+  .aim-instructions{
+    text-align:center;
+    font-size:0.95rem;
+    color:var(--charcoal);
+    font-weight:600;
+    margin-bottom:10px;
+  }
+  .aim-instructions kbd{
+    background:var(--charcoal);
+    color:#fff;
+    padding:2px 8px;
+    border-radius:4px;
+    font-size:0.85rem;
+  }
+
+  /* ---------- Tape measure view ---------- */
+  .tape-section-label{
+    font-size:0.85rem;
+    font-weight:700;
+    color:var(--steel);
+    margin:0 0 4px;
+  }
+  .tape-wrap{
+    position:relative;
+    border:2px solid var(--charcoal);
+    border-radius:8px;
+    background:#f2c230;
+    overflow-x:auto;
+    overflow-y:hidden;
+    height:220px;
+    margin-bottom:14px;
+    cursor:grab;
+  }
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{
+    position:relative;
+    height:100%;
+    display:flex;
+    align-items:flex-end;
+  }
+  .tick{
+    position:absolute;
+    bottom:0;
+    width:1px;
+    background:var(--charcoal);
+  }
+  .tick.cm{ height:18px; width:1px; }
+  .tick.cm5{ height:28px; width:1.5px; }
+  .tick.cm10{ height:40px; width:2px; }
+  .tick.meter{ height:56px; width:3px; background:var(--miss); }
+  .tick-label{
+    position:absolute;
+    font-weight:700;
+    transform:translateX(-50%);
+    white-space:nowrap;
+  }
+  .tick-label.cm{
+    bottom:20px;
+    font-size:0.72rem;
+    color:var(--charcoal);
+  }
+  .tick-label.cm10{
+    bottom:44px;
+    font-size:0.9rem;
+    font-weight:800;
+    color:var(--charcoal);
+  }
+  .tick-label.meter{
+    bottom:60px;
+    font-size:1.1rem;
+    font-weight:900;
+    color:var(--miss);
+  }
+  .tape-sprite{
+    position:absolute;
+    bottom:0;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    pointer-events:none;
+  }
+  .tape-arrow-marker{
+    position:absolute;
+    bottom:100px;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    pointer-events:none;
+  }
+  .tape-arrow-marker .arrow-fletch{
+    width:0; height:0;
+    border-left:5px solid transparent;
+    border-right:5px solid transparent;
+    border-bottom:7px solid var(--miss);
+  }
+  .tape-arrow-marker .arrow-shaft{
+    width:3px;
+    height:16px;
+    background:#8b4513;
+  }
+  .tape-arrow-marker .arrow-head{
+    width:0; height:0;
+    border-left:6px solid transparent;
+    border-right:6px solid transparent;
+    border-top:10px solid #555;
+  }
+  .tape-arrow-marker .arrow-label{
+    font-size:0.7rem;
+    font-weight:800;
+    color:var(--steel);
+    margin-bottom:2px;
+  }
+  .tape-arrow-guide{
+    position:absolute;
+    bottom:0;
+    width:1px;
+    background:#888;
+    pointer-events:none;
+  }
+  .tape-monster{
+    position:absolute;
+    bottom:65px;
+    transform:translateX(-50%);
+    pointer-events:none;
+  }
+
+
+
+  .measure-question{
+    font-size:1.1rem;
+    font-weight:700;
+    color:var(--charcoal);
+    margin:0 0 12px;
+  }
+  .answer-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:4px;
+  }
+  .answer-row input{flex:1; font-size:1.1rem;}
+  .answer-row .unit-label{
+    font-weight:700;
+    color:var(--steel);
+    font-size:1rem;
+  }
+  .submitbtn{
+    margin-top:10px;
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:var(--steel);
+    color:#fff;
+    font-size:1rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .submitbtn:hover{filter:brightness(1.08);}
+
+  /* ---------- Shot history ---------- */
+  .shot-history{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin-bottom:10px;
+  }
+  .shot-pip{
+    min-width:28px; height:28px;
+    padding:0 6px;
+    border-radius:14px;
+    border:2px solid var(--line);
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:0.7rem;
+    font-weight:800;
+    color:var(--charcoal);
+  }
+  .shot-pip.used{border-color:var(--steel); background:#e0ecf2;}
+  .shot-pip.active{border-color:var(--tape-yellow); background:#fff8e0;}
+  .shot-pip.best{border-color:var(--teal); background:#e6f5ec;}
+
+  /* ---------- End screen ---------- */
+  .end-screen{text-align:center;}
+  .end-screen h2{margin:0 0 6px;}
+  .end-screen p{margin:6px 0;}
+  .result-banner{
+    padding:14px;
+    border-radius:10px;
+    font-weight:800;
+    font-size:1.2rem;
+    margin:14px 0;
+  }
+  .result-banner.bullseye{background:#e6f5ec; border:2px solid var(--teal); color:var(--teal);}
+  .result-banner.hit{background:#fff8e0; border:2px solid var(--tape-yellow); color:#8a6a00;}
+  .result-banner.miss-result{background:#f6e0dd; border:2px solid var(--miss); color:var(--miss);}
+
+  /* ---------- Item reward popup ---------- */
+  .item-popup-overlay{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+  }
+  .item-popup{
+    background:var(--paper);
+    border:3px solid var(--tape-yellow);
+    border-radius:14px;
+    padding:30px 24px;
+    text-align:center;
+    max-width:340px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.4);
+  }
+  .item-popup h3{
+    margin:0 0 10px;
+    color:var(--charcoal);
+    font-size:1.3rem;
+  }
+  .item-popup .item-icon{
+    font-size:3rem;
+    margin-bottom:10px;
+  }
+  .item-popup p{
+    font-size:0.9rem;
+    color:#6a6156;
+    margin:0 0 16px;
+  }
+  .item-popup button{
+    padding:10px 30px;
+    border:none;
+    border-radius:8px;
+    background:var(--teal);
+    color:#fff;
+    font-weight:700;
+    font-size:1rem;
+    cursor:pointer;
+  }
+
+  .demo-note{
+    margin-top:10px;
+    font-size:0.85rem;
+    color:#6a6156;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>🏹 Archery Range</h1>
+    <div class="level-block" id="titlebar-level-block">
+      <div class="level-badge" id="hud-level-badge">Lvl 1</div>
+      <div class="exp-bar-wrap"><div class="exp-bar-fill" id="hud-exp-fill"></div></div>
+      <div class="coin-badge" id="hud-coin-badge">🪙 0</div>
+    </div>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="screen" id="screen-start">
+    <p class="embed-welcome hidden" id="embed-welcome"></p>
+    <div id="login-fields">
+      <label for="pname">Your name</label>
+      <input type="text" id="pname" placeholder="Type your name">
+
+      <label for="ppin">Your PIN (4 digits)</label>
+      <input type="text" id="ppin" placeholder="e.g. 4271" maxlength="4" inputmode="numeric">
+      <p class="pin-hint">First time? Pick any 4-digit PIN — that becomes your login. Played before? Enter the same name + PIN to keep your EXP and coins.</p>
+      <p class="login-error hidden" id="login-error"></p>
+
+      <label for="period">Class period</label>
+      <select id="period">
+        <option value="">Select period</option>
+        <option value="2">Period 2</option>
+        <option value="6">Period 6</option>
+        <option value="7">Period 7</option>
+      </select>
+    </div>
+
+    <button class="primary" id="btn-start">Start</button>
+    <div class="demo-note" id="demo-note">
+      <label style="display:inline; font-weight:400;">
+        <input type="checkbox" id="demo-mode" style="width:auto; margin-right:6px;">
+        Demo mode (no name/PIN needed, EXP and coins won't be saved)
+      </label>
+    </div>
+  </div>
+
+  <!-- AIM SCREEN -->
+  <div class="screen hidden" id="screen-aim">
+    <div class="hud">
+      <div class="pill" id="hud-target">Target: 40 m</div>
+      <div class="pill" id="hud-score">EXP: 0 · 🪙 0</div>
+    </div>
+    <div class="shot-history" id="shot-history"></div>
+    <canvas id="scene-canvas" width="680" height="260"></canvas>
+    <div class="aim-instructions" id="aim-instructions">
+      Hold <kbd>Space</kbd> to charge power, release to fire. <kbd>↑</kbd>/<kbd>↓</kbd> to adjust angle.
+    </div>
+    <div class="controls-row">
+      <div class="power-wrap">
+        <div class="power-label">Power</div>
+        <div class="power-bar-outer">
+          <div class="power-bar-fill" id="power-fill"></div>
+          <div class="power-text" id="power-text">0%</div>
+        </div>
+      </div>
+      <div class="angle-wrap">
+        <div class="angle-label">Angle</div>
+        <div class="angle-display" id="angle-display">45°</div>
+        <div class="angle-hint">↑ / ↓ keys</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEASURE SCREEN -->
+  <div class="screen hidden" id="screen-measure">
+    <div class="hud">
+      <div class="pill" id="measure-hud-target">Target: 40 m</div>
+      <div class="pill" id="measure-hud-score">EXP: 0 · 🪙 0</div>
+    </div>
+    <p class="measure-question" id="measure-question">Your arrow landed. How far from the target?</p>
+    <p class="tape-section-label">Scroll with arrow keys to measure</p>
+    <div class="tape-wrap" id="tape-wrap">
+      <div class="tape-inner" id="tape-inner"></div>
+    </div>
+    <div class="answer-row">
+      <input type="text" id="measure-answer" placeholder="e.g. 7.45" inputmode="decimal">
+      <span class="unit-label">meters</span>
+    </div>
+    <button class="submitbtn" id="btn-submit-measure">Submit</button>
+    <div class="feedback" id="measure-feedback"></div>
+  </div>
+
+  <!-- END SCREEN -->
+  <div class="screen hidden" id="screen-end">
+    <div class="end-screen">
+      <h2 id="end-title">Round complete!</h2>
+      <div class="result-banner" id="result-banner"></div>
+      <div class="reward-row">
+        <span>EXP earned: <span class="exp-val" id="end-exp-earned">0</span></span>
+        <span>Coins earned: <span class="coin-val" id="end-coins-earned">0</span></span>
+      </div>
+      <div class="level-up-banner" id="level-up-banner"></div>
+      <div class="level-block" style="justify-content:center; margin-bottom:8px;">
+        <div class="level-badge" id="end-level-badge">Lvl 1</div>
+        <div class="exp-bar-wrap" style="width:140px;"><div class="exp-bar-fill" id="end-exp-fill"></div></div>
+      </div>
+      <p id="end-message"></p>
+      <button class="primary" id="btn-play-again">Play again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Item reward popup (hidden by default) -->
+<div class="item-popup-overlay hidden" id="item-popup-overlay">
+  <div class="item-popup">
+    <div class="item-icon">🏹</div>
+    <h3>You earned the Hunter's Bow!</h3>
+    <p>Crafted from wood of the Magical Elm. (Item rewards coming soon!)</p>
+    <button id="btn-dismiss-item">Awesome!</button>
+  </div>
+</div>
+
+<script>
+(function(){
+
+  // ========== STATE ==========
+  let state = {
+    name:'', pin:'', period:'', demo:false, teacher:false, embedded:false,
+    record:null, nameKey:'',
+    // Round state
+    targetDist:0,       // meters, whole number 10-60
+    wallDist:0,         // meters, wall position
+    shotNum:0,          // 0-based, max 3 shots per round
+    maxShots:3,
+    shots:[],           // [{power, angle, range, miss}]
+    bestMiss:Infinity,
+    // Aiming
+    power:0,            // 0-100
+    angle:45,           // degrees
+    charging:false,
+    chargeStart:0,
+    fired:false,
+    arrowAnimating:false,
+    // Rewards
+    roundEXP:0,
+    roundCoins:0
+  };
+
+  // ========== SPRITE LOADING ==========
+  const sprites = {};
+  function loadSprite(name, src){
+    const img = new Image();
+    img.src = src;
+    sprites[name] = img;
+  }
+  loadSprite('archer', 'assets/archer_char.png');      // 48x48, right-facing idle
+  loadSprite('bow',    'assets/weapon/bow_right.png');  // 48x48, right-facing bow+arrow
+  loadSprite('monster','assets/monsters/marauder.png'); // 64x64, left-facing idle
+  loadSprite('arrow',  'assets/weapon/arrow_right.png');// 48x48, right-facing arrow
+
+  // ========== REWARD CONSTANTS (matching measure-bench.html rates) ==========
+  const MEASURE_EXP = 12;          // EXP per correct measurement (same as cm bench)
+  function coinFromExp(e){ return Math.floor(e/2); }
+  const HIT_BONUS_EXP = 20;        // bonus for best shot within 5m
+  const BULLSEYE_BONUS_EXP = 40;   // bonus for best shot within 1m
+
+  // ========== PHYSICS ==========
+  // k tuned so max power (100) at 45 degrees => ~65m
+  // range = k * (power/100)^2 * sin(2*angle)
+  // At power=100, angle=45: range = k * 1 * sin(90) = k * 1 = k => k = 65
+  const K = 65;
+  const WALL_FRAC = 0.30;   // wall at 30% of target distance
+  const MONSTER_H = 2;      // monster (and wall) height in meters
+
+  function computeRange(power, angleDeg){
+    const p = power / 100;
+    const rad = angleDeg * Math.PI / 180;
+    return K * p * p * Math.sin(2 * rad);
+  }
+
+  // Height of arrow (meters) at horizontal distance d, given total range and launch angle.
+  // Uses standard projectile: h(d) = d*tan(θ) - d² / (range * tan(θ) * ... )
+  // Simpler: treat the trajectory as a parabola from 0 to range, peak at range/2.
+  // h(d) = peakH * 4 * t * (1-t) where t = d/range, peakH = range*tan(θ)/4
+  function computeHeightAtDist(power, angleDeg, d){
+    const range = computeRange(power, angleDeg);
+    if(range <= 0) return 0;
+    const rad = angleDeg * Math.PI / 180;
+    const peakH = range * Math.tan(rad) / 4;
+    const t = d / range;
+    if(t < 0 || t > 1) return 0; // past landing point
+    return peakH * 4 * t * (1 - t);
+  }
+
+  // ========== ELEMENTS ==========
+  const els = {
+    start: document.getElementById('screen-start'),
+    aim: document.getElementById('screen-aim'),
+    measure: document.getElementById('screen-measure'),
+    end: document.getElementById('screen-end'),
+    pname: document.getElementById('pname'),
+    ppin: document.getElementById('ppin'),
+    loginError: document.getElementById('login-error'),
+    embedWelcome: document.getElementById('embed-welcome'),
+    period: document.getElementById('period'),
+    btnStart: document.getElementById('btn-start'),
+    demoMode: document.getElementById('demo-mode'),
+    levelBadge: document.getElementById('hud-level-badge'),
+    expFill: document.getElementById('hud-exp-fill'),
+    coinBadge: document.getElementById('hud-coin-badge'),
+    hudTarget: document.getElementById('hud-target'),
+    hudScore: document.getElementById('hud-score'),
+    shotHistory: document.getElementById('shot-history'),
+    canvas: document.getElementById('scene-canvas'),
+    aimInstructions: document.getElementById('aim-instructions'),
+    powerFill: document.getElementById('power-fill'),
+    powerText: document.getElementById('power-text'),
+    angleDisplay: document.getElementById('angle-display'),
+    measureHudTarget: document.getElementById('measure-hud-target'),
+    measureHudScore: document.getElementById('measure-hud-score'),
+    measureQuestion: document.getElementById('measure-question'),
+    tapeWrap: document.getElementById('tape-wrap'),
+    tapeInner: document.getElementById('tape-inner'),
+    measureAnswer: document.getElementById('measure-answer'),
+    btnSubmitMeasure: document.getElementById('btn-submit-measure'),
+    measureFeedback: document.getElementById('measure-feedback'),
+    endTitle: document.getElementById('end-title'),
+    resultBanner: document.getElementById('result-banner'),
+    endExpEarned: document.getElementById('end-exp-earned'),
+    endCoinsEarned: document.getElementById('end-coins-earned'),
+    levelUpBanner: document.getElementById('level-up-banner'),
+    endLevelBadge: document.getElementById('end-level-badge'),
+    endExpFill: document.getElementById('end-exp-fill'),
+    endMessage: document.getElementById('end-message'),
+    btnPlayAgain: document.getElementById('btn-play-again'),
+    itemPopupOverlay: document.getElementById('item-popup-overlay'),
+    btnDismissItem: document.getElementById('btn-dismiss-item')
+  };
+
+  const ctx = els.canvas.getContext('2d');
+
+  function showScreen(el){
+    [els.start, els.aim, els.measure, els.end].forEach(s=>s.classList.add('hidden'));
+    el.classList.remove('hidden');
+  }
+
+  // ========== LEVEL UI (same as measure-bench) ==========
+  function paintLevelUI(totalEXP, coins, levelBadgeEl, fillEl, coinBadgeEl){
+    const info = Shared.getLevelInfo(totalEXP);
+    levelBadgeEl.textContent = `Lvl ${info.level}`;
+    fillEl.style.width = `${Math.round(info.progress*100)}%`;
+    if(coinBadgeEl) coinBadgeEl.textContent = `🪙 ${coins}`;
+    return info;
+  }
+
+  // ========== LOGIN (mirrors measure-bench.html exactly) ==========
+  els.ppin.addEventListener('input', ()=>{
+    els.ppin.value = els.ppin.value.replace(/\D/g,'').slice(0,4);
+    validateStart();
+  });
+  els.pname.addEventListener('input', validateStart);
+  els.period.addEventListener('change', validateStart);
+  els.demoMode.addEventListener('change', ()=>{
+    els.pname.disabled = els.demoMode.checked;
+    els.ppin.disabled = els.demoMode.checked;
+    els.period.disabled = els.demoMode.checked;
+    validateStart();
+  });
+
+  function validateStart(){
+    if(state.embedded){
+      els.btnStart.disabled = !state.record;
+      return;
+    }
+    if(els.demoMode.checked){
+      els.btnStart.disabled = false;
+      return;
+    }
+    els.btnStart.disabled = !(els.pname.value.trim() && els.ppin.value.length===4 && els.period.value);
+  }
+  validateStart();
+
+  // Embedding: accept login handoff from parent hub page
+  window.addEventListener('message', async (e)=>{
+    if(!e.data || e.data.type !== 'archery-login') return;
+    const { name, pin, period, demo, teacher } = e.data;
+    state.embedded = true;
+    document.getElementById('login-fields').classList.add('hidden');
+    document.getElementById('demo-note').classList.add('hidden');
+
+    if(demo){
+      state.demo = true;
+      state.name = 'Demo'; state.pin=''; state.period = period || '2';
+      state.record = { name:'Demo', totalEXP:0, coins:0, inventory:[], equipped:{} };
+      els.embedWelcome.textContent = `Signed in as Demo (preview mode — nothing is saved). Ready when you are.`;
+      els.embedWelcome.classList.remove('hidden');
+      validateStart();
+      return;
+    }
+
+    els.embedWelcome.textContent = teacher
+      ? `Signed in as ${name} (teacher — hidden from leaderboards). Ready when you are.`
+      : `Signed in as ${name}. Ready when you are.`;
+    els.embedWelcome.classList.remove('hidden');
+
+    const result = await Shared.loadOrCreateStudent(name, pin, period);
+    if(result.ok){
+      state.name = name; state.pin = pin; state.period = period;
+      state.record = result.record;
+      state.nameKey = result.nameKey;
+      state.teacher = !!teacher;
+      try{ await Shared.saveStudent(state.nameKey, state.record); }catch(err){ /* ignore */ }
+    } else {
+      els.embedWelcome.textContent = `Sign-in error: ${result.error}`;
+    }
+    validateStart();
+  });
+
+  els.btnStart.addEventListener('click', async ()=>{
+    els.loginError.classList.add('hidden');
+
+    if(state.embedded){
+      // already logged in via postMessage
+    } else {
+      state.demo = els.demoMode.checked;
+      if(state.demo){
+        state.name = 'Demo'; state.pin=''; state.period = '2';
+        state.record = { name:'Demo', totalEXP:0, coins:0, inventory:[], equipped:{} };
+      } else {
+        els.btnStart.disabled = true;
+        els.btnStart.textContent = 'Checking...';
+        const name = els.pname.value.trim();
+        const pin = els.ppin.value.trim();
+        const period = els.period.value;
+        const result = await Shared.loadOrCreateStudent(name, pin, period);
+        els.btnStart.textContent = 'Start';
+        els.btnStart.disabled = false;
+        if(!result.ok){
+          els.loginError.textContent = result.error;
+          els.loginError.classList.remove('hidden');
+          return;
+        }
+        state.name = name; state.pin = pin; state.period = period;
+        state.record = result.record;
+        state.nameKey = result.nameKey;
+        if(!state.demo){
+          try{ await Shared.saveStudent(state.nameKey, state.record); }catch(e){ /* ignore */ }
+        }
+      }
+    }
+
+    paintLevelUI(state.record.totalEXP, state.record.coins, els.levelBadge, els.expFill, els.coinBadge);
+    startNewRound();
+  });
+
+  // ========== ROUND MANAGEMENT ==========
+  function startNewRound(){
+    state.targetDist = Math.floor(Math.random() * 51) + 10; // 10-60
+    state.wallDist = Math.round(state.targetDist * WALL_FRAC);
+    state.shotNum = 0;
+    state.shots = [];
+    state.bestMiss = Infinity;
+    state.roundEXP = 0;
+    state.roundCoins = 0;
+    state.power = 0;
+    state.angle = 45;
+    state.charging = false;
+    state.fired = false;
+    state.arrowAnimating = false;
+    startAimPhase();
+  }
+
+  function startAimPhase(){
+    showScreen(els.aim);
+    els.hudTarget.textContent = `Target: ${state.targetDist} m`;
+    els.hudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    state.power = 0;
+    state.charging = false;
+    state.fired = false;
+    state.arrowAnimating = false;
+    els.aimInstructions.innerHTML = 'Hold <kbd>Space</kbd> to charge power, release to fire. <kbd>↑</kbd>/<kbd>↓</kbd> to adjust angle.';
+    updatePowerUI();
+    updateAngleUI();
+    paintShotPips();
+    drawScene(null);
+  }
+
+  function paintShotPips(){
+    let html = '';
+    for(let i = 0; i < state.maxShots; i++){
+      let cls = 'shot-pip';
+      if(i < state.shots.length){
+        // find if this was the best
+        const isBest = state.shots[i].miss === Math.min(...state.shots.map(s=>s.miss));
+        cls += isBest ? ' used best' : ' used';
+        const label = state.shots[i].type === 'direct-hit' ? '✓' : state.shots[i].miss.toFixed(1) + 'm';
+        html += `<div class="${cls}">${label}</div>`;
+      } else if(i === state.shotNum){
+        cls += ' active';
+        html += `<div class="${cls}">${i+1}</div>`;
+      } else {
+        html += `<div class="${cls}">${i+1}</div>`;
+      }
+    }
+    els.shotHistory.innerHTML = html;
+  }
+
+  // ========== SCENE DRAWING ==========
+  const CW = 680, CH = 260;
+  const GROUND_Y = 210;
+  const SCENE_LEFT = 60, SCENE_RIGHT = 640;
+  const MAX_SCENE_DIST = 70; // meters, so all 10-60 fit with margin
+
+  function distToX(d){
+    return SCENE_LEFT + (d / MAX_SCENE_DIST) * (SCENE_RIGHT - SCENE_LEFT);
+  }
+
+  function drawScene(arrowLandX){
+    ctx.clearRect(0, 0, CW, CH);
+
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    sky.addColorStop(0, '#87ceeb');
+    sky.addColorStop(1, '#b5d9e8');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CW, GROUND_Y);
+
+    // Ground
+    ctx.fillStyle = '#5a8f3c';
+    ctx.fillRect(0, GROUND_Y, CW, CH - GROUND_Y);
+
+    // Ground line
+    ctx.strokeStyle = '#3d6b28';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(CW, GROUND_Y);
+    ctx.stroke();
+
+    // Distance markers every 10m
+    ctx.fillStyle = '#3d6b28';
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    for(let d = 10; d <= 60; d += 10){
+      const x = distToX(d);
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y);
+      ctx.lineTo(x, GROUND_Y + 8);
+      ctx.strokeStyle = '#3d6b28';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillText(d + 'm', x, GROUND_Y + 20);
+    }
+
+    // Castle wall
+    drawWall(distToX(state.wallDist), GROUND_Y);
+
+    // Archer (simple stick figure with bow)
+    const ax = distToX(0);
+    drawArcher(ax, GROUND_Y);
+
+    // Monster (target) placeholder
+    const mx = distToX(state.targetDist);
+    drawMonster(mx, GROUND_Y);
+
+    // Previous shot landing markers
+    state.shots.forEach((s, i)=>{
+      if(s.type === 'direct-hit') return; // no ground marker for direct hits
+      const sx = distToX(s.range);
+      if(s.type === 'wall'){
+        // X mark on the wall
+        ctx.strokeStyle = 'rgba(193, 68, 58, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx - 4, GROUND_Y - 24);
+        ctx.lineTo(sx + 4, GROUND_Y - 16);
+        ctx.moveTo(sx + 4, GROUND_Y - 24);
+        ctx.lineTo(sx - 4, GROUND_Y - 16);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(193, 68, 58, 0.5)';
+        ctx.beginPath();
+        ctx.arc(sx, GROUND_Y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#8b4513';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, GROUND_Y - 12);
+        ctx.lineTo(sx, GROUND_Y);
+        ctx.stroke();
+      }
+    });
+
+    // Arrow landing point (current shot)
+    if(arrowLandX !== null && arrowLandX !== undefined){
+      const lx = distToX(arrowLandX);
+      // Shaft
+      ctx.strokeStyle = '#8b4513';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(lx, GROUND_Y - 20);
+      ctx.lineTo(lx, GROUND_Y + 2);
+      ctx.stroke();
+      // Arrowhead pointing DOWN (into ground)
+      ctx.fillStyle = '#555';
+      ctx.beginPath();
+      ctx.moveTo(lx, GROUND_Y + 6);
+      ctx.lineTo(lx - 4, GROUND_Y - 2);
+      ctx.lineTo(lx + 4, GROUND_Y - 2);
+      ctx.closePath();
+      ctx.fill();
+      // Fletching on TOP
+      ctx.fillStyle = '#c1443a';
+      ctx.beginPath();
+      ctx.moveTo(lx, GROUND_Y - 20);
+      ctx.lineTo(lx - 5, GROUND_Y - 26);
+      ctx.lineTo(lx + 5, GROUND_Y - 26);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Angle indicator on archer
+    if(!state.fired && !state.arrowAnimating){
+      const bowX = ax + 8;
+      const bowY = GROUND_Y - 30;
+      const rad = state.angle * Math.PI / 180;
+      const len = 30;
+      ctx.strokeStyle = 'rgba(63,107,138,0.7)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(bowX, bowY);
+      ctx.lineTo(bowX + len * Math.cos(rad), bowY - len * Math.sin(rad));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  const SPRITE_SCALE = 2.5; // scale up the 48px sprites so they're visible on the scene
+  // Bottom padding in the source frames (transparent pixels below the feet)
+  const ARCHER_PAD = 17;  // archer_char.png: feet end at y=31 of 48
+  const BOW_PAD    = 19;  // bow_right.png: content ends at y=29 of 48
+  const MONSTER_PAD = 16; // marauder.png: feet end at y=48 of 64
+
+  function drawArcher(x, gy){
+    const s = sprites.archer;
+    const b = sprites.bow;
+    const sw = 48 * SPRITE_SCALE, sh = 48 * SPRITE_SCALE;
+    const yOff = ARCHER_PAD * SPRITE_SCALE; // shift down to plant feet on ground
+    if(s.complete && s.naturalWidth){
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(s, x - sw/2, gy - sh + yOff, sw, sh);
+    }
+    if(b.complete && b.naturalWidth){
+      const bowYOff = BOW_PAD * SPRITE_SCALE;
+      ctx.drawImage(b, x - sw/2, gy - sh + bowYOff, sw, sh);
+    }
+    ctx.imageSmoothingEnabled = true;
+  }
+
+  function drawMonster(x, gy){
+    const m = sprites.monster;
+    const mScale = SPRITE_SCALE * (48/64);
+    const mw = 64 * mScale, mh = 64 * mScale;
+    const yOff = MONSTER_PAD * mScale; // shift down to plant feet on ground
+    if(m.complete && m.naturalWidth){
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(m, x - mw/2, gy - mh + yOff, mw, mh);
+      ctx.imageSmoothingEnabled = true;
+    }
+    // TARGET label above
+    ctx.fillStyle = 'rgba(193, 68, 58, 0.8)';
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('TARGET', x, gy - mh + yOff - 4);
+  }
+
+  function drawWall(x, gy){
+    // The wall is the same visual height as the monster (~36px on canvas).
+    // Stone grey rectangle with crenellations on top.
+    const wallH = 36; // same pixel height as monster body
+    const wallW = 16;
+    // Main wall body
+    ctx.fillStyle = '#8a8a7a';
+    ctx.fillRect(x - wallW/2, gy - wallH, wallW, wallH);
+    // Stone lines
+    ctx.strokeStyle = '#6e6e60';
+    ctx.lineWidth = 1;
+    for(let row = 0; row < 4; row++){
+      const ry = gy - wallH + row * 9 + 9;
+      ctx.beginPath();
+      ctx.moveTo(x - wallW/2, ry);
+      ctx.lineTo(x + wallW/2, ry);
+      ctx.stroke();
+    }
+    // Crenellations (3 merlons on top)
+    const mW = 5, mH = 6;
+    ctx.fillStyle = '#8a8a7a';
+    ctx.fillRect(x - wallW/2, gy - wallH - mH, mW, mH);
+    ctx.fillRect(x - mW/2, gy - wallH - mH, mW, mH);
+    ctx.fillRect(x + wallW/2 - mW, gy - wallH - mH, mW, mH);
+    // Darker outline
+    ctx.strokeStyle = '#5a5a4e';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - wallW/2, gy - wallH, wallW, wallH);
+  }
+
+  // ========== ARROW ANIMATION ==========
+  // Determine what happens to the arrow: 'wall', 'direct-hit', or 'land'
+  function resolveShot(power, angleDeg){
+    const range = computeRange(power, angleDeg);
+    const wallD = state.wallDist;
+    const targetD = state.targetDist;
+
+    // Check wall collision: arrow must reach the wall, and its height there must be < MONSTER_H
+    if(range >= wallD){
+      const hAtWall = computeHeightAtDist(power, angleDeg, wallD);
+      if(hAtWall < MONSTER_H){
+        return { type:'wall', landDist: wallD, range };
+      }
+    } else {
+      // Arrow doesn't even reach the wall — lands before it
+      // But check: does the arrow land before the wall? If range < wallDist, it lands
+      // in front of the wall, no collision. That's just a normal land.
+    }
+
+    // Check direct hit: arrow passes through monster's plane (targetD) at height 0-2m
+    if(range >= targetD){
+      const hAtTarget = computeHeightAtDist(power, angleDeg, targetD);
+      if(hAtTarget >= 0 && hAtTarget <= MONSTER_H){
+        return { type:'direct-hit', landDist: targetD, range };
+      }
+    }
+
+    // Normal landing
+    return { type:'land', landDist: range, range };
+  }
+
+  // Convert a height in meters to pixels on the scene canvas.
+  // The monster is 36px tall and represents 2m, so 1m = 18px.
+  const M_TO_PX = 18;
+
+  function animateArrow(power, angleDeg, callback){
+    state.arrowAnimating = true;
+    const shot = resolveShot(power, angleDeg);
+    const range = shot.range;
+    const rad = angleDeg * Math.PI / 180;
+    const totalFrames = 60;
+    let frame = 0;
+
+    const animEndDist = shot.type === 'wall' ? shot.landDist :
+                        shot.type === 'direct-hit' ? shot.landDist : range;
+
+    const startX = distToX(0);
+    const fullEndX = distToX(range);
+
+    // Use the PHYSICS peak height (in meters), converted to pixels,
+    // so the animation arc matches the hit detection exactly.
+    const physPeakM = range > 0 ? range * Math.tan(rad) / 4 : 0;
+    const peakPx = physPeakM * M_TO_PX;
+
+    const endT = range > 0 ? Math.min(1, animEndDist / range) : 1;
+
+    function tick(){
+      frame++;
+      const rawT = frame / totalFrames;
+      const t = rawT * endT;
+
+      if(rawT >= 1){
+        state.arrowAnimating = false;
+        if(shot.type === 'wall'){
+          drawScene(null);
+          const wx = distToX(state.wallDist);
+          ctx.fillStyle = '#c1443a';
+          ctx.font = 'bold 12px Segoe UI, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('THUD!', wx, GROUND_Y - 50);
+        } else if(shot.type === 'direct-hit'){
+          drawScene(null);
+          const mx = distToX(state.targetDist);
+          ctx.fillStyle = '#1f7a6c';
+          ctx.font = 'bold 14px Segoe UI, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('DIRECT HIT!', mx, GROUND_Y - 65);
+        } else {
+          drawScene(range);
+        }
+        callback(shot);
+        return;
+      }
+
+      drawScene(null);
+
+      // Parabolic arc: x interpolates linearly, y follows physics parabola
+      const ax = startX + (fullEndX - startX) * t;
+      const ay = GROUND_Y - peakPx * 4 * t * (1 - t);
+
+      // Draw arrow sprite in flight (rotated to match trajectory angle)
+      const arrSpr = sprites.arrow;
+      if(arrSpr.complete && arrSpr.naturalWidth){
+        // Compute trajectory angle from velocity direction
+        let dx = 1, dy = 0;
+        if(frame > 1){
+          const prevT = ((frame - 1) / totalFrames) * endT;
+          const prevX = startX + (fullEndX - startX) * prevT;
+          const prevY = GROUND_Y - peakPx * 4 * prevT * (1 - prevT);
+          dx = ax - prevX; dy = ay - prevY;
+        }
+        const rot = Math.atan2(dy, dx);
+        ctx.save();
+        ctx.translate(ax, ay);
+        ctx.rotate(rot);
+        ctx.imageSmoothingEnabled = false;
+        // Draw arrow centered, scaled up a bit
+        const as = 2;
+        ctx.drawImage(arrSpr, -24*as, -24*as, 48*as, 48*as);
+        ctx.imageSmoothingEnabled = true;
+        ctx.restore();
+      } else {
+        // Fallback dot
+        ctx.fillStyle = '#8b4513';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Trail
+      if(frame > 2){
+        const pt = ((frame - 2) / totalFrames) * endT;
+        const px = startX + (fullEndX - startX) * pt;
+        const py = GROUND_Y - peakPx * 4 * pt * (1 - pt);
+        ctx.strokeStyle = 'rgba(139,69,19,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(ax, ay);
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ========== POWER / ANGLE CONTROLS ==========
+  const CHARGE_DURATION = 1500; // ms to reach 100%
+
+  function updatePowerUI(){
+    els.powerFill.style.width = state.power + '%';
+    els.powerText.textContent = Math.round(state.power) + '%';
+  }
+  function updateAngleUI(){
+    els.angleDisplay.textContent = state.angle + '°';
+  }
+
+  let chargeRAF = null;
+  function chargeLoop(){
+    if(!state.charging) return;
+    const elapsed = Date.now() - state.chargeStart;
+    state.power = Math.min(100, (elapsed / CHARGE_DURATION) * 100);
+    updatePowerUI();
+    chargeRAF = requestAnimationFrame(chargeLoop);
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if(els.aim.classList.contains('hidden')) return;
+    if(state.fired || state.arrowAnimating) return;
+
+    if(e.code === 'Space'){
+      e.preventDefault();
+      if(!state.charging){
+        state.charging = true;
+        state.chargeStart = Date.now();
+        state.power = 0;
+        chargeLoop();
+      }
+    }
+    if(e.code === 'ArrowUp'){
+      e.preventDefault();
+      state.angle = Math.min(80, state.angle + 1);
+      updateAngleUI();
+      drawScene(null);
+    }
+    if(e.code === 'ArrowDown'){
+      e.preventDefault();
+      state.angle = Math.max(10, state.angle - 1);
+      updateAngleUI();
+      drawScene(null);
+    }
+  });
+
+  document.addEventListener('keyup', (e)=>{
+    if(els.aim.classList.contains('hidden')) return;
+    if(state.fired || state.arrowAnimating) return;
+
+    if(e.code === 'Space'){
+      e.preventDefault();
+      if(state.charging){
+        state.charging = false;
+        if(chargeRAF) cancelAnimationFrame(chargeRAF);
+        state.fired = true;
+        els.aimInstructions.textContent = 'Firing...';
+        animateArrow(state.power, state.angle, onArrowLand);
+      }
+    }
+  });
+
+  // Touch/click fallback for mobile: tap the power bar to charge, release to fire
+  let touchCharging = false;
+  const powerBarOuter = document.querySelector('.power-bar-outer');
+  powerBarOuter.addEventListener('pointerdown', (e)=>{
+    if(els.aim.classList.contains('hidden')) return;
+    if(state.fired || state.arrowAnimating) return;
+    e.preventDefault();
+    touchCharging = true;
+    state.charging = true;
+    state.chargeStart = Date.now();
+    state.power = 0;
+    chargeLoop();
+  });
+  document.addEventListener('pointerup', (e)=>{
+    if(!touchCharging) return;
+    touchCharging = false;
+    if(els.aim.classList.contains('hidden')) return;
+    if(state.fired || state.arrowAnimating) return;
+    if(state.charging){
+      state.charging = false;
+      if(chargeRAF) cancelAnimationFrame(chargeRAF);
+      state.fired = true;
+      els.aimInstructions.textContent = 'Firing...';
+      animateArrow(state.power, state.angle, onArrowLand);
+    }
+  });
+
+  // Angle adjustment buttons for mobile (tap on angle display)
+  els.angleDisplay.addEventListener('click', ()=>{
+    if(els.aim.classList.contains('hidden')) return;
+    if(state.fired || state.arrowAnimating) return;
+    state.angle = Math.min(80, state.angle + 5);
+    if(state.angle > 80) state.angle = 10; // wrap
+    updateAngleUI();
+    drawScene(null);
+  });
+
+  // ========== ARROW LANDS ==========
+  function onArrowLand(shot){
+    const landDist = shot.landDist;
+    const miss = Math.abs(landDist - state.targetDist);
+
+    if(shot.type === 'direct-hit'){
+      // Arrow passed through the monster — bullseye, miss = 0
+      state.shots.push({ power: state.power, angle: state.angle, range: landDist, miss: 0, type: 'direct-hit' });
+      state.bestMiss = 0;
+      state.shotNum++;
+      setTimeout(()=> showMeasurePhase(landDist, 'direct-hit'), 600);
+    } else if(shot.type === 'wall'){
+      // Arrow hit the wall — treat wall as landing point
+      state.shots.push({ power: state.power, angle: state.angle, range: landDist, miss: miss, type: 'wall' });
+      if(miss < state.bestMiss) state.bestMiss = miss;
+      state.shotNum++;
+      setTimeout(()=> showMeasurePhase(landDist, 'wall'), 600);
+    } else {
+      // Normal landing
+      state.shots.push({ power: state.power, angle: state.angle, range: landDist, miss: miss, type: 'land' });
+      if(miss < state.bestMiss) state.bestMiss = miss;
+      state.shotNum++;
+      setTimeout(()=> showMeasurePhase(landDist, 'land'), 600);
+    }
+  }
+
+  // ========== MEASURE PHASE ==========
+  // The miss distance uses raw physics (cm precision). We round to the nearest cm
+  // for the answer so students read to the hundredths place in meters.
+  function roundToCm(v){ return Math.round(v * 100) / 100; }
+
+  function showMeasurePhase(landingRange, shotType){
+    showScreen(els.measure);
+    els.measureHudTarget.textContent = `Target: ${state.targetDist} m`;
+    els.measureHudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    els.measureFeedback.className = 'feedback';
+    els.measureFeedback.style.display = 'none';
+    els.measureAnswer.value = '';
+    els.measureAnswer.disabled = false;
+    els.btnSubmitMeasure.disabled = false;
+
+    const missDist = roundToCm(Math.abs(landingRange - state.targetDist));
+    const overshot = landingRange > state.targetDist;
+
+    if(shotType === 'direct-hit'){
+      els.measureQuestion.textContent = 'Direct hit! Your arrow struck the monster!';
+      els.tapeWrap.classList.add('hidden');
+      document.querySelector('.tape-section-label').classList.add('hidden');
+      autoAwardMeasure();
+      return;
+    }
+
+    if(missDist === 0){
+      els.measureQuestion.textContent = 'Perfect hit! Your arrow landed right on the target!';
+      els.tapeWrap.classList.add('hidden');
+      document.querySelector('.tape-section-label').classList.add('hidden');
+      autoAwardMeasure();
+      return;
+    }
+
+    els.tapeWrap.classList.remove('hidden');
+    document.querySelector('.tape-section-label').classList.remove('hidden');
+
+    if(shotType === 'wall'){
+      els.measureQuestion.textContent = 'Your arrow hit the wall! Measure the distance from the target to where your arrow hit.';
+    } else if(overshot){
+      els.measureQuestion.textContent = 'Your arrow flew past the target! Measure the distance from the target to your arrow.';
+    } else {
+      els.measureQuestion.textContent = 'Your arrow fell short! Measure the distance from the target to your arrow.';
+    }
+
+    // Store expected answer (cm precision)
+    state.currentMeasureAnswer = missDist;
+    state.currentOvershot = overshot;
+
+    // Build tape with cm detail around the arrow
+    buildTape(missDist, overshot);
+
+    // Scroll so the nearest whole meter to the LEFT of the arrow is at the left edge,
+    // so students can count from the meter mark toward the arrow.
+    setTimeout(()=>{
+      const nearestMeter = Math.floor(missDist);
+      const meterPx = nearestMeter * PX_PER_M + TAPE_PAD;
+      els.tapeWrap.scrollLeft = Math.max(0, meterPx - 20); // small margin so the meter mark is visible
+    }, 50);
+
+    setTimeout(()=> els.measureAnswer.focus(), 100);
+  }
+
+  // --- Main tape measure ---
+  // 0 is at the monster, distance increases toward the arrow.
+  // If overshot: monster on left (0), arrow to the right.
+  // If short: monster on right (0), arrow to the left — we flip so 0 is still drawn
+  // on the side where the monster is, but the tape always reads left-to-right 0..N.
+  // Simplest: always draw 0 on the left and put the monster there, arrow on the right.
+  // The question text tells them whether it was short or long.
+
+  const PX_PER_M = 900;   // pixels per meter — cm ticks are 9px apart, easy to count
+  const TAPE_PAD = 60;     // left/right padding in px
+
+  function buildTape(missDist, overshot){
+    const inner = els.tapeInner;
+    inner.innerHTML = '';
+    const totalMeters = Math.ceil(missDist) + 1; // one extra meter of tape past the arrow
+    const totalWidth = totalMeters * PX_PER_M + TAPE_PAD * 2;
+    inner.style.width = totalWidth + 'px';
+
+    // To keep DOM manageable on large misses, only render cm-level ticks
+    // for the 2 meters surrounding the arrow. The rest gets meter + 10cm ticks only.
+    const arrowMeter = Math.floor(missDist);
+    const detailStart = Math.max(0, arrowMeter - 1); // 1m before arrow
+    const detailEnd = Math.min(totalMeters, arrowMeter + 2); // 1m after arrow
+
+    // Coarse region: meter + 10cm ticks for everything
+    for(let m = 0; m <= totalMeters; m++){
+      const mx = TAPE_PAD + m * PX_PER_M;
+      addTick(inner, mx, 'meter');
+      addLabel(inner, mx, 'meter', m + 'm');
+
+      if(m < totalMeters){
+        // 10cm (decimeter) ticks within this meter
+        for(let d = 1; d < 10; d++){
+          const dx = TAPE_PAD + (m + d/10) * PX_PER_M;
+          addTick(inner, dx, 'cm10');
+          // Label decimeters as 10, 20, ... 90 (resets each meter)
+          addLabel(inner, dx, 'cm10', (d * 10).toString());
+        }
+
+        // cm ticks only in the detail zone around the arrow
+        if(m >= detailStart && m < detailEnd){
+          for(let c = 1; c < 100; c++){
+            if(c % 10 === 0) continue; // skip — already drawn as 10cm tick
+            const cx = TAPE_PAD + (m + c/100) * PX_PER_M;
+            if(c % 5 === 0){
+              addTick(inner, cx, 'cm5');
+            } else {
+              addTick(inner, cx, 'cm');
+              // Label individual cm between 10s: 1,2,3,4,6,7,8,9
+              const cmInDm = c % 10;
+              if(cmInDm !== 0 && cmInDm !== 5){
+                addLabel(inner, cx, 'cm', cmInDm.toString());
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Monster sprite at 0
+    drawTapeMonster(inner, TAPE_PAD);
+
+    // Arrow marker at missDist
+    const arrowX = TAPE_PAD + missDist * PX_PER_M;
+    drawTapeArrow(inner, arrowX);
+  }
+
+  function addTick(parent, x, cls){
+    const el = document.createElement('div');
+    el.className = 'tick ' + cls;
+    el.style.left = x + 'px';
+    parent.appendChild(el);
+  }
+  function addLabel(parent, x, cls, text){
+    const el = document.createElement('div');
+    el.className = 'tick-label ' + cls;
+    el.style.left = x + 'px';
+    el.textContent = text;
+    parent.appendChild(el);
+  }
+
+  function drawTapeMonster(parent, x){
+    // Marauder sprite at the 0 mark on the tape
+    const wrap = document.createElement('div');
+    wrap.className = 'tape-monster';
+    wrap.style.left = x + 'px';
+    const img = document.createElement('img');
+    img.src = 'assets/monsters/marauder.png';
+    img.style.cssText = 'width:48px;height:48px;image-rendering:pixelated;';
+    wrap.appendChild(img);
+    parent.appendChild(wrap);
+  }
+
+  function drawTapeArrow(parent, x){
+    // Thin grey guide line from top to the tick line
+    const guide = document.createElement('div');
+    guide.className = 'tape-arrow-guide';
+    guide.style.left = x + 'px';
+    guide.style.height = '100px'; // reaches from bottom up to where the arrow sits
+    parent.appendChild(guide);
+
+    // Arrow art above the labels
+    const wrap = document.createElement('div');
+    wrap.className = 'tape-arrow-marker';
+    wrap.style.left = x + 'px';
+    wrap.innerHTML = `
+      <div class="arrow-label">ARROW</div>
+      <div class="arrow-fletch"></div>
+      <div class="arrow-shaft"></div>
+      <div class="arrow-head"></div>
+    `;
+    parent.appendChild(wrap);
+  }
+
+
+  function autoAwardMeasure(){
+    const exp = MEASURE_EXP;
+    const coins = coinFromExp(exp);
+    state.roundEXP += exp;
+    state.roundCoins += coins;
+    els.measureFeedback.textContent = `Direct hit! +${exp} EXP, +${coins} 🪙`;
+    els.measureFeedback.className = 'feedback show good';
+    els.measureAnswer.disabled = true;
+    els.btnSubmitMeasure.disabled = true;
+    updateHudScores();
+    setTimeout(afterMeasure, 1800);
+  }
+
+  els.btnSubmitMeasure.addEventListener('click', submitMeasure);
+  els.measureAnswer.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') submitMeasure();
+  });
+
+  function submitMeasure(){
+    if(els.measureAnswer.disabled) return;
+    const raw = els.measureAnswer.value.trim();
+    const answer = parseFloat(raw);
+    if(isNaN(answer) || answer < 0){
+      els.measureFeedback.textContent = 'Type a distance in meters (e.g. 7.45).';
+      els.measureFeedback.className = 'feedback show bad';
+      return;
+    }
+
+    const correct = state.currentMeasureAnswer;
+    const answerCm = Math.round(answer * 100);
+    const correctCm = Math.round(correct * 100);
+
+    if(answerCm === correctCm){
+      const exp = MEASURE_EXP;
+      const coins = coinFromExp(exp);
+      state.roundEXP += exp;
+      state.roundCoins += coins;
+      els.measureFeedback.textContent = `Correct! The distance was ${correct} m. +${exp} EXP, +${coins} 🪙`;
+      els.measureFeedback.className = 'feedback show good';
+    } else {
+      els.measureFeedback.textContent = `Not quite — the distance was ${correct} m.`;
+      els.measureFeedback.className = 'feedback show bad';
+    }
+
+    els.measureAnswer.disabled = true;
+    els.btnSubmitMeasure.disabled = true;
+    updateHudScores();
+    setTimeout(afterMeasure, 1800);
+  }
+
+  function updateHudScores(){
+    els.hudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    els.measureHudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    const previewEXP = state.record.totalEXP + state.roundEXP;
+    const previewCoins = state.record.coins + state.roundCoins;
+    paintLevelUI(previewEXP, previewCoins, els.levelBadge, els.expFill, els.coinBadge);
+  }
+
+  function afterMeasure(){
+    if(state.shotNum < state.maxShots){
+      // More shots remaining — go back to aim
+      startAimPhase();
+    } else {
+      finishRound();
+    }
+  }
+
+  // ========== END OF ROUND ==========
+  async function finishRound(){
+    showScreen(els.end);
+
+    const best = state.bestMiss;
+    let resultClass, resultText, bonusEXP = 0;
+
+    if(best <= 1){
+      resultClass = 'bullseye';
+      resultText = '🎯 BULLSEYE! Within 1 meter!';
+      bonusEXP = BULLSEYE_BONUS_EXP;
+    } else if(best <= 5){
+      resultClass = 'hit';
+      resultText = '🏹 HIT! Within 5 meters!';
+      bonusEXP = HIT_BONUS_EXP;
+    } else {
+      resultClass = 'miss-result';
+      resultText = `Miss — closest shot was ${best.toFixed(2)} m off. Keep practicing!`;
+    }
+
+    const bonusCoins = coinFromExp(bonusEXP);
+    state.roundEXP += bonusEXP;
+    state.roundCoins += bonusCoins;
+
+    els.resultBanner.className = `result-banner ${resultClass}`;
+    els.resultBanner.textContent = resultText;
+    els.endExpEarned.textContent = state.roundEXP;
+    els.endCoinsEarned.textContent = state.roundCoins;
+
+    // Level-up check
+    const beforeInfo = Shared.getLevelInfo(state.record.totalEXP);
+    const newTotalEXP = state.record.totalEXP + state.roundEXP;
+    const newCoins = state.record.coins + state.roundCoins;
+    const afterInfo = paintLevelUI(newTotalEXP, newCoins, els.endLevelBadge, els.endExpFill, null);
+
+    if(afterInfo && afterInfo.level > beforeInfo.level){
+      els.levelUpBanner.textContent = `⬆ LEVEL UP! You are now Level ${afterInfo.level}!`;
+      els.levelUpBanner.classList.add('show');
+    } else {
+      els.levelUpBanner.classList.remove('show');
+    }
+
+    if(best <= 1){
+      els.endMessage.textContent = 'Amazing precision! Your aim is legendary.';
+    } else if(best <= 5){
+      els.endMessage.textContent = 'Solid shooting — keep training for a bullseye!';
+    } else {
+      els.endMessage.textContent = 'Use the measured distance to adjust your aim next time.';
+    }
+
+    // Save to shared record
+    state.record.totalEXP = newTotalEXP;
+    state.record.coins = newCoins;
+    paintLevelUI(newTotalEXP, newCoins, els.levelBadge, els.expFill, els.coinBadge);
+    if(!state.demo && state.nameKey){
+      try{ await Shared.saveStudent(state.nameKey, state.record); }catch(e){ /* ignore */ }
+    }
+
+    // Save this game's own leaderboard entry
+    if(!state.demo && Shared.DB_OK){
+      try{
+        await Shared.DB.ref('archery_scores').push({
+          name: state.name,
+          period: state.period,
+          bestMiss: roundToCm(best),
+          expEarned: state.roundEXP,
+          timestamp: Date.now()
+        });
+      }catch(e){ /* ignore */ }
+    }
+
+    // Bullseye item popup
+    if(best <= 1){
+      setTimeout(()=>{
+        els.itemPopupOverlay.classList.remove('hidden');
+      }, 800);
+    }
+  }
+
+  els.btnDismissItem.addEventListener('click', ()=>{
+    els.itemPopupOverlay.classList.add('hidden');
+  });
+
+  els.btnPlayAgain.addEventListener('click', ()=>{
+    els.itemPopupOverlay.classList.add('hidden');
+    startNewRound();
+  });
+
+})();
+</script>
+</body>
+</html>
