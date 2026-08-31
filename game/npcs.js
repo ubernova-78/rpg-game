@@ -55,12 +55,20 @@ function buildStaticSheet(spec) {
       ctx.putImageData(data, 0, 0);
     }
   }
-  let tries = 0;
-  (function poll() {
-    if (imgs.every(im => im.complete) || tries > 60) { draw(); return; }
-    tries++;
-    requestAnimationFrame(poll);
-  })();
+  // Draw immediately if all images are ready, otherwise redraw once they arrive.
+  if (imgs.every(im => im.complete && im.naturalWidth > 0)) {
+    draw();
+  } else {
+    const onReady = () => {
+      if (imgs.every(im => im.complete)) draw();
+    };
+    for (const im of imgs) {
+      if (!im.complete) {
+        im.addEventListener('load', onReady);
+        im.addEventListener('error', onReady);
+      }
+    }
+  }
   return canvas;
 }
 

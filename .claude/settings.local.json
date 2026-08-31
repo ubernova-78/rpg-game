@@ -3,7 +3,13 @@
     "allow": [
       "Read(//Users/nicholaswright/Downloads/elements_core_pack_2/**)",
       "Read(//Users/nicholaswright/Downloads/action_monsters_10/**)",
-      "Read(//Users/nicholaswright/Downloads/elements_hometown_6/**)"
+      "Read(//Users/nicholaswright/Downloads/elements_hometown_6/**)",
+      "Bash(open *)",
+      "Bash(python3 *)",
+      "Bash(ls -lh /Users/nicholaswright/Documents/art-packs/elements_core_pack_2/assets/weapon/*.png)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
