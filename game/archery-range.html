@@ -877,7 +877,7 @@
 
   // ========== ROUND MANAGEMENT ==========
   function startNewRound(){
-    state.targetDist = Math.floor(Math.random() * 51) + 10; // 10-60
+    state.targetDist = Math.floor(Math.random() * 41) + 20; // 20-60
     state.wallDist = Math.round(state.targetDist * WALL_FRAC);
     state.shotNum = 0;
     state.shots = [];
