@@ -74,11 +74,12 @@ function buildStaticSheet(spec) {
 
 const NPC_DEFS = [
   {
-    id: 'forest', name: 'Forest Wanderer',
+    id: 'forest', name: 'Forest Ranger',
     homeCol: TOWN_OFFSET_COL + TOWN_COLS + 6, homeRow: TOWN_OFFSET_ROW + Math.floor(TOWN_ROWS / 2),
     range: 3,
     spec: { head: 'head3', hair: 'hair7', top: 'top8', bottom: 'bottom6', skinTone: 1 },
-    message: "Keep sharpening those skills — I have a feeling we'll need your power soon.",
+    message: "You could get much better by training at the archery range! Hit the monster to win a Hunter's Bow — but you'll need to measure your accuracy in meters.",
+    game: { src: 'archery-range.html', messageType: 'archery-login', label: 'Archery Range' },
   },
   {
     id: 'lake', name: 'Lake Watcher',
@@ -181,7 +182,17 @@ function nearbyNpc(x, y) {
 function openNpcDialogue(npc) {
   scene.modalOpen = true;
   wbTitle.textContent = npc.name;
-  wbBody.textContent = npc.message;
+  wbBody.innerHTML = '';
+  const msg = document.createElement('p');
+  msg.textContent = npc.message;
+  msg.style.margin = '0 0 8px';
+  wbBody.appendChild(msg);
+  if (npc.game) {
+    wbBody.appendChild(gateButton('Train at the ' + npc.game.label, () => {
+      closeWorkbench();
+      openGameOverlay(npc.game);
+    }));
+  }
   wbModal.classList.remove('hidden');
 }
 
