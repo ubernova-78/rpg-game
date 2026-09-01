@@ -61,7 +61,7 @@
     // Scale label
     const scaleLabel = document.createElement('p');
     scaleLabel.className = 'mq-tape-scale-label';
-    scaleLabel.textContent = 'Scale: small ticks = mm';
+    scaleLabel.textContent = 'Scale: small ticks = mm \u00b7 numbered ticks = cm';
     container.appendChild(scaleLabel);
 
     // Tape wrapper (scrollable)
