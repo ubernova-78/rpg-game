@@ -13,7 +13,7 @@ const VIEWPORT_ROWS = mapCanvas.height / TILE;
 // The original town (built when the world WAS the whole screen) keeps every one of its
 // existing tile coordinates — it's just placed inside the bigger world at this offset,
 // which every town coordinate below gets shifted by in one pass rather than by hand.
-const WORLD_COLS = 45, WORLD_ROWS = 30;
+const WORLD_COLS = 55, WORLD_ROWS = 30;
 const TOWN_OFFSET_COL = 15, TOWN_OFFSET_ROW = 10;
 const TOWN_COLS = 15, TOWN_ROWS = 10; // the original town's own footprint, for biome zoning
 
@@ -94,14 +94,36 @@ const DECOR_DEFS = [
 // above). A simple fixed-stride scatter, nudged with a small deterministic offset per
 // tile so it doesn't look like a grid.
 function nudge(i, amount) { return (i * 37) % amount; }
+// Tree circle clearing for the Potion Master — center at (46, 15), radius 4 tiles.
+// Auto-scatter skips this zone; the ring of trees is placed manually below.
+const CLEARING_COL = 46, CLEARING_ROW = 15, CLEARING_R = 4;
+function inClearing(c, r) {
+  const dx = c - CLEARING_COL, dy = r - CLEARING_ROW;
+  return dx * dx + dy * dy <= (CLEARING_R + 1) * (CLEARING_R + 1);
+}
 for (let r = 0; r < WORLD_ROWS; r += 3) {
   for (let c = TOWN_OFFSET_COL + TOWN_COLS + 1; c < WORLD_COLS; c += 3) {
     const cc = c + nudge(r, 2), rr = r + nudge(c, 2);
     if (cc >= WORLD_COLS || rr >= WORLD_ROWS) continue;
+    if (inClearing(cc, rr)) continue;
     const kind = (c + r) % 3 === 0 ? 'tree_pine' : (c + r) % 3 === 1 ? 'tree_round' : 'tree_thin';
     DECOR_DEFS.push({ img: loadImage(`tiles/decor/${kind}.png`), baseCol: cc, baseRow: rr, solid: true });
   }
 }
+// Ring of trees around the clearing
+[
+  [CLEARING_COL - 3, CLEARING_ROW - 2],
+  [CLEARING_COL,     CLEARING_ROW - 3],
+  [CLEARING_COL + 3, CLEARING_ROW - 2],
+  [CLEARING_COL + 4, CLEARING_ROW],
+  [CLEARING_COL + 3, CLEARING_ROW + 2],
+  [CLEARING_COL,     CLEARING_ROW + 3],
+  [CLEARING_COL - 3, CLEARING_ROW + 2],
+  [CLEARING_COL - 4, CLEARING_ROW],
+].forEach(([c, r], i) => {
+  const kind = i % 3 === 0 ? 'tree_pine' : i % 3 === 1 ? 'tree_round' : 'tree_thin';
+  DECOR_DEFS.push({ img: loadImage(`tiles/decor/${kind}.png`), baseCol: c, baseRow: r, solid: true });
+});
 for (let r = 0; r < WORLD_ROWS; r += 3) {
   for (let c = 0; c < TOWN_OFFSET_COL - 1; c += 3) {
     const cc = c + nudge(r, 2), rr = r + nudge(c, 2);
@@ -126,7 +148,7 @@ for (let c = TOWN_OFFSET_COL; c < TOWN_OFFSET_COL + TOWN_COLS; c += 3) {
 // go through the town shift.
 (function addWildWalkways() {
   const forestRow = TOWN_OFFSET_ROW + Math.floor(TOWN_ROWS / 2);
-  for (let c = TOWN_OFFSET_COL + TOWN_COLS; c < TOWN_OFFSET_COL + TOWN_COLS + 8; c++) {
+  for (let c = TOWN_OFFSET_COL + TOWN_COLS; c < CLEARING_COL; c++) {
     pathTiles.add(`${c},${forestRow}`);
   }
   const grassCol = TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2);
@@ -463,6 +485,7 @@ function worldDoorTrigger(x, y) {
 
 function enterBuilding(b) {
   scene.mode = 'interior';
+  document.getElementById('compassRose').style.display = 'none';
   scene.buildingId = b.id;
   scene.returnPos = { x: player.x, y: player.y };
   // spawn is well clear of every interactive object, so these should reflect that — NOT
@@ -477,6 +500,7 @@ function enterBuilding(b) {
 }
 function exitBuilding() {
   scene.mode = 'world';
+  document.getElementById('compassRose').style.display = '';
   // landing spot is nudged only slightly south of the door, so it may still sit inside
   // the door's wide interact zone — wasOnDoor=true requires walking clear of it before
   // stepping back in can trigger again.

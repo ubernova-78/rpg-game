@@ -382,7 +382,7 @@
     position:relative;
     overflow-x:auto;
     margin-bottom:14px;
-    padding:10px 0 4px;
+    padding:38px 0 4px;
     background:#fff;
     border:2px solid var(--charcoal);
     border-radius:8px;
@@ -390,7 +390,7 @@
   .caliper-wrap svg{ display:block; }
   .caliper-unit-badge{
     position:absolute;
-    top:8px; left:10px;
+    top:6px; left:10px;
     font-size:1.4rem; font-weight:900;
     color:var(--charcoal);
     background:rgba(255,255,255,0.85);
@@ -550,7 +550,7 @@
     <div class="hud">
       <div class="pill" id="hud-round">Round 1 / 12</div>
       <div class="pill" id="hud-mode">Read</div>
-      <div class="pill" id="hud-score">EXP: 0 · 🪙 0</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
     </div>
     <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
 
@@ -603,6 +603,9 @@
     <div class="end-screen">
       <h2 id="end-title">Round complete!</h2>
       <div class="reward-row">
+        <span>Score: <span class="exp-val" id="end-score">0</span> / 120</span>
+      </div>
+      <div class="reward-row">
         <span>EXP earned: <span class="exp-val" id="end-exp-earned">0</span></span>
         <span>Coins earned: <span class="coin-val" id="end-coins-earned">0</span></span>
       </div>
@@ -622,10 +625,12 @@
   // ---------- State ----------
   let state = {
     name:'', pin:'', period:'', bench:null, demo:false, teacher:false, embedded:false,
-    round:0, totalRounds:12, roundEXP:0, roundCoins:0, roundStart:0, locked:false,
+    round:0, totalRounds:12, score:0, roundEXP:0, roundCoins:0, roundStart:0, locked:false,
     modeSequence:[], currentQ:null,
-    record:null // the student's shared EXP/coins/level record, loaded at login
+    record:null, // the student's shared EXP/coins/level record, loaded at login
+    hintPotions:0, // passed from parent; controls howto button visibility
   };
+  const GOAL = 120;
 
   const els = {
     start: document.getElementById('screen-start'),
@@ -667,6 +672,7 @@
     submitCaliper: document.getElementById('submit-caliper'),
     feedback: document.getElementById('feedback'),
     endTitle: document.getElementById('end-title'),
+    endScore: document.getElementById('end-score'),
     endExpEarned: document.getElementById('end-exp-earned'),
     endCoinsEarned: document.getElementById('end-coins-earned'),
     levelUpBanner: document.getElementById('level-up-banner'),
@@ -757,9 +763,10 @@
   // ---------- Embedding: accept a login handoff from a parent hub page ----------
   window.addEventListener('message', async (e)=>{
     if(!e.data || e.data.type !== 'mb-login') return;
-    const { name, pin, period, demo, teacher, bench } = e.data;
+    const { name, pin, period, demo, teacher, bench, hintPotions } = e.data;
     state.embedded = true;
     state.bench = bench || 'mixed';
+    state.hintPotions = hintPotions || 0;
     document.getElementById('login-fields').classList.add('hidden');
     document.getElementById('demo-note').classList.add('hidden');
     // The student already chose which table to walk up to in-game — no need to ask again.
@@ -829,9 +836,11 @@
     } // end non-embedded branch
 
     state.round = 0;
+    state.score = 0;
     state.roundEXP = 0;
     state.roundCoins = 0;
     state.roundStart = Date.now();
+    els.hudScore.textContent = '0 of 120 points';
     state.modeSequence = buildModeSequence();
     paintLevelUI(state.record.totalEXP, state.record.coins, els.levelBadge, els.expFill, els.coinBadge);
     showScreen(els.game);
@@ -937,7 +946,13 @@
   }
 
   els.howtoBtn.addEventListener('click', ()=>{
-    els.howtoBox.classList.toggle('hidden');
+    if(state.hintPotions <= 0) return;
+    state.hintPotions--;
+    // Tell the parent frame to consume the potion from inventory
+    if(window.parent !== window) window.parent.postMessage({ type:'consume-hint-potion' }, '*');
+    els.howtoBox.classList.remove('hidden');
+    els.howtoBtn.textContent = state.hintPotions > 0 ? `? (${state.hintPotions})` : '?';
+    if(state.hintPotions <= 0) els.howtoBtn.classList.add('hidden');
   });
 
   // --- CHOOSE THE UNIT MODE ---
@@ -983,7 +998,10 @@
 
     els.modeRead.classList.remove('hidden');
     els.qtext.textContent = 'How long is the blue bar?';
-    els.howtoBtn.classList.remove('hidden');
+    if(state.hintPotions > 0){
+      els.howtoBtn.classList.remove('hidden');
+      els.howtoBtn.textContent = `? (${state.hintPotions})`;
+    }
     els.howtoBox.textContent = scale === 'mm'
       ? 'Every small tick is 1 mm. The bar starts at 0 — count the ticks to its right edge.'
       : scale === 'cm'
@@ -1157,7 +1175,10 @@
     const valueMM = randInt(params.minMM, params.maxMM);
 
     els.qtext.textContent = 'How long is the blue bar?';
-    els.howtoBtn.classList.remove('hidden');
+    if(state.hintPotions > 0){
+      els.howtoBtn.classList.remove('hidden');
+      els.howtoBtn.textContent = `? (${state.hintPotions})`;
+    }
     els.howtoBox.textContent = 'The fixed jaw sits at 0. Read the small arrow on the sliding jaw against the scale above it \u2014 every tick is 1 mm.';
 
     els.caliperWrap.innerHTML = buildCaliperSVG(valueMM, params.maxMM);
@@ -1208,10 +1229,12 @@
 
   function grade(isCorrect, correctText, exp){
     if(isCorrect){
+      const pts = 10;
+      state.score = Math.min(GOAL, state.score + pts);
       const coins = Math.floor(exp/2);
       state.roundEXP += exp;
       state.roundCoins += coins;
-      els.feedback.textContent = `Correct! +${exp} EXP, +${coins} 🪙 (${correctText})`;
+      els.feedback.textContent = `Correct! +${pts} points (${correctText})`;
       els.feedback.className = 'feedback show good';
     } else {
       els.feedback.textContent = `Not quite — the answer was ${correctText}.`;
@@ -1221,13 +1244,14 @@
     const previewEXP = state.record.totalEXP + state.roundEXP;
     const previewCoins = state.record.coins + state.roundCoins;
     paintLevelUI(previewEXP, previewCoins, els.levelBadge, els.expFill, els.coinBadge);
-    els.hudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
+    els.hudScore.textContent = `${state.score} of ${GOAL} points`;
     setTimeout(nextRound, 1400);
   }
 
   // ---------- End of game ----------
   async function finishGame(){
     showScreen(els.end);
+    els.endScore.textContent = state.score;
     els.endExpEarned.textContent = state.roundEXP;
     els.endCoinsEarned.textContent = state.roundCoins;
 
@@ -1243,15 +1267,15 @@
       els.levelUpBanner.classList.remove('show');
     }
 
-    if(state.roundEXP >= 100){
-      els.endTitle.textContent = '🏆 Full Marks Run!';
+    if(state.score >= 120){
+      els.endTitle.textContent = 'Perfect score!';
       els.endMessage.textContent = 'Great work — show your teacher for a reward!';
-    } else if(state.roundEXP >= 70){
-      els.endTitle.textContent = '💪 Solid round!';
-      els.endMessage.textContent = 'Nice measuring. Try again to earn even more EXP.';
+    } else if(state.score >= 90){
+      els.endTitle.textContent = 'Solid round!';
+      els.endMessage.textContent = 'Nice measuring. Try again to get a perfect score.';
     } else {
       els.endTitle.textContent = 'Round complete';
-      els.endMessage.textContent = 'Keep practicing — try Easy or Medium to build up your skills.';
+      els.endMessage.textContent = 'Keep practicing — try again to improve your score.';
     }
 
     state.record.totalEXP = newTotalEXP;

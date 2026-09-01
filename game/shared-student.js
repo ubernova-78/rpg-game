@@ -1,7 +1,7 @@
 /*
   shared-student.js
   ------------------------------------------------------------------
-  Logic shared by every mini-game in Class Quest: the Firebase
+  Logic shared by every mini-game in Physics Quest: the Firebase
   connection, the student record (name/PIN/EXP/coins), and the
   leveling curve. Load this ONE file in every game (and the hub)
   instead of copy-pasting this logic — changing leveling, EXP rules,
@@ -54,9 +54,29 @@ window.Shared = (function(){
     return { level, floor, nextReq, progress: span > 0 ? (totalEXP-floor)/span : 1 };
   }
 
-  // Reads (or creates) the shared student record at students/{nameKey}.
-  // Returns { ok:true, record, nameKey } or { ok:false, error }.
-  async function loadOrCreateStudent(name, pin, period){
+  // Logs in an existing student. Returns { ok:true, record, nameKey } or { ok:false, error }.
+  async function loginStudent(name, pin){
+    const nameKey = normalizeName(name);
+    if(!DB_OK){
+      return { ok:false, error:'Database is offline. Please try again later.' };
+    }
+    let existing = null;
+    try{
+      const snap = await DB.ref('students/'+nameKey).once('value');
+      if(snap.exists()) existing = snap.val();
+    }catch(e){ console.warn('Student read failed', e); }
+
+    if(!existing){
+      return { ok:false, error:'No account found with that name. Check your spelling, or create a new account.' };
+    }
+    if(existing.pin !== pin){
+      return { ok:false, error:'That name is already used with a different PIN. Double-check your PIN, or pick a different name.' };
+    }
+    return { ok:true, record: existing, nameKey };
+  }
+
+  // Creates a new student account. Returns { ok:true, record, nameKey } or { ok:false, error }.
+  async function createStudent(name, pin, period){
     const nameKey = normalizeName(name);
     if(!DB_OK){
       return { ok:true, nameKey, offline:true,
@@ -69,11 +89,7 @@ window.Shared = (function(){
     }catch(e){ console.warn('Student read failed', e); }
 
     if(existing){
-      if(existing.pin !== pin){
-        return { ok:false, error:'That name is already used with a different PIN. Double-check your PIN, or pick a different name.' };
-      }
-      existing.lastPeriod = period;
-      return { ok:true, record: existing, nameKey };
+      return { ok:false, error:'That name is already taken. Pick a different name, or log in if it\'s yours.' };
     }
 
     const fresh = {
@@ -81,6 +97,13 @@ window.Shared = (function(){
       inventory: [], equipped: { weapon:null, armor:null }
     };
     return { ok:true, record: fresh, nameKey };
+  }
+
+  // Backward-compatible wrapper (used by mini-games via postMessage).
+  async function loadOrCreateStudent(name, pin, period){
+    const login = await loginStudent(name, pin);
+    if(login.ok) { login.record.lastPeriod = period; return login; }
+    return createStudent(name, pin, period);
   }
 
   async function saveStudent(nameKey, record){
@@ -279,7 +302,7 @@ window.Shared = (function(){
   return {
     DB, DB_OK,
     normalizeName, levelThreshold, getLevelInfo,
-    loadOrCreateStudent, saveStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
+    loginStudent, createStudent, loadOrCreateStudent, saveStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
     generateMatchCode, createMatch, joinMatch, watchMatch, cancelMatch,
     reportBattleReady, startBattleRound, submitBattleAnswer, applyBattleResolution,
     watchBattle, resolveRoundOutcome, cleanupBattle

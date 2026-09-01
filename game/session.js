@@ -102,14 +102,24 @@ let session = { name: '', pin: '', period: '', record: null, nameKey: '', demo: 
 
 const loginEls = {
   screenLogin: document.getElementById('screenLogin'),
+  screenCreate: document.getElementById('screenCreate'),
   screenTown: document.getElementById('screenTown'),
+  // Login screen
   pname: document.getElementById('pname'),
   ppin: document.getElementById('ppin'),
-  period: document.getElementById('period'),
   demoMode: document.getElementById('demoMode'),
-  teacherMode: document.getElementById('teacherMode'),
   err: document.getElementById('loginError'),
-  btnEnter: document.getElementById('btnEnter'),
+  btnLogin: document.getElementById('btnLogin'),
+  linkToCreate: document.getElementById('linkToCreate'),
+  // Create screen
+  createName: document.getElementById('createName'),
+  createPin: document.getElementById('createPin'),
+  createPeriod: document.getElementById('createPeriod'),
+  teacherMode: document.getElementById('teacherMode'),
+  createErr: document.getElementById('createError'),
+  btnCreate: document.getElementById('btnCreate'),
+  linkToLogin: document.getElementById('linkToLogin'),
+  // HUD
   welcomeText: document.getElementById('welcomeText'),
   hudLevel: document.getElementById('hudLevel'),
   hudExpFill: document.getElementById('hudExpFill'),
@@ -117,35 +127,47 @@ const loginEls = {
   hudHp: document.getElementById('hudHp'),
 };
 
+// --- Screen switching ---
+loginEls.linkToCreate.addEventListener('click', e => {
+  e.preventDefault();
+  loginEls.screenLogin.classList.add('hidden');
+  loginEls.screenCreate.classList.remove('hidden');
+});
+loginEls.linkToLogin.addEventListener('click', e => {
+  e.preventDefault();
+  loginEls.screenCreate.classList.add('hidden');
+  loginEls.screenLogin.classList.remove('hidden');
+});
+
+// --- Login validation ---
 loginEls.pname.addEventListener('input', validateLogin);
 loginEls.ppin.addEventListener('input', () => {
   loginEls.ppin.value = loginEls.ppin.value.replace(/\D/g, '').slice(0, 4);
   validateLogin();
 });
-loginEls.period.addEventListener('change', validateLogin);
 loginEls.demoMode.addEventListener('change', () => {
   loginEls.pname.disabled = loginEls.demoMode.checked;
   loginEls.ppin.disabled = loginEls.demoMode.checked;
-  loginEls.period.disabled = loginEls.demoMode.checked;
-  if (loginEls.demoMode.checked) { loginEls.teacherMode.checked = false; loginEls.teacherMode.disabled = true; }
-  else { loginEls.teacherMode.disabled = false; }
-  validateLogin();
-});
-loginEls.teacherMode.addEventListener('change', () => {
-  if (loginEls.teacherMode.checked) {
-    loginEls.demoMode.checked = false; loginEls.demoMode.disabled = true;
-    loginEls.pname.disabled = false; loginEls.ppin.disabled = false; loginEls.period.disabled = false;
-  } else {
-    loginEls.demoMode.disabled = false;
-  }
   validateLogin();
 });
 function validateLogin() {
-  if (loginEls.demoMode.checked) { loginEls.btnEnter.disabled = false; return; }
-  loginEls.btnEnter.disabled = !(loginEls.pname.value.trim() && loginEls.ppin.value.length === 4 && loginEls.period.value);
+  if (loginEls.demoMode.checked) { loginEls.btnLogin.disabled = false; return; }
+  loginEls.btnLogin.disabled = !(loginEls.pname.value.trim() && loginEls.ppin.value.length === 4);
 }
 
-loginEls.btnEnter.addEventListener('click', async () => {
+// --- Create account validation ---
+loginEls.createName.addEventListener('input', validateCreate);
+loginEls.createPin.addEventListener('input', () => {
+  loginEls.createPin.value = loginEls.createPin.value.replace(/\D/g, '').slice(0, 4);
+  validateCreate();
+});
+loginEls.createPeriod.addEventListener('change', validateCreate);
+function validateCreate() {
+  loginEls.btnCreate.disabled = !(loginEls.createName.value.trim() && loginEls.createPin.value.length === 4 && loginEls.createPeriod.value);
+}
+
+// --- Login handler ---
+loginEls.btnLogin.addEventListener('click', async () => {
   loginEls.err.style.display = 'none';
 
   if (loginEls.demoMode.checked) {
@@ -161,30 +183,55 @@ loginEls.btnEnter.addEventListener('click', async () => {
     return;
   }
 
-  loginEls.btnEnter.disabled = true;
-  loginEls.btnEnter.textContent = 'Checking...';
-  const name = loginEls.pname.value.trim(), pin = loginEls.ppin.value.trim(), period = loginEls.period.value;
-  const teacher = loginEls.teacherMode.checked;
+  loginEls.btnLogin.disabled = true;
+  loginEls.btnLogin.textContent = 'Checking...';
+  const name = loginEls.pname.value.trim(), pin = loginEls.ppin.value.trim();
 
-  const result = await Shared.loadOrCreateStudent(name, pin, period);
+  const result = await Shared.loginStudent(name, pin);
   if (!result.ok) {
     loginEls.err.textContent = result.error;
     loginEls.err.style.display = 'block';
-    loginEls.btnEnter.disabled = false;
-    loginEls.btnEnter.textContent = 'Enter the town';
+    loginEls.btnLogin.disabled = false;
+    loginEls.btnLogin.textContent = 'Log In';
     return;
   }
-  result.record.isTeacher = !!(result.record.isTeacher || teacher);
+
+  const period = result.record.lastPeriod || '';
+  session = { name, pin, period, record: result.record, nameKey: result.nameKey, demo: false, teacher: !!result.record.isTeacher };
+  loginEls.welcomeText.textContent = session.teacher ? `Welcome, ${name}! (teacher — hidden from leaderboards)` : `Welcome, ${name}!`;
+  paintHud();
+  enterTown();
+});
+
+// --- Create account handler ---
+loginEls.btnCreate.addEventListener('click', async () => {
+  loginEls.createErr.style.display = 'none';
+
+  loginEls.btnCreate.disabled = true;
+  loginEls.btnCreate.textContent = 'Creating...';
+  const name = loginEls.createName.value.trim(), pin = loginEls.createPin.value.trim(), period = loginEls.createPeriod.value;
+  const teacher = loginEls.teacherMode.checked;
+
+  const result = await Shared.createStudent(name, pin, period);
+  if (!result.ok) {
+    loginEls.createErr.textContent = result.error;
+    loginEls.createErr.style.display = 'block';
+    loginEls.btnCreate.disabled = false;
+    loginEls.btnCreate.textContent = 'Create Account';
+    return;
+  }
+  result.record.isTeacher = teacher;
   await Shared.saveStudent(result.nameKey, result.record);
 
-  session = { name, pin, period, record: result.record, nameKey: result.nameKey, demo: false, teacher: result.record.isTeacher };
-  loginEls.welcomeText.textContent = session.teacher ? `Welcome, ${name}! (teacher — hidden from leaderboards)` : `Welcome, ${name}!`;
+  session = { name, pin, period, record: result.record, nameKey: result.nameKey, demo: false, teacher };
+  loginEls.welcomeText.textContent = teacher ? `Welcome, ${name}! (teacher — hidden from leaderboards)` : `Welcome, ${name}!`;
   paintHud();
   enterTown();
 });
 
 function enterTown() {
   loginEls.screenLogin.classList.add('hidden');
+  loginEls.screenCreate.classList.add('hidden');
   loginEls.screenTown.classList.remove('hidden');
   startGame();
 }
@@ -223,9 +270,17 @@ function openGameOverlay(wb) {
       demo: session.demo,
       teacher: session.teacher,
       bench: wb.bench, // which specific station inside a multi-bench workshop (e.g. measure-bench.html's 5 stations) — undefined for single-bench workshops like Place Value
+      hintPotions: potionCount('hintPotion'),
     }, '*');
   };
 }
+// Listen for hint-potion consumption requests from workbench iframes
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'consume-hint-potion') {
+    consumePotion('hintPotion');
+  }
+});
+
 gameOverlayEls.btnBack.addEventListener('click', async () => {
   gameOverlayEls.overlay.classList.add('hidden');
   gameOverlayEls.frame.src = '';

@@ -19,7 +19,9 @@ function buildStaticSheet(spec) {
     if (!id) continue;
     const idx = findManifestIndex(key, id);
     if (idx < 0) continue;
-    const file = `assets/${key}/${MANIFEST[key][idx].variants[0]}`;
+    const vi = (spec.variantIndex && spec.variantIndex[key]) || 0;
+    const variants = MANIFEST[key][idx].variants;
+    const file = `assets/${key}/${variants[Math.min(vi, variants.length - 1)]}`;
     files[key] = file;
     paths.push(file);
   }
@@ -110,6 +112,18 @@ const NPC_DEFS = [
     homeCol: TOWN_OFFSET_COL + 6, homeRow: TOWN_OFFSET_ROW + 1,
     range: 1,
     spec: { head: 'head2', hair: 'hair8', top: 'top6', bottom: 'bottom4', skinTone: 1 },
+  },
+  {
+    id: 'potionmaster', name: 'Potion Master',
+    homeCol: CLEARING_COL, homeRow: CLEARING_ROW,
+    range: 2,
+    spec: {
+      head: 'head4', hair: 'hair9', top: 'top12', bottom: 'bottom7',
+      hat: 'hat5', weapon: 'spear1_c2', skinTone: 0,
+      variantIndex: { top: 4 }, // dark navy robe
+    },
+    message: "The forest holds many secrets for those who know how to measure. Gather ingredients for my potions — but you'll need sharp eyes and a steady caliper hand.",
+    game: { src: 'potion-quest.html', messageType: 'potion-login', label: 'Potion Gathering' },
   },
 ];
 for (const npc of NPC_DEFS) {

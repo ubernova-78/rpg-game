@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Quest Game — Character &amp; World</title>
+<title>Physics Quest</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
@@ -168,7 +168,7 @@
     border-radius: 2px; line-height: 1.3;
   }
 
-  /* ---- Login screen (matches the Class Quest hub) ---- */
+  /* ---- Login screen (matches the Physics Quest hub) ---- */
   .login-card {
     max-width: 420px;
     margin: 60px auto;
@@ -200,6 +200,13 @@
   .login-card .demo-note label {
     display: inline; font-weight: 400; font-size: 0.85rem; color: var(--muted);
   }
+  .login-card .switch-link {
+    text-align: center; margin-top: 18px; font-size: 0.9rem; color: var(--muted);
+  }
+  .login-card .switch-link a {
+    color: var(--accent); text-decoration: none; font-weight: 700;
+  }
+  .login-card .switch-link a:hover { text-decoration: underline; }
 
   /* ---- Town HUD ---- */
   #townHud {
@@ -217,6 +224,16 @@
   .coin-badge {
     background: #2f2a1a; border: 1px solid #d6a03c; color: #d6a03c;
     padding: 5px 12px; border-radius: 20px; font-weight: 800; font-size: 0.85rem;
+  }
+
+  /* ---- Compass rose ---- */
+  #compassRose {
+    position: absolute;
+    top: 8px; left: 8px;
+    width: 56px; height: 56px;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0.85;
   }
 
   /* ---- Mini-game overlay ---- */
@@ -425,32 +442,49 @@
 
   <!-- LOGIN SCREEN -->
   <div class="login-card" id="screenLogin">
-    <h1>🗺️ Class Quest</h1>
-    <p class="sub">Sign in once — your EXP and coins carry across every game.</p>
+    <h1>🗺️ Physics Quest</h1>
+    <p class="sub">Sign in — your EXP and coins carry across every game.</p>
 
     <label for="pname">Your name</label>
     <input type="text" id="pname" placeholder="Type your name">
 
     <label for="ppin">Your PIN (4 digits)</label>
     <input type="text" id="ppin" placeholder="e.g. 4271" maxlength="4" inputmode="numeric">
-    <p class="hint">First time? Pick any 4-digit PIN — that becomes your login. Played before? Enter the same name + PIN.</p>
 
-    <label for="period">Class period</label>
-    <select id="period">
+    <p class="err" id="loginError"></p>
+    <button class="primary" id="btnLogin" disabled>Log In</button>
+    <div class="demo-note">
+      <label><input type="checkbox" id="demoMode" style="width:auto; margin-right:6px;"> Demo mode (preview only — nothing is saved to Firebase)</label>
+    </div>
+    <p class="switch-link">New student? <a href="#" id="linkToCreate">Create New Account</a></p>
+  </div>
+
+  <!-- CREATE ACCOUNT SCREEN -->
+  <div class="login-card hidden" id="screenCreate">
+    <h1>🗺️ Physics Quest</h1>
+    <p class="sub">Create your account — pick a name and PIN you'll remember!</p>
+
+    <label for="createName">Your name</label>
+    <input type="text" id="createName" placeholder="Type your name">
+
+    <label for="createPin">Your PIN (4 digits)</label>
+    <input type="text" id="createPin" placeholder="e.g. 4271" maxlength="4" inputmode="numeric">
+
+    <label for="createPeriod">Class period</label>
+    <select id="createPeriod">
       <option value="">Select period</option>
       <option value="2">Period 2</option>
       <option value="6">Period 6</option>
       <option value="7">Period 7</option>
     </select>
 
-    <p class="err" id="loginError"></p>
-    <button class="primary" id="btnEnter" disabled>Enter the town</button>
     <div class="demo-note">
-      <label><input type="checkbox" id="demoMode" style="width:auto; margin-right:6px;"> Demo mode (preview only — nothing is saved to Firebase)</label>
+      <label><input type="checkbox" id="teacherMode" style="width:auto; margin-right:6px;"> Teacher account (hidden from every leaderboard)</label>
     </div>
-    <div class="demo-note">
-      <label><input type="checkbox" id="teacherMode" style="width:auto; margin-right:6px;"> Teacher account (builds up a character, hidden from every leaderboard)</label>
-    </div>
+
+    <p class="err" id="createError"></p>
+    <button class="primary" id="btnCreate" disabled>Create Account</button>
+    <p class="switch-link">Already have an account? <a href="#" id="linkToLogin">Log In</a></p>
   </div>
 
   <!-- TOWN SCREEN -->
@@ -469,6 +503,27 @@
     <div class="panel">
       <div id="mapWrap">
         <canvas id="mapCanvas" width="720" height="480"></canvas>
+
+        <div id="compassRose">
+          <svg viewBox="0 0 56 56" width="56" height="56" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="28" cy="28" r="26" fill="rgba(20,23,26,0.7)" stroke="#5fa8d3" stroke-width="1.5"/>
+            <!-- N pointer (red) -->
+            <polygon points="28,6 24,26 28,22 32,26" fill="#c1443a"/>
+            <!-- S pointer (white) -->
+            <polygon points="28,50 24,30 28,34 32,30" fill="#aab4be"/>
+            <!-- E pointer -->
+            <polygon points="50,28 30,24 34,28 30,32" fill="#aab4be"/>
+            <!-- W pointer -->
+            <polygon points="6,28 26,24 22,28 26,32" fill="#aab4be"/>
+            <!-- Labels -->
+            <text x="28" y="16" text-anchor="middle" font-size="7" font-weight="900" fill="#c1443a" font-family="monospace">N</text>
+            <text x="28" y="48" text-anchor="middle" font-size="7" font-weight="800" fill="#aab4be" font-family="monospace">S</text>
+            <text x="46" y="30.5" text-anchor="middle" font-size="7" font-weight="800" fill="#aab4be" font-family="monospace">E</text>
+            <text x="10" y="30.5" text-anchor="middle" font-size="7" font-weight="800" fill="#aab4be" font-family="monospace">W</text>
+            <!-- Center dot -->
+            <circle cx="28" cy="28" r="2.5" fill="#5fa8d3"/>
+          </svg>
+        </div>
 
         <button id="inventoryBtn" class="hidden">🎒 Inventory</button>
 
