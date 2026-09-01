@@ -255,6 +255,18 @@
     user-select:none;
   }
   .forest-container:active{cursor:grabbing;}
+  .forest-hint{
+    position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+    background:rgba(20,23,26,0.85); color:#e8ecf0; font-size:0.85rem;
+    padding:8px 16px; border-radius:8px; z-index:6;
+    pointer-events:none; text-align:center; white-space:nowrap;
+    transition:opacity 0.6s;
+  }
+  .forest-hint kbd{
+    background:rgba(255,255,255,0.15); padding:1px 5px; border-radius:3px;
+    font-family:inherit; font-weight:700;
+  }
+  .forest-hint.fade-out{opacity:0;}
   .forest-world{
     position:absolute;
     top:0; left:0;
@@ -579,6 +591,7 @@
       <div class="forest-main">
         <div class="forest-container" id="forest-container">
           <div class="forest-world" id="forest-world"></div>
+          <div class="forest-hint" id="forest-hint">Use <kbd>arrow keys</kbd> or <kbd>drag</kbd> to scroll the forest. Click an item to measure it!</div>
         </div>
         <!-- Caliper panel (replaces forest view when measuring) -->
         <div class="caliper-overlay hidden" id="caliper-panel">
@@ -1173,6 +1186,16 @@ function setupForestPan(){
     container.scrollLeft = scrollLeft - (e.touches[0].pageX - container.offsetLeft - startX);
     container.scrollTop = scrollTop - (e.touches[0].pageY - container.offsetTop - startY);
   }, {passive:true});
+
+  // Dismiss forest hint on first interaction or after 6s
+  const hint = document.getElementById('forest-hint');
+  if(hint){
+    const dismiss = ()=>{ hint.classList.add('fade-out'); setTimeout(()=> hint.remove(), 700); };
+    container.addEventListener('scroll', dismiss, {once:true});
+    container.addEventListener('mousedown', dismiss, {once:true});
+    container.addEventListener('touchstart', dismiss, {once:true});
+    setTimeout(dismiss, 6000);
+  }
 }
 
 // ── CALIPER MODE ──
