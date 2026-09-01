@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rounding Workbench</title>
+<style>
+  :root{
+    --bench:#1a1a2e;
+    --bench2:#16213e;
+    --bench3:#0f3460;
+    --paper:#f0ece2;
+    --accent:#e94560;
+    --teal:#1a936f;
+    --gold:#f6c90e;
+    --ink:#1a1a2e;
+    --dim:#7a7a8e;
+    --miss:#c1443a;
+    --good:#2d936c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:'Segoe UI',Verdana,sans-serif;
+    background:var(--bench);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .app{
+    width:100%;max-width:780px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;
+    border:3px solid var(--bench3);
+  }
+  .titlebar{
+    background:linear-gradient(135deg, var(--bench2), var(--bench3));
+    padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:3px solid var(--accent);
+  }
+  .titlebar h1{margin:0;font-size:1.3rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{
+    background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;
+    font-weight:bold;font-size:0.82rem;
+  }
+  .screen{padding:24px;}
+  .hidden{display:none !important;}
+
+  /* HUD */
+  .hud{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;
+  }
+  .pill{
+    background:#fff;border:2px solid #ddd;border-radius:20px;
+    padding:5px 12px;font-size:0.9rem;
+  }
+  .progressbar{
+    height:10px;background:#e0ddd4;border-radius:6px;overflow:hidden;
+    margin-bottom:18px;border:1px solid #ccc;
+  }
+  .progressfill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+
+  .qtext{font-size:1.1rem;font-weight:700;margin:0 0 14px;}
+
+  .feedback{
+    padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;
+    margin-top:14px;display:none;text-align:center;
+  }
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  .start-title{font-size:1.6rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:20px;}
+  .primary{
+    width:100%;padding:14px;border:none;border-radius:10px;
+    background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;
+  }
+  .primary:hover{filter:brightness(1.08);}
+
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  /* Number display */
+  .number-display{
+    display:flex;justify-content:center;align-items:center;
+    margin:24px 0 20px;
+  }
+  .big-number{
+    font-family:'Courier New',monospace;font-size:3rem;font-weight:800;
+    background:#111;color:#0f0;padding:18px 32px;border-radius:12px;
+    border:3px solid #333;letter-spacing:2px;
+    text-align:center;min-width:280px;
+  }
+  .arrow-down{
+    text-align:center;font-size:1.8rem;color:var(--teal);margin:6px 0;
+  }
+  .round-label{
+    text-align:center;font-weight:700;font-size:0.95rem;color:var(--dim);
+    margin-bottom:12px;
+  }
+
+  /* Digit highlight styles */
+  .digit-h{color:var(--gold);}
+  .digit-fade{color:#0a0;opacity:0.5;}
+
+  .answer-row{
+    display:flex;gap:10px;align-items:center;justify-content:center;
+    margin-top:10px;flex-wrap:wrap;
+  }
+  .time-input{
+    width:160px;padding:10px;font-size:1.2rem;border:2px solid #ccc;
+    border-radius:6px;text-align:center;font-family:'Courier New',monospace;
+  }
+  .time-input:focus{border-color:var(--teal);outline:none;}
+  .submit-btn{
+    padding:10px 24px;border-radius:8px;border:none;
+    background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;
+  }
+  .submit-btn:hover{filter:brightness(1.1);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>Rounding Workbench</h1>
+    <div class="badge">HUNDREDTHS</div>
+  </div>
+
+  <div class="screen" id="screen-start">
+    <div class="start-title">Round to the Hundredths</div>
+    <div class="start-sub">A number will appear on screen. Round it to the nearest hundredths place and type your answer.</div>
+    <p style="font-size:0.9rem;color:var(--dim);">12 rounds, 120 points possible.</p>
+    <button class="primary" id="btn-start">Start Practice</button>
+  </div>
+
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+    <div class="qtext" id="qtext">Round this number to the nearest hundredths place.</div>
+    <div id="question-body"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="screen hidden" id="screen-end">
+    <div class="end-title" id="end-title">Round complete</div>
+    <div class="end-score" id="end-score">0</div>
+    <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
+    <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <button class="primary" id="btn-again">Play Again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GOAL = 120;
+  const TOTAL_ROUNDS = 12;
+  let S = { round:0, score:0, attempt:0, locked:false };
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    start: $('screen-start'), game: $('screen-game'), end: $('screen-end'),
+    btnStart: $('btn-start'), btnAgain: $('btn-again'),
+    hudRound: $('hud-round'), hudScore: $('hud-score'),
+    progressfill: $('progressfill'),
+    qtext: $('qtext'), body: $('question-body'),
+    feedback: $('feedback'),
+    endTitle: $('end-title'), endScore: $('end-score'), endMsg: $('end-msg'),
+  };
+
+  function showScreen(s){
+    [els.start, els.game, els.end].forEach(x=>x.classList.add('hidden'));
+    s.classList.remove('hidden');
+  }
+
+  const randInt = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
+
+  // Generate a number with 3-6 decimal places that requires real rounding decisions
+  function generateNumber(){
+    // Whole part: 0-99
+    const whole = randInt(0, 99);
+    // Decimal places: 3 to 6
+    const places = randInt(3, 6);
+    // Generate each decimal digit
+    let decimals = '';
+    for(let i = 0; i < places; i++){
+      decimals += randInt(0, 9);
+    }
+    // Make sure the thousandths digit isn't always 0 (the rounding-critical digit)
+    // Replace 3rd digit if it's 0, at least sometimes, to get a mix
+    const numStr = whole + '.' + decimals;
+    return parseFloat(numStr);
+  }
+
+  function formatFull(n, places){
+    return n.toFixed(places);
+  }
+
+  // Build highlighted HTML: hundredths place highlighted, remaining digits faded
+  function highlightedNumber(numStr){
+    const dotIdx = numStr.indexOf('.');
+    if(dotIdx === -1) return numStr;
+    let html = '';
+    for(let i = 0; i < numStr.length; i++){
+      const decimalPos = i - dotIdx; // 1=tenths, 2=hundredths, 3+=beyond
+      if(decimalPos === 1 || decimalPos === 2){
+        html += `<span class="digit-h">${numStr[i]}</span>`;
+      } else if(decimalPos >= 3){
+        html += `<span class="digit-fade">${numStr[i]}</span>`;
+      } else {
+        html += numStr[i];
+      }
+    }
+    return html;
+  }
+
+  els.btnStart.addEventListener('click', ()=>{
+    S.round = 0; S.score = 0;
+    els.hudScore.textContent = `0 of ${GOAL} points`;
+    els.progressfill.style.width = '0%';
+    showScreen(els.game);
+    nextRound();
+  });
+  els.btnAgain.addEventListener('click', ()=> showScreen(els.start));
+
+  function nextRound(){
+    if(S.round >= TOTAL_ROUNDS){ finishGame(); return; }
+    S.locked = false;
+    S.attempt = 0;
+    S.round++;
+    els.hudRound.textContent = `Round ${S.round} / ${TOTAL_ROUNDS}`;
+    els.progressfill.style.width = `${(S.round/TOTAL_ROUNDS)*100}%`;
+    els.feedback.classList.remove('show','good','bad');
+    els.body.innerHTML = '';
+    setupRound();
+  }
+
+  function setupRound(){
+    const num = generateNumber();
+    // Determine how many decimal places it actually has
+    const numStr = String(num);
+    const dotIdx = numStr.indexOf('.');
+    const actualPlaces = dotIdx === -1 ? 0 : numStr.length - dotIdx - 1;
+    // Pad to at least 3 places so there's always something to round
+    const displayPlaces = Math.max(actualPlaces, 3);
+    const displayStr = num.toFixed(displayPlaces);
+
+    // Correct answer: rounded to hundredths
+    const correct = Math.round(num * 100) / 100;
+    const correctStr = correct.toFixed(2);
+
+    els.qtext.textContent = 'Round this number to the nearest hundredths place.';
+
+    // Number display with highlighted digits
+    const numDiv = document.createElement('div');
+    numDiv.className = 'number-display';
+    const bigNum = document.createElement('div');
+    bigNum.className = 'big-number';
+    bigNum.innerHTML = highlightedNumber(displayStr);
+    numDiv.appendChild(bigNum);
+    els.body.appendChild(numDiv);
+
+    const arrowDiv = document.createElement('div');
+    arrowDiv.className = 'arrow-down';
+    arrowDiv.textContent = '\u2193 Round to hundredths \u2193';
+    els.body.appendChild(arrowDiv);
+
+    // Answer input
+    const row = document.createElement('div');
+    row.className = 'answer-row';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'time-input'; inp.placeholder = '0.00';
+    inp.inputMode = 'decimal';
+    const sub = document.createElement('button');
+    sub.className = 'submit-btn'; sub.textContent = 'Submit';
+    row.appendChild(inp); row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click', ()=> checkAnswer(inp, correct, correctStr));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAnswer(inp, correct, correctStr); });
+    setTimeout(()=> inp.focus(), 50);
+  }
+
+  function checkAnswer(inp, correct, correctStr){
+    if(S.locked) return;
+    const raw = inp.value.trim();
+    if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+    const val = parseFloat(raw);
+    if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+
+    S.attempt++;
+    // Check: must match to 2 decimal places exactly
+    const isCorrect = val.toFixed(2) === correctStr;
+
+    if(isCorrect){
+      const pts = S.attempt === 1 ? 10 : 5;
+      S.score = Math.min(GOAL, S.score + pts);
+      els.feedback.textContent = S.attempt === 1 ? 'Correct! +10 points' : 'Correct! +5 points';
+      els.feedback.className = 'feedback show good';
+      S.locked = true;
+      els.hudScore.textContent = `${S.score} of ${GOAL} points`;
+      setTimeout(nextRound, 1600);
+    } else if(S.attempt >= 2){
+      els.feedback.textContent = `The answer is ${correctStr}`;
+      els.feedback.className = 'feedback show bad';
+      S.locked = true;
+      els.hudScore.textContent = `${S.score} of ${GOAL} points`;
+      setTimeout(nextRound, 2200);
+    } else {
+      els.feedback.textContent = 'Not quite \u2014 try once more!';
+      els.feedback.className = 'feedback show bad';
+      setTimeout(()=> els.feedback.classList.remove('show'), 1200);
+    }
+  }
+
+  function finishGame(){
+    showScreen(els.end);
+    els.endScore.textContent = S.score;
+    if(S.score >= 120){
+      els.endTitle.textContent = 'Perfect score!';
+      els.endMsg.textContent = 'Rounding master! Every one nailed.';
+    } else if(S.score >= 90){
+      els.endTitle.textContent = 'Great job!';
+      els.endMsg.textContent = 'Solid rounding skills. Try again for a perfect score.';
+    } else if(S.score >= 60){
+      els.endTitle.textContent = 'Getting there!';
+      els.endMsg.textContent = 'Keep practicing \u2014 watch that thousandths digit!';
+    } else {
+      els.endTitle.textContent = 'Round complete';
+      els.endMsg.textContent = 'Keep practicing to improve your score.';
+    }
+  }
+
+  // PostMessage login
+  window.addEventListener('message', e => {
+    if(e.data && e.data.type === 'rb-login'){
+      // Ready to go — no bench variants needed
+    }
+  });
+
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>

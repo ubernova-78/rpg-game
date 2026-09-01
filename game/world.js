@@ -315,7 +315,7 @@ const scene = {
 // Each building's interior room size. Home is deliberately roomier than the others —
 // it has to fit a bed, closet+mirror, kitchen counter, and storage bench without feeling cramped.
 const INTERIOR_SIZES = {
-  red: { cols: 13, rows: 10 },
+  red: { cols: 15, rows: 12 },
   blue: { cols: 9, rows: 7 },
   home: { cols: 13, rows: 10 },
   cave: { cols: 11, rows: 9 },
@@ -353,17 +353,16 @@ function interiorFor(buildingId) {
 //   'chest'     -> the place-value quest chest (see openChest)
 //   'decor'     -> solid, but nothing happens when you approach it
 const INTERIOR_OBJECTS = {
-  // Five separate stations, each launching measure-bench.html directly into one specific
-  // skill (see its "bench" query via postMessage) — lets a teacher assign a student to
-  // exactly the skill they're struggling with, instead of one mixed workbench. The Meter
-  // and Mixed Practice benches sit against the side walls rather than out in the room's
-  // second row, keeping the floor between all 5 stations clear to walk through.
+  // Seven stations in the expanded 15×12 room: top row has the four core measurement
+  // skills, bottom row has mixed practice plus the rounding and averaging benches.
   red: [
-    { id: 'unitBench', kind: 'workbench', img: workbenchImg, col: 2, row: 2, label: 'Choose the Right Unit Work Bench', shortLabel: 'Choose the Unit', src: 'measure-bench.html', messageType: 'mb-login', bench: 'unit' },
-    { id: 'mmBench', kind: 'workbench', img: workbenchImg, col: 6, row: 2, label: 'Measure to the Millimeter Work Bench', shortLabel: 'Millimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
-    { id: 'cmBench', kind: 'workbench', img: workbenchImg, col: 10, row: 2, label: 'Measure to the Centimeter Work Bench', shortLabel: 'Centimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'cm' },
-    { id: 'mBench', kind: 'workbench', img: workbenchImg, col: 1, row: 7, label: 'Measure to the Meter Work Bench', shortLabel: 'Meter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
-    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 11, row: 7, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
+    { id: 'unitBench', kind: 'workbench', img: workbenchImg, col: 1, row: 2, label: 'Choose the Right Unit Work Bench', shortLabel: 'Choose the Unit', src: 'measure-bench.html', messageType: 'mb-login', bench: 'unit' },
+    { id: 'mmBench', kind: 'workbench', img: workbenchImg, col: 5, row: 2, label: 'Measure to the Millimeter Work Bench', shortLabel: 'Millimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
+    { id: 'cmBench', kind: 'workbench', img: workbenchImg, col: 9, row: 2, label: 'Measure to the Centimeter Work Bench', shortLabel: 'Centimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'cm' },
+    { id: 'mBench', kind: 'workbench', img: workbenchImg, col: 13, row: 2, label: 'Measure to the Meter Work Bench', shortLabel: 'Meter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
+    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 2, row: 6, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
+    { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 7, row: 6, label: 'Rounding to Hundredths Work Bench', shortLabel: 'Rounding', src: 'rounding-bench.html', messageType: 'rb-login' },
+    { id: 'averageBench', kind: 'workbench', img: workbenchImg, col: 12, row: 6, label: 'Averaging Work Bench', shortLabel: 'Averaging', src: 'average-bench.html', messageType: 'ab-login' },
   ],
   blue: [
     { id: 'placevalue', kind: 'workbench', img: workbenchImg, col: INTERIORS.blue.exitCol, row: 1, label: 'Place Value Work Bench', shortLabel: 'Place Value', src: 'place-value-bench.html', messageType: 'pvb-login' },

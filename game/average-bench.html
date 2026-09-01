@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Averaging Workbench</title>
+<style>
+  :root{
+    --bench:#1a1a2e;
+    --bench2:#16213e;
+    --bench3:#0f3460;
+    --paper:#f0ece2;
+    --accent:#e94560;
+    --teal:#1a936f;
+    --gold:#f6c90e;
+    --ink:#1a1a2e;
+    --dim:#7a7a8e;
+    --miss:#c1443a;
+    --good:#2d936c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:'Segoe UI',Verdana,sans-serif;
+    background:var(--bench);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .app{
+    width:100%;max-width:780px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;
+    border:3px solid var(--bench3);
+  }
+  .titlebar{
+    background:linear-gradient(135deg, var(--bench2), var(--bench3));
+    padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:3px solid var(--accent);
+  }
+  .titlebar h1{margin:0;font-size:1.3rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{
+    background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;
+    font-weight:bold;font-size:0.82rem;
+  }
+  .screen{padding:24px;}
+  .hidden{display:none !important;}
+
+  .hud{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;
+  }
+  .pill{
+    background:#fff;border:2px solid #ddd;border-radius:20px;
+    padding:5px 12px;font-size:0.9rem;
+  }
+  .progressbar{
+    height:10px;background:#e0ddd4;border-radius:6px;overflow:hidden;
+    margin-bottom:18px;border:1px solid #ccc;
+  }
+  .progressfill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+
+  .qtext{font-size:1.05rem;font-weight:700;margin:0 0 14px;}
+  .feedback{
+    padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;
+    margin-top:14px;display:none;text-align:center;
+  }
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  .start-title{font-size:1.6rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:20px;}
+  .primary{
+    width:100%;padding:14px;border:none;border-radius:10px;
+    background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;
+  }
+  .primary:hover{filter:brightness(1.08);}
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  /* Dartboard */
+  .throw-layout{
+    display:flex;gap:16px;align-items:flex-start;justify-content:center;
+    flex-wrap:wrap;margin-bottom:12px;
+  }
+  .board-canvas{border-radius:8px;border:2px solid var(--bench3);background:#1a3a1e;flex-shrink:0;}
+
+  /* Aim bars */
+  .aim-section{text-align:center;min-width:240px;}
+  .aim-bar-wrap{
+    position:relative;background:#222;border-radius:4px;overflow:hidden;
+    border:1px solid #555;
+  }
+  .aim-bar-wrap.horiz{width:240px;height:32px;margin:0 auto 8px;}
+  .aim-bar-wrap.vert{width:32px;height:200px;margin:0 auto;}
+  .aim-indicator{position:absolute;background:var(--gold);border-radius:2px;transition:none;}
+  .aim-bar-wrap.horiz .aim-indicator{width:4px;height:100%;top:0;}
+  .aim-bar-wrap.vert .aim-indicator{height:4px;width:100%;left:0;}
+  .aim-center{position:absolute;background:rgba(255,255,255,0.2);}
+  .aim-bar-wrap.horiz .aim-center{width:24px;height:100%;top:0;left:calc(50% - 12px);}
+  .aim-bar-wrap.vert .aim-center{height:24px;width:100%;left:0;top:calc(50% - 12px);}
+  .aim-label{font-weight:700;font-size:0.8rem;color:var(--dim);margin:4px 0;}
+  .aim-prompt{font-weight:800;font-size:1rem;color:var(--gold);margin:10px 0;text-align:center;}
+  .dart-count{font-weight:700;font-size:0.95rem;color:var(--dim);margin:8px 0;text-align:center;}
+
+  /* Ruler area (single large ruler) */
+  .ruler-section{margin:14px 0;text-align:center;}
+  .ruler-wrap{
+    position:relative;overflow-x:auto;overflow-y:hidden;
+    background:#faf8f2;border:2px solid #ccc;border-radius:6px;
+    height:90px;cursor:grab;
+  }
+  .ruler-wrap:active{cursor:grabbing;}
+  .ruler-inner{position:relative;height:100%;}
+  .ruler-bar{
+    position:absolute;top:50px;height:18px;left:0;
+    border-radius:2px;
+  }
+  .tick{position:absolute;top:8px;width:1px;background:#999;}
+  .tick.cm{background:#333;width:1.5px;height:30px;}
+  .tick.half-cm{height:20px;}
+  .tick-label{
+    position:absolute;top:38px;font-size:11px;font-weight:700;color:#333;
+    transform:translateX(-50%);
+  }
+  .mm-bg{position:absolute;top:8px;height:12px;}
+  .ruler-unit-badge{
+    position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;
+    color:var(--bench3);z-index:2;
+  }
+
+  /* Measure input */
+  .measure-row{
+    display:flex;gap:10px;align-items:center;justify-content:center;
+    margin-top:12px;flex-wrap:wrap;
+  }
+  .measure-label{font-weight:700;font-size:0.95rem;}
+  .measure-input{
+    width:100px;padding:8px;font-size:1.1rem;border:2px solid #ccc;
+    border-radius:6px;text-align:center;font-family:'Courier New',monospace;
+  }
+  .measure-input:focus{border-color:var(--teal);outline:none;}
+  .submit-btn{
+    padding:10px 24px;border-radius:8px;border:none;
+    background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;
+  }
+  .submit-btn:hover{filter:brightness(1.1);}
+
+  /* Summary table */
+  .summary-table{
+    width:100%;border-collapse:collapse;margin:14px 0;font-size:0.95rem;
+  }
+  .summary-table th{
+    background:var(--bench2);color:var(--paper);padding:8px 12px;text-align:left;
+  }
+  .summary-table td{
+    padding:8px 12px;border-bottom:1px solid #ddd;
+  }
+  .summary-table .wrong{color:var(--miss);font-weight:700;}
+  .summary-table .correct{color:var(--good);font-weight:700;}
+
+  .avg-row{
+    display:flex;gap:10px;align-items:center;justify-content:center;
+    margin-top:16px;flex-wrap:wrap;
+  }
+  .avg-label{font-weight:800;font-size:1.05rem;}
+  .avg-input{
+    width:120px;padding:10px;font-size:1.15rem;border:2px solid var(--gold);
+    border-radius:6px;text-align:center;font-family:'Courier New',monospace;
+    background:#fffbea;
+  }
+  .avg-input:focus{border-color:var(--teal);outline:none;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>Averaging Workbench</h1>
+    <div class="badge">AVERAGE</div>
+  </div>
+
+  <div class="screen" id="screen-start">
+    <div class="start-title">Dart Throw Averaging</div>
+    <div class="start-sub">Throw darts at the target. After each throw, measure the distance from the bullseye using the ruler. After all throws, calculate the average distance. Round to the nearest hundredth.</div>
+    <p style="font-size:0.9rem;color:var(--dim);">Each dart is worth 10 points. 120 points possible.</p>
+    <button class="primary" id="btn-start">Start Practice</button>
+  </div>
+
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+    <div class="qtext" id="qtext"></div>
+    <div id="question-body"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="screen hidden" id="screen-end">
+    <div class="end-title" id="end-title">Round complete</div>
+    <div class="end-score" id="end-score">0</div>
+    <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
+    <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <button class="primary" id="btn-again">Play Again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GOAL = 120;
+  let S = { round:0, score:0, attempt:0, locked:false, dartSeq:[], totalRounds:0 };
+
+  // Build a sequence of dart counts (each 3-7) that always sum to 12.
+  function buildDartSequence(){
+    const seq = [];
+    let remaining = 12;
+    while(remaining > 0){
+      if(remaining <= 7){
+        seq.push(remaining);
+        remaining = 0;
+      } else {
+        // Pick 3-7 but leave at least 3 for the next round
+        const maxPick = Math.min(7, remaining - 3);
+        const n = randInt(3, maxPick);
+        seq.push(n);
+        remaining -= n;
+      }
+    }
+    // Shuffle so it's not always ascending
+    for(let i = seq.length - 1; i > 0; i--){
+      const j = randInt(0, i);
+      [seq[i], seq[j]] = [seq[j], seq[i]];
+    }
+    return seq;
+  }
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    start: $('screen-start'), game: $('screen-game'), end: $('screen-end'),
+    btnStart: $('btn-start'), btnAgain: $('btn-again'),
+    hudRound: $('hud-round'), hudScore: $('hud-score'),
+    progressfill: $('progressfill'),
+    qtext: $('qtext'), body: $('question-body'),
+    feedback: $('feedback'),
+    endTitle: $('end-title'), endScore: $('end-score'), endMsg: $('end-msg'),
+  };
+
+  function showScreen(s){
+    [els.start, els.game, els.end].forEach(x=>x.classList.add('hidden'));
+    s.classList.remove('hidden');
+  }
+
+  const randInt = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
+  const pick = arr => arr[randInt(0,arr.length-1)];
+
+  // ========== CLEANUP TRACKING ==========
+  let activeCleanup = null;
+  function setCleanup(fn){ activeCleanup = fn; }
+  function runCleanup(){ if(activeCleanup){ activeCleanup(); activeCleanup = null; } }
+
+  // ========== GAME FLOW ==========
+  els.btnStart.addEventListener('click', ()=>{
+    S.round = 0; S.score = 0;
+    S.dartSeq = buildDartSequence();
+    S.totalRounds = S.dartSeq.length;
+    els.hudScore.textContent = `0 of ${GOAL} points`;
+    els.progressfill.style.width = '0%';
+    showScreen(els.game);
+    nextRound();
+  });
+  els.btnAgain.addEventListener('click', ()=> showScreen(els.start));
+
+  function dartsThisSoFar(){
+    let sum = 0;
+    for(let i = 0; i < S.round; i++) sum += S.dartSeq[i];
+    return sum;
+  }
+
+  function nextRound(){
+    runCleanup();
+    if(S.round >= S.totalRounds){ finishGame(); return; }
+    S.locked = false; S.attempt = 0;
+    S.round++;
+    els.hudRound.textContent = `Round ${S.round} / ${S.totalRounds}`;
+    els.progressfill.style.width = `${(dartsThisSoFar()/12)*100}%`;
+    els.feedback.classList.remove('show','good','bad');
+    els.body.innerHTML = '';
+    startRound();
+  }
+
+  function award(isCorrect, correctText){
+    if(S.locked) return;
+    S.attempt++;
+    const numDarts = S.dartSeq[S.round - 1];
+    const maxPts = numDarts * 10;
+    const halfPts = numDarts * 5;
+    if(isCorrect){
+      const pts = S.attempt === 1 ? maxPts : halfPts;
+      S.score = Math.min(GOAL, S.score + pts);
+      els.feedback.textContent = S.attempt === 1 ? `Correct! +${maxPts} points` : `Correct! +${halfPts} points`;
+      els.feedback.className = 'feedback show good';
+      S.locked = true;
+      els.hudScore.textContent = `${S.score} of ${GOAL} points`;
+      setTimeout(nextRound, 1800);
+    } else if(S.attempt >= 2){
+      els.feedback.textContent = `The answer was ${correctText}`;
+      els.feedback.className = 'feedback show bad';
+      S.locked = true;
+      els.hudScore.textContent = `${S.score} of ${GOAL} points`;
+      setTimeout(nextRound, 2400);
+    } else {
+      els.feedback.textContent = 'Not quite \u2014 try once more!';
+      els.feedback.className = 'feedback show bad';
+      setTimeout(()=> els.feedback.classList.remove('show'), 1200);
+    }
+  }
+
+  function finishGame(){
+    showScreen(els.end);
+    els.endScore.textContent = S.score;
+    if(S.score >= 120){
+      els.endTitle.textContent = 'Perfect score!';
+      els.endMsg.textContent = 'Bullseye! Every average nailed.';
+    } else if(S.score >= 90){
+      els.endTitle.textContent = 'Great job!';
+      els.endMsg.textContent = 'Sharp aim and sharp math!';
+    } else if(S.score >= 60){
+      els.endTitle.textContent = 'Getting there!';
+      els.endMsg.textContent = 'Keep practicing your throws and averages!';
+    } else {
+      els.endTitle.textContent = 'Round complete';
+      els.endMsg.textContent = 'Keep practicing to improve your score.';
+    }
+  }
+
+  // ========== CONSTANTS ==========
+  const BOARD_SIZE = 200;
+  const BOARD_R = BOARD_SIZE / 2 - 10;
+  const BOARD_CX = BOARD_SIZE / 2;
+  const BOARD_CY = BOARD_SIZE / 2;
+  const MAX_DIST_CM = 8;
+  const PX_PER_CM = BOARD_R / MAX_DIST_CM;
+  const DART_COLORS = ['#e94560','#f6c90e','#1a936f','#4488ff','#ff8844','#cc44cc','#44cccc'];
+
+  // ========== DARTBOARD ==========
+  function drawBoard(canvas, darts, highlightIdx){
+    canvas.width = BOARD_SIZE; canvas.height = BOARD_SIZE;
+    const ctx = canvas.getContext('2d');
+    const cx = BOARD_CX, cy = BOARD_CY;
+    ctx.fillStyle = '#1a3a1e';
+    ctx.fillRect(0,0,BOARD_SIZE,BOARD_SIZE);
+
+    const ringColors = ['#cc3333','#fff','#2255aa','#fff','#22aa44'];
+    const ringRadii = [BOARD_R, BOARD_R*0.8, BOARD_R*0.6, BOARD_R*0.4, BOARD_R*0.2];
+    for(let i=0; i<ringRadii.length; i++){
+      ctx.beginPath(); ctx.arc(cx,cy,ringRadii[i],0,Math.PI*2);
+      ctx.fillStyle = ringColors[i]; ctx.fill();
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2);
+    ctx.fillStyle = '#cc3333'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,2,0,Math.PI*2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx,cy-BOARD_R); ctx.lineTo(cx,cy+BOARD_R); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-BOARD_R,cy); ctx.lineTo(cx+BOARD_R,cy); ctx.stroke();
+
+    for(let i=0; i<darts.length; i++){
+      const d = darts[i];
+      const dx = cx + d.xCm * PX_PER_CM;
+      const dy = cy + d.yCm * PX_PER_CM;
+      const isHighlight = i === highlightIdx;
+
+      // Line from center
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(dx,dy);
+      ctx.strokeStyle = DART_COLORS[i]; ctx.lineWidth = isHighlight ? 2 : 1;
+      ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+
+      // Dart dot
+      ctx.beginPath(); ctx.arc(dx,dy, isHighlight ? 7 : 5, 0, Math.PI*2);
+      ctx.fillStyle = DART_COLORS[i]; ctx.fill();
+      ctx.strokeStyle = '#000'; ctx.lineWidth = isHighlight ? 2 : 1; ctx.stroke();
+
+      // Label
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${isHighlight?11:9}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String.fromCharCode(65+i), dx, dy);
+    }
+  }
+
+  // ========== LARGE RULER ==========
+  function buildRuler(container, distCm, color){
+    const PX_PER_MM = 6;
+    const PAD_LEFT = 12;
+    const maxMm = Math.ceil(distCm * 10) + 12;
+    const totalCm = Math.ceil(maxMm / 10) + 1;
+    const totalWidth = PAD_LEFT + totalCm * 10 * PX_PER_MM + 30;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ruler-wrap';
+    const inner = document.createElement('div');
+    inner.className = 'ruler-inner';
+    inner.style.width = totalWidth + 'px';
+
+    // Unit badge
+    const badge = document.createElement('div');
+    badge.className = 'ruler-unit-badge';
+    badge.textContent = 'cm';
+    inner.appendChild(badge);
+
+    // Measurement bar
+    const bar = document.createElement('div');
+    bar.className = 'ruler-bar';
+    bar.style.left = PAD_LEFT + 'px';
+    bar.style.width = (distCm * 10 * PX_PER_MM) + 'px';
+    bar.style.background = color + '33';
+    bar.style.border = '2px solid ' + color;
+    inner.appendChild(bar);
+
+    // mm background ticks
+    const mmBg = document.createElement('div');
+    mmBg.className = 'mm-bg';
+    mmBg.style.left = PAD_LEFT + 'px';
+    mmBg.style.width = (totalWidth - PAD_LEFT) + 'px';
+    mmBg.style.backgroundImage = `repeating-linear-gradient(to right, #bbb 0, #bbb 1px, transparent 1px, transparent ${PX_PER_MM}px)`;
+    inner.appendChild(mmBg);
+
+    // half-cm and cm ticks
+    for(let h = 1; h <= totalCm * 2; h += 2){
+      const x = PAD_LEFT + h * 5 * PX_PER_MM;
+      const tick = document.createElement('div');
+      tick.className = 'tick half-cm';
+      tick.style.left = x + 'px';
+      tick.style.height = '20px';
+      inner.appendChild(tick);
+    }
+    for(let c = 0; c <= totalCm; c++){
+      const x = PAD_LEFT + c * 10 * PX_PER_MM;
+      const tick = document.createElement('div');
+      tick.className = 'tick cm';
+      tick.style.left = x + 'px';
+      tick.style.height = '30px';
+      inner.appendChild(tick);
+      if(c > 0){
+        const lbl = document.createElement('div');
+        lbl.className = 'tick-label';
+        lbl.style.left = x + 'px';
+        lbl.textContent = String(c);
+        inner.appendChild(lbl);
+      }
+    }
+
+    // Bar end indicator line
+    const endLine = document.createElement('div');
+    endLine.style.cssText = `position:absolute;top:4px;height:72px;width:2px;background:${color};left:${PAD_LEFT + distCm*10*PX_PER_MM}px;`;
+    inner.appendChild(endLine);
+
+    wrap.appendChild(inner);
+    container.appendChild(wrap);
+
+    // Scroll to bar end area
+    requestAnimationFrame(()=>{
+      const barEnd = PAD_LEFT + distCm * 10 * PX_PER_MM;
+      wrap.scrollLeft = Math.max(0, barEnd - wrap.clientWidth * 0.65);
+    });
+
+    // Drag scroll
+    enableDragScroll(wrap);
+  }
+
+  function enableDragScroll(el){
+    let dragging = false, startX = 0, scrollStart = 0;
+    el.addEventListener('mousedown', e => {
+      dragging = true; startX = e.clientX; scrollStart = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+    });
+    el.addEventListener('touchstart', e => {
+      dragging = true; startX = e.touches[0].clientX; scrollStart = el.scrollLeft;
+    }, {passive:true});
+    document.addEventListener('mousemove', e => {
+      if(!dragging) return;
+      el.scrollLeft = scrollStart - (e.clientX - startX);
+    });
+    document.addEventListener('touchmove', e => {
+      if(!dragging) return;
+      el.scrollLeft = scrollStart - (e.touches[0].clientX - startX);
+    }, {passive:true});
+    document.addEventListener('mouseup', ()=>{ dragging=false; el.style.cursor='grab'; });
+    document.addEventListener('touchend', ()=>{ dragging=false; });
+  }
+
+  // ========== ROUND STATE ==========
+  let roundState = null;
+
+  function startRound(){
+    const numDarts = S.dartSeq[S.round - 1];
+    roundState = {
+      numDarts,
+      darts: [],          // { xCm, yCm, distCm } for each thrown dart
+      measurements: [],   // student's typed measurement for each dart
+      currentDart: 0,
+      phase: 'aim-h',     // aim-h -> aim-v -> measure -> (repeat) -> average
+    };
+    els.qtext.textContent = `Throw ${numDarts} darts (${numDarts * 10} points). After each throw, measure the distance from the bullseye.`;
+    showThrowUI();
+  }
+
+  // ========== THROW PHASE ==========
+  function showThrowUI(){
+    els.body.innerHTML = '';
+    els.feedback.classList.remove('show');
+    const rs = roundState;
+    const dartIdx = rs.currentDart;
+
+    const layout = document.createElement('div');
+    layout.className = 'throw-layout';
+
+    // Board
+    const boardCanvas = document.createElement('canvas');
+    boardCanvas.className = 'board-canvas';
+    drawBoard(boardCanvas, rs.darts, -1);
+    layout.appendChild(boardCanvas);
+
+    // Aim controls
+    const aimSection = document.createElement('div');
+    aimSection.className = 'aim-section';
+
+    const dartLabel = document.createElement('div');
+    dartLabel.className = 'dart-count';
+    dartLabel.innerHTML = `Throw <strong style="color:${DART_COLORS[dartIdx]}">Dart ${String.fromCharCode(65+dartIdx)}</strong> (${dartIdx+1} of ${rs.numDarts})`;
+
+    const prompt = document.createElement('div');
+    prompt.className = 'aim-prompt';
+    prompt.textContent = 'Press SPACE to set left/right aim';
+
+    // Horizontal bar
+    const hLabel = document.createElement('div');
+    hLabel.className = 'aim-label';
+    hLabel.textContent = '\u2190 Left / Right \u2192';
+    const hWrap = document.createElement('div');
+    hWrap.className = 'aim-bar-wrap horiz';
+    const hCenter = document.createElement('div');
+    hCenter.className = 'aim-center';
+    const hInd = document.createElement('div');
+    hInd.className = 'aim-indicator';
+    hWrap.appendChild(hCenter); hWrap.appendChild(hInd);
+
+    // Vertical bar
+    const vLabel = document.createElement('div');
+    vLabel.className = 'aim-label';
+    vLabel.textContent = '\u2191 Up / Down \u2193';
+    vLabel.style.display = 'none';
+    const vWrap = document.createElement('div');
+    vWrap.className = 'aim-bar-wrap vert';
+    vWrap.style.display = 'none';
+    const vCenter = document.createElement('div');
+    vCenter.className = 'aim-center';
+    const vInd = document.createElement('div');
+    vInd.className = 'aim-indicator';
+    vWrap.appendChild(vCenter); vWrap.appendChild(vInd);
+
+    aimSection.appendChild(dartLabel);
+    aimSection.appendChild(prompt);
+    aimSection.appendChild(hLabel);
+    aimSection.appendChild(hWrap);
+    aimSection.appendChild(vLabel);
+    aimSection.appendChild(vWrap);
+    layout.appendChild(aimSection);
+    els.body.appendChild(layout);
+
+    // Oscillation state
+    let aimPos = Math.random() < 0.5 ? -0.8 : 0.8;
+    let aimDir = aimPos < 0 ? 1 : -1;
+    let aimSpeed = 0.025 + Math.random() * 0.03;
+    let phase = 'aim-h';
+    let lockedX = 0;
+    let animId = null;
+
+    function animate(){
+      aimPos += aimSpeed * aimDir;
+      if(aimPos >= 1){ aimPos = 1; aimDir = -1; }
+      if(aimPos <= -1){ aimPos = -1; aimDir = 1; }
+      if(phase === 'aim-h'){
+        hInd.style.left = ((aimPos+1)/2 * (240-4)) + 'px';
+      } else if(phase === 'aim-v'){
+        vInd.style.top = ((aimPos+1)/2 * (200-4)) + 'px';
+      }
+      animId = requestAnimationFrame(animate);
+    }
+    animId = requestAnimationFrame(animate);
+
+    function handleSpace(e){
+      if(e.code !== 'Space' && e.key !== ' ') return;
+      e.preventDefault();
+
+      if(phase === 'aim-h'){
+        lockedX = aimPos;
+        hInd.style.background = '#0f0';
+        phase = 'aim-v';
+        hWrap.style.display = 'none'; hLabel.style.display = 'none';
+        vWrap.style.display = ''; vLabel.style.display = '';
+        prompt.textContent = 'Press SPACE to set up/down aim';
+        aimPos = Math.random() < 0.5 ? -0.7 : 0.7;
+        aimDir = aimPos < 0 ? 1 : -1;
+        aimSpeed = 0.025 + Math.random() * 0.03;
+      } else if(phase === 'aim-v'){
+        const lockedY = aimPos;
+        cancelAnimationFrame(animId);
+        document.removeEventListener('keydown', handleSpace);
+
+        // Calculate landing
+        const xCm = lockedX * MAX_DIST_CM + (Math.random()-0.5)*0.6;
+        const yCm = lockedY * MAX_DIST_CM + (Math.random()-0.5)*0.6;
+        const dist = Math.sqrt(xCm*xCm + yCm*yCm);
+        const distCm = Math.round(dist * 10) / 10; // round to nearest mm
+
+        rs.darts.push({ xCm, yCm, distCm });
+        drawBoard(boardCanvas, rs.darts, dartIdx);
+
+        // Move to measure phase
+        phase = 'done';
+        showMeasureUI(dartIdx);
+      }
+    }
+
+    document.addEventListener('keydown', handleSpace);
+    setCleanup(()=>{
+      cancelAnimationFrame(animId);
+      document.removeEventListener('keydown', handleSpace);
+    });
+  }
+
+  // ========== MEASURE PHASE (one dart at a time) ==========
+  function showMeasureUI(dartIdx){
+    runCleanup();
+    els.body.innerHTML = '';
+    els.feedback.classList.remove('show');
+    const rs = roundState;
+    const dart = rs.darts[dartIdx];
+    const color = DART_COLORS[dartIdx];
+    const letter = String.fromCharCode(65+dartIdx);
+
+    els.qtext.textContent = `Dart ${letter} landed! Measure the distance from the bullseye using the ruler below.`;
+
+    // Show board with this dart highlighted
+    const boardCanvas = document.createElement('canvas');
+    boardCanvas.className = 'board-canvas';
+    boardCanvas.style.display = 'block';
+    boardCanvas.style.margin = '0 auto 12px';
+    drawBoard(boardCanvas, rs.darts, dartIdx);
+    els.body.appendChild(boardCanvas);
+
+    // Large ruler
+    const rulerLabel = document.createElement('div');
+    rulerLabel.style.cssText = 'font-weight:700;font-size:0.9rem;margin-bottom:4px;';
+    rulerLabel.innerHTML = `Distance for <span style="color:${color}">Dart ${letter}</span>:`;
+    els.body.appendChild(rulerLabel);
+
+    const rulerSection = document.createElement('div');
+    rulerSection.className = 'ruler-section';
+    buildRuler(rulerSection, dart.distCm, color);
+    els.body.appendChild(rulerSection);
+
+    // Input
+    const row = document.createElement('div');
+    row.className = 'measure-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'measure-label';
+    lbl.textContent = `Dart ${letter} distance (cm):`;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'measure-input'; inp.placeholder = '0.0';
+    inp.inputMode = 'decimal';
+    const sub = document.createElement('button');
+    sub.className = 'submit-btn'; sub.textContent = 'Submit Measurement';
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click', ()=> submitMeasurement(inp, dartIdx));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') submitMeasurement(inp, dartIdx); });
+    setTimeout(()=> inp.focus(), 100);
+  }
+
+  function submitMeasurement(inp, dartIdx){
+    const raw = inp.value.trim();
+    if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+    const val = parseFloat(raw);
+    if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+
+    const rs = roundState;
+    rs.measurements.push(val);
+    rs.currentDart++;
+
+    if(rs.currentDart < rs.numDarts){
+      // Next dart throw
+      showThrowUI();
+    } else {
+      // All darts done — show summary and ask for average
+      showAverageUI();
+    }
+  }
+
+  // ========== AVERAGE PHASE ==========
+  function showAverageUI(){
+    els.body.innerHTML = '';
+    els.feedback.classList.remove('show');
+    const rs = roundState;
+
+    els.qtext.textContent = 'All darts measured! Now calculate the average distance. Round to the nearest hundredth.';
+
+    // Show board with all darts
+    const boardCanvas = document.createElement('canvas');
+    boardCanvas.className = 'board-canvas';
+    boardCanvas.style.display = 'block';
+    boardCanvas.style.margin = '0 auto 12px';
+    drawBoard(boardCanvas, rs.darts, -1);
+    els.body.appendChild(boardCanvas);
+
+    // Summary table showing their measurements
+    const table = document.createElement('table');
+    table.className = 'summary-table';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Dart</th><th>Your Measurement</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+
+    for(let i=0; i<rs.numDarts; i++){
+      const tr = document.createElement('tr');
+      const letter = String.fromCharCode(65+i);
+      const color = DART_COLORS[i];
+      const tdDart = document.createElement('td');
+      tdDart.innerHTML = `<span style="color:${color};font-weight:700;">Dart ${letter}</span>`;
+      const tdMeas = document.createElement('td');
+      tdMeas.textContent = rs.measurements[i] + ' cm';
+      tdMeas.style.fontWeight = '700';
+      tr.appendChild(tdDart); tr.appendChild(tdMeas);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    els.body.appendChild(table);
+
+    // Average input
+    const row = document.createElement('div');
+    row.className = 'avg-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'avg-label';
+    lbl.textContent = 'Average distance (cm):';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'avg-input'; inp.placeholder = '0.00';
+    inp.inputMode = 'decimal';
+    const sub = document.createElement('button');
+    sub.className = 'submit-btn'; sub.textContent = 'Submit Average';
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click', ()=> submitAverage(inp, table, tbody));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') submitAverage(inp, table, tbody); });
+    setTimeout(()=> inp.focus(), 100);
+  }
+
+  function submitAverage(inp, table, tbody){
+    if(S.locked) return;
+    const raw = inp.value.trim();
+    if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+    const val = parseFloat(raw);
+    if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+
+    const rs = roundState;
+
+    // Check each measurement (tolerance: ±0.05 cm = half a mm)
+    const measTol = 0.05;
+    let allMeasCorrect = true;
+    const measResults = [];
+
+    // Update table header to show actual distances
+    const thead = table.querySelector('thead tr');
+    thead.innerHTML = '<th>Dart</th><th>Your Measurement</th><th>Actual Distance</th>';
+
+    const rows = tbody.querySelectorAll('tr');
+    for(let i=0; i<rs.numDarts; i++){
+      const actual = rs.darts[i].distCm;
+      const student = rs.measurements[i];
+      const measOK = Math.abs(student - actual) <= measTol;
+      measResults.push(measOK);
+      if(!measOK) allMeasCorrect = false;
+
+      // Add actual column
+      const tdActual = document.createElement('td');
+      tdActual.textContent = actual.toFixed(1) + ' cm';
+      rows[i].appendChild(tdActual);
+
+      // Color the student's measurement
+      const tdMeas = rows[i].children[1];
+      if(measOK){
+        tdMeas.classList.add('correct');
+      } else {
+        tdMeas.classList.add('wrong');
+        tdMeas.textContent += ' \u2716';
+      }
+    }
+
+    // Calculate correct average from ACTUAL distances
+    const actualSum = rs.darts.reduce((a,d)=> a + d.distCm, 0);
+    const actualAvg = Math.round((actualSum / rs.numDarts) * 100) / 100;
+    const correctStr = actualAvg.toFixed(2);
+
+    // Also calculate average from student's measurements (to check their math)
+    const studentSum = rs.measurements.reduce((a,m)=> a + m, 0);
+    const studentAvg = Math.round((studentSum / rs.numDarts) * 100) / 100;
+    const avgMatchesTheirMeasurements = Math.abs(val - studentAvg) <= 0.01;
+    const avgMatchesActual = Math.abs(val - actualAvg) <= 0.01;
+
+    // Correct if: all measurements are right AND average is right
+    const isCorrect = allMeasCorrect && avgMatchesActual;
+
+    if(!allMeasCorrect && avgMatchesTheirMeasurements && !avgMatchesActual){
+      // Their math was right but measurements were off
+      award(false, correctStr + ' cm (some measurements were off)');
+    } else {
+      award(isCorrect, correctStr + ' cm');
+    }
+  }
+
+  // PostMessage login
+  window.addEventListener('message', e => {
+    if(e.data && e.data.type === 'ab-login'){
+      // Ready
+    }
+  });
+
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>
