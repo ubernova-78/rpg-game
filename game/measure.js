@@ -76,7 +76,7 @@
     // Unit badge
     const badge = document.createElement('div');
     badge.className = 'mq-unit-badge';
-    badge.textContent = 'mm';
+    badge.textContent = 'cm';
     tapeWrap.appendChild(badge);
 
     // Measured bar
@@ -109,17 +109,16 @@
     // cm ticks + labels
     for (let c = 0; c <= totalCM; c++) {
       const x = RULER_REC_START + c * 10 * MM_PX_PER_MM;
-      const isBold = c > 0 && c % 10 === 0;
       const tick = document.createElement('div');
-      tick.className = 'mq-tick mq-cm' + (isBold ? ' mq-bold10' : '');
+      tick.className = 'mq-tick mq-cm';
       tick.style.left = x + 'px';
-      tick.style.height = isBold ? '48px' : '26px';
+      tick.style.height = '26px';
       inner.appendChild(tick);
       if (c > 0) {
         const lbl = document.createElement('div');
-        lbl.className = 'mq-tick-label' + (isBold ? ' mq-bold10' : '');
+        lbl.className = 'mq-tick-label';
         lbl.style.left = x + 'px';
-        lbl.textContent = `${c * 10}`;
+        lbl.textContent = `${c}`;
         inner.appendChild(lbl);
       }
     }

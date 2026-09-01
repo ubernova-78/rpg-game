@@ -953,7 +953,7 @@
   }
 
   // --- RULER MODE (mm / cm / m — a plain rectangle laid along a ruled scale) ---
-  const RULER_SCALE = { mm:{ pxPerMM:6, needsScroll:false }, cm:{ pxPerMM:2, needsScroll:false }, m:{ pxPerMM:0.6, needsScroll:true } };
+  const RULER_SCALE = { mm:{ pxPerMM:6, needsScroll:false }, cm:{ pxPerMM:6, needsScroll:false }, m:{ pxPerMM:0.6, needsScroll:true } };
   function setupRuler(mode){
     const scale = mode.split('-')[0]; // 'mm' | 'cm' | 'm'
     const params = benchParams(scale);
@@ -981,7 +981,7 @@
     const { pxPerMM } = RULER_SCALE[scale];
     const REC_START = 60;
     els.tapeScaleLabel.textContent = scale === 'mm'
-      ? 'Scale: small ticks = mm'
+      ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
       : scale === 'cm'
       ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
       : 'Scale: small ticks = cm \u00b7 red ticks = each meter';
@@ -994,8 +994,8 @@
     inner.innerHTML = '';
     inner.style.width = totalWidth + 'px';
 
-    // Big unit label in upper-left corner
-    els.unitBadge.textContent = scale;
+    // Big unit label in upper-left corner — mm and cm scales both show a cm ruler
+    els.unitBadge.textContent = (scale === 'mm' || scale === 'cm') ? 'cm' : scale;
     els.unitBadge.classList.remove('hidden');
 
     // The bar is added FIRST so it paints BELOW the tick marks and their numbers
@@ -1047,17 +1047,16 @@
       }
       for(let c=0; c<=totalCM; c++){
         const x = REC_START + c*10*pxPerMM;
-        const isBold = c>0 && c%10===0;
         const tick = document.createElement('div');
-        tick.className = 'tick cm'+(isBold?' bold10':'');
+        tick.className = 'tick cm';
         tick.style.left = x+'px';
-        tick.style.height = isBold ? '48px' : '26px';
+        tick.style.height = '26px';
         inner.appendChild(tick);
         if(c > 0){
           const lbl = document.createElement('div');
-          lbl.className = 'tick-label'+(isBold?' bold10':'');
+          lbl.className = 'tick-label';
           lbl.style.left = x+'px';
-          lbl.textContent = scale==='mm' ? `${c*10}` : `${c}`;
+          lbl.textContent = `${c}`;
           inner.appendChild(lbl);
         }
       }
@@ -1073,83 +1072,9 @@
       els.tapeWrap.scrollLeft = Math.max(0, barEndX - wrapWidth*0.6);
     });
 
-    // Zoom inset for cm scale — magnified view of the bar end so students can
-    // count individual mm ticks and read to 0.1 cm precision
-    if(scale === 'cm'){
-      els.zoomInset.classList.remove('hidden');
-      const zi = els.zoomInner;
-      zi.innerHTML = '';
-
-      const zoomPx = 6; // same px/mm as the mm-scale ruler
-      const windowMM = 30; // show ±15mm around bar end
-      const centerMM = valueMM;
-      const startMM = Math.max(0, centerMM - 15);
-      const endMM = centerMM + 15;
-      const zoomWidth = (endMM - startMM) * zoomPx + 80;
-      zi.style.width = zoomWidth + 'px';
-
-      const zoomStart = 40; // left padding
-
-      // Zoomed bar
-      const zBar = document.createElement('div');
-      zBar.className = 'measure-bar';
-      const barStartInZoom = zoomStart + Math.max(0, 0 - startMM) * zoomPx;
-      const barEndInZoom = zoomStart + (valueMM - startMM) * zoomPx;
-      zBar.style.left = barStartInZoom + 'px';
-      zBar.style.width = Math.max(0, barEndInZoom - barStartInZoom + 1) + 'px';
-      zi.appendChild(zBar);
-
-      // Zoomed mm background
-      const zBg = document.createElement('div');
-      zBg.className = 'mm-bg';
-      zBg.style.left = zoomStart + 'px';
-      zBg.style.width = ((endMM - startMM) * zoomPx) + 'px';
-      zBg.style.backgroundImage = `repeating-linear-gradient(to right, var(--charcoal) 0, var(--charcoal) 1px, transparent 1px, transparent ${zoomPx}px)`;
-      // Align the mm grid to actual mm boundaries
-      const offsetPx = (startMM % 1) * zoomPx;
-      zBg.style.backgroundPositionX = -offsetPx + 'px';
-      zi.appendChild(zBg);
-
-      // Zoomed 5mm and cm ticks
-      const firstCM = Math.floor(startMM / 10);
-      const lastCM = Math.ceil(endMM / 10);
-      for(let h = firstCM * 2 + 1; h <= lastCM * 2; h++){
-        const mm = h * 5;
-        if(mm < startMM || mm > endMM || mm % 10 === 0) continue;
-        const x = zoomStart + (mm - startMM) * zoomPx;
-        const tick = document.createElement('div');
-        tick.className = 'tick half-cm';
-        tick.style.left = x + 'px';
-        tick.style.height = '21px';
-        zi.appendChild(tick);
-      }
-      for(let c = firstCM; c <= lastCM; c++){
-        const mm = c * 10;
-        if(mm < startMM || mm > endMM) continue;
-        const x = zoomStart + (mm - startMM) * zoomPx;
-        const tick = document.createElement('div');
-        tick.className = 'tick cm';
-        tick.style.left = x + 'px';
-        tick.style.height = '26px';
-        zi.appendChild(tick);
-        if(c > 0){
-          const lbl = document.createElement('div');
-          lbl.className = 'tick-label';
-          lbl.style.left = x + 'px';
-          lbl.textContent = `${c}`;
-          zi.appendChild(lbl);
-        }
-      }
-
-      // Center the zoom view on the bar end
-      requestAnimationFrame(()=>{
-        const insetWidth = els.zoomInset.clientWidth;
-        const barEndZoom = zoomStart + (valueMM - startMM) * zoomPx;
-        els.zoomInset.scrollLeft = Math.max(0, barEndZoom - insetWidth / 2);
-      });
-    } else {
-      els.zoomInset.classList.add('hidden');
-    }
+    // Zoom inset removed — cm scale now uses 6px/mm (same as mm scale) so
+    // individual mm ticks are directly visible on the main ruler with scrolling.
+    els.zoomInset.classList.add('hidden');
   }
 
   // draggable scroll for the ruler/tape
