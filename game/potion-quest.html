@@ -270,6 +270,14 @@
   }
   .forest-item:hover{transform:scale(1.15); filter:brightness(1.2);}
   .forest-item.collected{opacity:0.2; pointer-events:none;}
+  .forest-item.returned{opacity:0.45;}
+  .forest-item.returned .item-shape::after{
+    content:'✕';
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.4rem; font-weight:900; color:rgba(200,40,40,0.8);
+    pointer-events:none;
+  }
   .forest-item .item-shape{
     border-radius:3px;
     border:2px solid rgba(0,0,0,0.3);
@@ -538,7 +546,7 @@
       <button class="diffbtn" data-diff="hard">Hard</button>
     </div>
 
-    <div style="display:flex;gap:12px;margin-top:14px;">
+    <div id="mode-checkboxes" style="display:flex;gap:12px;margin-top:14px;">
       <label style="margin:0;font-weight:400;font-size:0.85rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
         <input type="checkbox" id="chk-demo"> Demo mode
       </label>
@@ -772,7 +780,7 @@ const FOREST_H = 900;
 let state = {
   name:'', pin:'', period:'', nameKey:'', demo:false, teacher:false,
   record:null, difficulty:'', recipe:null,
-  forestItems:[], bag:[], measuredSizeMM:null, currentForestItem:null,
+  forestItems:[], bag:[], measuredSizeMM:null, currentForestItem:null, returnedUids: new Set(), measuredCorrectUids: new Set(),
 };
 
 // ── DOM REFS ──
@@ -1030,7 +1038,7 @@ function generateForest(recipe){
         type = base.type;
         color = base.color;
         const offset = randInt(3, 10) * (Math.random()<0.5?-1:1);
-        sizeMM = Math.max(10, Math.min(65, base.sizeMM + offset));
+        sizeMM = Math.max(10, Math.min(55, base.sizeMM + offset));
       } else if(alter === 1){
         // Wrong color
         type = base.type;
@@ -1047,7 +1055,7 @@ function generateForest(recipe){
     } else {
       type = allTypes[randInt(0, allTypes.length-1)];
       color = allColors[randInt(0, allColors.length-1)];
-      sizeMM = randInt(10, 65);
+      sizeMM = randInt(10, 55);
     }
 
     items.push({
@@ -1102,6 +1110,7 @@ function renderForest(){
     const el = document.createElement('div');
     el.className = 'forest-item';
     if(state.bag.some(b=>b.uid===item.uid)) el.classList.add('collected');
+    if(state.returnedUids.has(item.uid)) el.classList.add('returned');
     el.style.left = item.x+'px';
     el.style.top = item.y+'px';
     el.dataset.uid = item.uid;
@@ -1213,7 +1222,17 @@ function handleMeasureSubmit(){
 
   if(diff <= 0.5){
     state.measuredSizeMM = item.sizeMM;
-    els.caliperFeedback.textContent = `Correct! This ${typeName(item.type).toLowerCase()} is ${item.sizeMM} mm.`;
+    // Award small EXP/coins for correct measurement (once per item)
+    if(!state.demo && state.record && !state.measuredCorrectUids.has(item.uid)){
+      state.measuredCorrectUids.add(item.uid);
+      state.record.totalEXP = (state.record.totalEXP||0) + 1;
+      state.record.coins = (state.record.coins||0) + 1;
+      paintLevelUI(state.record.totalEXP, state.record.coins);
+      saveStudent(state.nameKey, state.record);
+      els.caliperFeedback.textContent = `Correct! This ${typeName(item.type).toLowerCase()} is ${item.sizeMM} mm. (+1 EXP, +1 coin)`;
+    } else {
+      els.caliperFeedback.textContent = `Correct! This ${typeName(item.type).toLowerCase()} is ${item.sizeMM} mm.`;
+    }
     els.caliperFeedback.className = 'feedback show good';
   } else {
     state.measuredSizeMM = item.sizeMM; // reveal the true size
@@ -1246,6 +1265,10 @@ function handleKeep(){
 }
 
 function handleReturn(){
+  const item = state.currentForestItem;
+  state.returnedUids.add(item.uid);
+  const el = els.forestWorld.querySelector(`[data-uid="${item.uid}"]`);
+  if(el) el.classList.add('returned');
   showForestView();
 }
 
@@ -1286,8 +1309,9 @@ function renderBag(){
     btn.addEventListener('click', ()=>{
       // Return item to forest
       state.bag.splice(idx, 1);
+      state.returnedUids.add(item.uid);
       const el = els.forestWorld.querySelector(`[data-uid="${item.uid}"]`);
-      if(el) el.classList.remove('collected');
+      if(el){ el.classList.remove('collected'); el.classList.add('returned'); }
       updateBagCount();
       renderBag();
       renderRecipeCard(els.recipeCardSidebar, state.recipe, state.bag);
@@ -1417,8 +1441,8 @@ async function startGame(){
   const name = els.pname.value.trim();
   const pin = els.ppin.value.trim();
   const period = els.period.value;
-  const demo = els.chkDemo.checked;
-  const teacher = els.chkTeacher.checked;
+  const demo = state.demo || els.chkDemo.checked;
+  const teacher = state.teacher || els.chkTeacher.checked;
 
   if(!demo){
     if(!name){ showLoginError('Enter your name.'); return; }
@@ -1562,6 +1586,7 @@ function init(){
       els.embedWelcome.textContent = `Welcome, ${d.name || 'adventurer'}! Choose a difficulty and start your quest.`;
       els.embedWelcome.classList.remove('hidden');
       els.loginFields.classList.add('hidden');
+      document.getElementById('mode-checkboxes').classList.add('hidden');
       updateStartButton();
     }
   });
