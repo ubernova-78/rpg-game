@@ -230,6 +230,25 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
   }
 }
 
+// The Elapsed Time Workshop sits in the grassland southwest of town, near the south path.
+const ELAPSED_COL = TOWN_OFFSET_COL + 1, ELAPSED_ROW = TOWN_OFFSET_ROW + TOWN_ROWS + 3;
+BUILDING_DEFS.push({
+  id: 'elapsed', img: loadImage('tiles/building_blue.png'),
+  tileX: ELAPSED_COL, tileY: ELAPSED_ROW, tilesWide: 5, tilesTall: 3, doorCol: 2, doorRow: 2,
+  name: 'Elapsed Time Workshop', label: 'Elapsed Time Workshop',
+});
+// Path branch from the south grassland spine over to this building's door approach.
+const elapsedDoorCol = ELAPSED_COL + 2;
+const grasslandSpine = TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2);
+const elapsedDoorRow = ELAPSED_ROW + 2;
+addPathLine(elapsedDoorCol, elapsedDoorRow, grasslandSpine, elapsedDoorRow);
+for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
+  const d = DECOR_DEFS[i];
+  const inBuilding = d.baseCol >= ELAPSED_COL - 1 && d.baseCol <= ELAPSED_COL + 5 && d.baseRow >= ELAPSED_ROW - 1 && d.baseRow <= ELAPSED_ROW + 4;
+  const onPath = d.baseRow === elapsedDoorRow && d.baseCol >= elapsedDoorCol && d.baseCol <= grasslandSpine;
+  if (inBuilding || onPath) DECOR_DEFS.splice(i, 1);
+}
+
 // Computed here, after every decor-clearing pass above, so it correctly reflects what's
 // actually left in DECOR_DEFS (see the note by decorSolidTiles()'s definition).
 const DECOR_SOLID = decorSolidTiles();
@@ -302,8 +321,9 @@ const INTERIOR_SIZES = {
   cave: { cols: 11, rows: 9 },
   caveDeep: { cols: 11, rows: 9 },
   dojo: { cols: 13, rows: 10 },
+  elapsed: { cols: 9, rows: 7 },
 };
-const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg };
+const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg };
 // A light, warm overlay tinting the normal floor texture toward a boxing-mat look for the
 // Dojo — there's no dedicated light-colored floor tile in the licensed art pack, so this
 // tints the same floor_interior.png tile everything else uses rather than needing new art.
@@ -379,6 +399,10 @@ const INTERIOR_OBJECTS = {
     { id: 'deepBoulder2', kind: 'decor', img: boulderImg, col: 9, row: 1 },
     { id: 'deepBoulder3', kind: 'decor', img: boulderImg, col: 1, row: 7 },
     { id: 'deepBoulder4', kind: 'decor', img: boulderImg, col: 9, row: 7 },
+  ],
+  elapsed: [
+    { id: 'simpleBench', kind: 'workbench', img: workbenchImg, col: 2, row: 1, label: 'Simple Elapsed Time Work Bench', shortLabel: 'Simple Elapsed', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'simple' },
+    { id: 'startstopBench', kind: 'workbench', img: workbenchImg, col: 6, row: 1, label: 'Start & Stop Time Work Bench', shortLabel: 'Start & Stop', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'startstop' },
   ],
   dojo: [],
 };

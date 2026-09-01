@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Workbench (Prototype)</title>
+<style>
+  :root{
+    --bench:#1a1a2e;
+    --bench2:#16213e;
+    --bench3:#0f3460;
+    --paper:#f0ece2;
+    --accent:#e94560;
+    --teal:#1a936f;
+    --gold:#f6c90e;
+    --ink:#1a1a2e;
+    --dim:#7a7a8e;
+    --miss:#c1443a;
+    --good:#2d936c;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:'Segoe UI',Verdana,sans-serif;
+    background:var(--bench);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .app{
+    width:100%;max-width:780px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;
+    border:3px solid var(--bench3);
+  }
+
+  /* Titlebar */
+  .titlebar{
+    background:linear-gradient(135deg, var(--bench2), var(--bench3));
+    padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:3px solid var(--accent);
+  }
+  .titlebar h1{margin:0;font-size:1.3rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{
+    background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;
+    font-weight:bold;font-size:0.82rem;
+  }
+
+  /* Screens */
+  .screen{padding:24px;}
+  .hidden{display:none !important;}
+
+  /* HUD */
+  .hud{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;
+  }
+  .pill{
+    background:#fff;border:2px solid #ddd;border-radius:20px;
+    padding:5px 12px;font-size:0.9rem;
+  }
+  .progressbar{
+    height:10px;background:#e0ddd4;border-radius:6px;overflow:hidden;
+    margin-bottom:18px;border:1px solid #ccc;
+  }
+  .progressfill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+
+  /* Question area */
+  .qhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .qtext{font-size:1.1rem;font-weight:700;margin:0 0 14px;flex:1;}
+
+  /* Feedback bar */
+  .feedback{
+    padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;
+    margin-top:14px;display:none;text-align:center;
+  }
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  /* Start screen */
+  .start-title{font-size:1.6rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:20px;}
+  .primary{
+    width:100%;padding:14px;border:none;border-radius:10px;
+    background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;
+  }
+  .primary:hover{filter:brightness(1.08);}
+
+  /* End screen */
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  /* ===== SCRUBBER MINI-GAME ===== */
+  .scrub-stage{
+    position:relative;width:100%;height:180px;
+    background:linear-gradient(180deg,#2a1a3e 0%,#1a2a1e 60%,#2a3a1e 100%);
+    border-radius:10px;overflow:hidden;border:2px solid var(--bench3);
+    margin-bottom:10px;
+  }
+  .scrub-stage canvas{width:100%;height:100%;}
+  .scrub-timer{
+    position:absolute;top:8px;right:10px;
+    background:rgba(0,0,0,0.75);color:#0f0;
+    font-family:'Courier New',monospace;font-size:1.3rem;font-weight:700;
+    padding:4px 10px;border-radius:6px;border:1px solid #0f0;
+  }
+
+  .scrub-controls{margin:8px 0 12px;}
+  .timeline-wrap{
+    position:relative;width:100%;height:40px;
+    background:#222;border-radius:6px;border:1px solid #555;
+    margin-bottom:8px;cursor:pointer;
+  }
+  .timeline-thumb{
+    position:absolute;top:0;width:3px;height:100%;background:var(--gold);
+    pointer-events:none;z-index:3;
+  }
+  .timeline-marker{
+    position:absolute;top:0;width:3px;height:100%;z-index:2;
+  }
+  .timeline-marker.start-marker{background:#00cc66;}
+  .timeline-marker.end-marker{background:var(--accent);}
+  .timeline-label{
+    position:absolute;top:-18px;font-size:0.7rem;font-weight:700;
+    transform:translateX(-50%);white-space:nowrap;
+  }
+  .timeline-label.start-label{color:#00cc66;}
+  .timeline-label.end-label{color:var(--accent);}
+
+  .scrub-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;}
+  .scrub-btn{
+    padding:8px 16px;border-radius:6px;border:2px solid var(--bench3);
+    background:var(--bench2);color:var(--paper);font-weight:700;
+    cursor:pointer;font-size:0.85rem;
+  }
+  .scrub-btn:hover{border-color:var(--gold);}
+  .scrub-btn.active{border-color:var(--gold);background:var(--bench3);}
+  .scrub-btn.start-set{border-color:#00cc66;color:#00cc66;}
+  .scrub-btn.end-set{border-color:var(--accent);color:var(--accent);}
+  .scrub-step{
+    padding:6px 10px;border-radius:4px;border:1px solid #888;
+    background:#333;color:var(--paper);font-weight:700;cursor:pointer;font-size:1rem;
+  }
+  .scrub-step:hover{border-color:var(--gold);}
+
+  .scrub-answer{
+    display:flex;gap:10px;align-items:center;justify-content:center;
+    margin-top:10px;flex-wrap:wrap;
+  }
+  .scrub-answer label{font-weight:700;font-size:0.9rem;}
+  .time-input{
+    width:100px;padding:8px;font-size:1rem;border:2px solid #ccc;
+    border-radius:6px;text-align:center;font-family:'Courier New',monospace;
+  }
+  .submit-btn{
+    padding:10px 24px;border-radius:8px;border:none;
+    background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;
+  }
+  .submit-btn:hover{filter:brightness(1.1);}
+  .submit-btn:disabled{background:#999;cursor:not-allowed;}
+
+  /* ===== ELAPSED TIME CALC ===== */
+  .stopwatch-display{
+    display:inline-block;background:#111;color:#0f0;
+    font-family:'Courier New',monospace;font-size:2rem;font-weight:700;
+    padding:12px 20px;border-radius:10px;border:2px solid #333;
+    margin:6px 8px;
+  }
+  .stopwatch-pair{
+    display:flex;justify-content:center;align-items:center;gap:14px;
+    flex-wrap:wrap;margin:14px 0;
+  }
+  .sw-label{font-weight:700;font-size:0.85rem;color:var(--dim);text-align:center;margin-bottom:4px;}
+  .minus-sign{font-size:2rem;font-weight:800;color:var(--ink);}
+  .equals-sign{font-size:2rem;font-weight:800;color:var(--ink);}
+  .answer-row{
+    display:flex;gap:10px;align-items:center;justify-content:center;margin-top:14px;
+  }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>Time Workbench <span style="font-size:0.75rem;opacity:0.7;">(prototype)</span></h1>
+    <div class="badge" id="titlebar-badge">PROTOTYPE</div>
+  </div>
+
+  <!-- ===== START SCREEN ===== -->
+  <div class="screen" id="screen-start">
+    <div class="start-title">Measure Time</div>
+    <div class="start-sub">Practice reading timestamps in thousandths and calculating elapsed time rounded to the hundredths place.</div>
+    <p style="font-size:0.9rem;color:var(--dim);">
+      This is a prototype build. 12 rounds, 2 question types, 120 points possible.
+    </p>
+    <button class="primary" id="btn-start">Start Practice</button>
+  </div>
+
+  <!-- ===== GAME SCREEN ===== -->
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-mode">—</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+
+    <div class="qhead">
+      <div class="qtext" id="qtext"></div>
+    </div>
+
+    <div id="question-body"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <!-- ===== END SCREEN ===== -->
+  <div class="screen hidden" id="screen-end">
+    <div class="end-title" id="end-title">Round complete</div>
+    <div class="end-score" id="end-score">0</div>
+    <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
+    <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <button class="primary" id="btn-again">Play Again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ========== STATE ==========
+  const GOAL = 120;
+  const TOTAL_ROUNDS = 12;
+  let state = { round:0, score:0, locked:false, modeSeq:[] };
+
+  const els = {
+    start: document.getElementById('screen-start'),
+    game: document.getElementById('screen-game'),
+    end: document.getElementById('screen-end'),
+    btnStart: document.getElementById('btn-start'),
+    btnAgain: document.getElementById('btn-again'),
+    hudRound: document.getElementById('hud-round'),
+    hudMode: document.getElementById('hud-mode'),
+    hudScore: document.getElementById('hud-score'),
+    progressfill: document.getElementById('progressfill'),
+    qtext: document.getElementById('qtext'),
+    body: document.getElementById('question-body'),
+    feedback: document.getElementById('feedback'),
+    endTitle: document.getElementById('end-title'),
+    endScore: document.getElementById('end-score'),
+    endMsg: document.getElementById('end-msg'),
+  };
+
+  function showScreen(s){
+    [els.start, els.game, els.end].forEach(x=>x.classList.add('hidden'));
+    s.classList.remove('hidden');
+  }
+
+  // ========== HELPERS ==========
+  const randInt = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
+  const pick = arr => arr[randInt(0,arr.length-1)];
+  const pad2 = n => String(n).padStart(2,'0');
+  const pad3 = n => String(n).padStart(3,'0');
+
+  // Format seconds as MM:SS.ttt (thousandths) to match the iOS Physics Timer app
+  function fmtTime(totalSeconds){
+    const totalThou = Math.round(totalSeconds * 1000);
+    const mins = Math.floor(totalThou / 60000);
+    const secs = Math.floor((totalThou % 60000) / 1000);
+    const thou = totalThou % 1000;
+    return `${pad2(mins)}:${pad2(secs)}.${pad3(thou)}`;
+  }
+  // Parse MM:SS.hh or SS.hh back to seconds
+  function parseTime(str){
+    str = str.trim();
+    // Try MM:SS.hh
+    let m = str.match(/^(\d+):(\d+)\.(\d+)$/);
+    if(m) return parseInt(m[1])*60 + parseInt(m[2]) + parseInt(m[3])/100;
+    // Try SS.hh
+    m = str.match(/^(\d+)\.(\d+)$/);
+    if(m) return parseInt(m[1]) + parseInt(m[2]) / Math.pow(10, m[2].length);
+    // Try plain seconds
+    const n = parseFloat(str);
+    return isNaN(n) ? NaN : n;
+  }
+
+  // ========== GAME FLOW ==========
+  const MODE_KEYS = ['scrub','elapsed'];
+  const MODE_LABELS = {
+    'scrub': 'Scrub & Mark',
+    'elapsed': 'Elapsed Time',
+  };
+
+  function buildModeSequence(){
+    const modes = [];
+    for(let i=0;i<TOTAL_ROUNDS;i++) modes.push(pick(MODE_KEYS));
+    return modes;
+  }
+
+  els.btnStart.addEventListener('click', ()=>{
+    state.round = 0;
+    state.score = 0;
+    state.modeSeq = buildModeSequence();
+    els.hudScore.textContent = `0 of ${GOAL} points`;
+    showScreen(els.game);
+    nextRound();
+  });
+
+  els.btnAgain.addEventListener('click', ()=>{ showScreen(els.start); });
+
+  function nextRound(){
+    if(state.round >= TOTAL_ROUNDS){ finishGame(); return; }
+    state.locked = false;
+    const mode = state.modeSeq[state.round];
+    state.round++;
+    els.hudRound.textContent = `Round ${state.round} / ${TOTAL_ROUNDS}`;
+    els.hudMode.textContent = MODE_LABELS[mode];
+    els.progressfill.style.width = `${(state.round/TOTAL_ROUNDS)*100}%`;
+    els.feedback.classList.remove('show','good','bad');
+    els.body.innerHTML = '';
+
+    if(mode === 'scrub') setupScrub();
+    else if(mode === 'elapsed') setupElapsed();
+  }
+
+  function grade(isCorrect, correctText){
+    if(state.locked) return;
+    state.locked = true;
+    if(isCorrect){
+      state.score = Math.min(GOAL, state.score + 10);
+      els.feedback.textContent = `Correct! +10 points`;
+      els.feedback.className = 'feedback show good';
+    } else {
+      els.feedback.textContent = `Not quite \u2014 the answer was ${correctText}.`;
+      els.feedback.className = 'feedback show bad';
+    }
+    els.hudScore.textContent = `${state.score} of ${GOAL} points`;
+    setTimeout(nextRound, 1800);
+  }
+
+  function finishGame(){
+    showScreen(els.end);
+    els.endScore.textContent = state.score;
+    if(state.score >= 120){
+      els.endTitle.textContent = 'Perfect score!';
+      els.endMsg.textContent = 'Amazing precision! You nailed every single one.';
+    } else if(state.score >= 90){
+      els.endTitle.textContent = 'Solid round!';
+      els.endMsg.textContent = 'Great time-reading skills. Try again for a perfect score.';
+    } else if(state.score >= 60){
+      els.endTitle.textContent = 'Getting there!';
+      els.endMsg.textContent = 'Good effort. Keep practicing those hundredths.';
+    } else {
+      els.endTitle.textContent = 'Round complete';
+      els.endMsg.textContent = 'Keep practicing \u2014 hundredths of a second take time to master.';
+    }
+  }
+
+  // ================================================================
+  //  1. SCRUB & MARK — scrub through an animation, find start/end
+  // ================================================================
+  function setupScrub(){
+    els.qtext.textContent = 'Scrub the timeline to find when the creature starts moving and when it arrives. Mark both times, then calculate the elapsed time. Round your answer to the hundredths place.';
+
+    // Generate random scenario — times to thousandths (like the iOS app)
+    const totalDuration = randInt(4000, 8000) / 1000; // 4.000 - 8.000 seconds total clip
+    const idleStart = randInt(300, 1200) / 1000;      // creature sits idle 0.300 - 1.200s
+    const moveTime = randInt(1000, 3500) / 1000;       // movement takes 1.000 - 3.500s
+    const startTime = idleStart;
+    const endTime = idleStart + moveTime;
+    // Pad end so clip doesn't end right at arrival
+    const clipEnd = Math.min(totalDuration, endTime + randInt(300, 1000)/1000);
+    const TOTAL_FRAMES = Math.round(clipEnd * 1000); // one frame per thousandth
+
+    const SCENARIOS = [
+      { name: 'A goblin charges toward the village gate!', color: '#44cc44', body: 'goblin' },
+      { name: 'A skeleton runs across the graveyard!', color: '#ccccaa', body: 'skeleton' },
+      { name: 'A slime hops toward the hero!', color: '#44dd88', body: 'slime' },
+      { name: 'A bandit sprints down the road!', color: '#cc8844', body: 'bandit' },
+      { name: 'A spider skitters across the cave!', color: '#884488', body: 'spider' },
+    ];
+    const scenario = pick(SCENARIOS);
+
+    // Build DOM
+    const stage = document.createElement('div');
+    stage.className = 'scrub-stage';
+    const canvas = document.createElement('canvas');
+    canvas.width = 700; canvas.height = 180;
+    stage.appendChild(canvas);
+    const timerDisp = document.createElement('div');
+    timerDisp.className = 'scrub-timer';
+    timerDisp.textContent = '00:00.000';
+    stage.appendChild(timerDisp);
+    els.body.appendChild(stage);
+
+    // Timeline
+    const controls = document.createElement('div');
+    controls.className = 'scrub-controls';
+
+    const tlWrap = document.createElement('div');
+    tlWrap.className = 'timeline-wrap';
+    const thumb = document.createElement('div');
+    thumb.className = 'timeline-thumb';
+    tlWrap.appendChild(thumb);
+
+    // Start/end markers (hidden until set)
+    const startMarker = document.createElement('div');
+    startMarker.className = 'timeline-marker start-marker';
+    startMarker.style.display = 'none';
+    const startLabel = document.createElement('div');
+    startLabel.className = 'timeline-label start-label';
+    startMarker.appendChild(startLabel);
+    tlWrap.appendChild(startMarker);
+
+    const endMarker = document.createElement('div');
+    endMarker.className = 'timeline-marker end-marker';
+    endMarker.style.display = 'none';
+    const endLabel = document.createElement('div');
+    endLabel.className = 'timeline-label end-label';
+    endMarker.appendChild(endLabel);
+    tlWrap.appendChild(endMarker);
+
+    controls.appendChild(tlWrap);
+
+    // Step buttons and mark buttons
+    const btnsRow = document.createElement('div');
+    btnsRow.className = 'scrub-btns';
+
+    const stepBack10 = document.createElement('button');
+    stepBack10.className = 'scrub-step'; stepBack10.textContent = '\u25C0\u25C0'; stepBack10.title = 'Back 10 frames';
+    const stepBack = document.createElement('button');
+    stepBack.className = 'scrub-step'; stepBack.textContent = '\u25C0'; stepBack.title = 'Back 1 frame';
+    const playBtn = document.createElement('button');
+    playBtn.className = 'scrub-step'; playBtn.textContent = '\u25B6'; playBtn.title = 'Play / Pause';
+    const stepFwd = document.createElement('button');
+    stepFwd.className = 'scrub-step'; stepFwd.textContent = '\u25B6'; stepFwd.title = 'Forward 1 frame';
+    // Use different arrows
+    stepFwd.textContent = '\u25B6';
+    stepBack.textContent = '\u25C0';
+    stepBack10.textContent = '\u276E\u276E';
+    const stepFwd10 = document.createElement('button');
+    stepFwd10.className = 'scrub-step'; stepFwd10.textContent = '\u276F\u276F'; stepFwd10.title = 'Forward 10 frames';
+
+    const markStartBtn = document.createElement('button');
+    markStartBtn.className = 'scrub-btn'; markStartBtn.textContent = 'Mark Start';
+    const markEndBtn = document.createElement('button');
+    markEndBtn.className = 'scrub-btn'; markEndBtn.textContent = 'Mark End';
+
+    btnsRow.appendChild(stepBack10);
+    btnsRow.appendChild(stepBack);
+    btnsRow.appendChild(playBtn);
+    btnsRow.appendChild(stepFwd);
+    btnsRow.appendChild(stepFwd10);
+    btnsRow.appendChild(markStartBtn);
+    btnsRow.appendChild(markEndBtn);
+    controls.appendChild(btnsRow);
+    els.body.appendChild(controls);
+
+    // Elapsed time answer
+    const answerDiv = document.createElement('div');
+    answerDiv.className = 'scrub-answer';
+    const lbl = document.createElement('label');
+    lbl.textContent = 'Elapsed time (seconds):';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'time-input'; inp.placeholder = '0.00';
+    inp.inputMode = 'decimal';
+    const sub = document.createElement('button');
+    sub.className = 'submit-btn'; sub.textContent = 'Submit'; sub.disabled = true;
+    answerDiv.appendChild(lbl);
+    answerDiv.appendChild(inp);
+    answerDiv.appendChild(sub);
+    els.body.appendChild(answerDiv);
+
+    // State
+    let currentFrame = 0;
+    let markedStart = null;
+    let markedEnd = null;
+    let playing = false;
+    let playInterval = null;
+
+    const startFrame = Math.round(startTime * 1000);
+    const endFrame = Math.round(endTime * 1000);
+    // The raw elapsed is in thousandths — student must round to hundredths
+    const rawElapsed = (endFrame - startFrame) / 1000;
+    const correctElapsed = Math.round(rawElapsed * 100) / 100;
+
+    function frameToTime(f){ return f / 1000; }
+
+    function drawFrame(f){
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+
+      // Background - grass
+      ctx.fillStyle = '#2a3a1e';
+      ctx.fillRect(0, H*0.6, W, H*0.4);
+      // Sky
+      ctx.fillStyle = '#1a1a3e';
+      ctx.fillRect(0, 0, W, H*0.6);
+
+      // Ground line
+      const groundY = H * 0.7;
+      ctx.strokeStyle = '#4a5a3e';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+
+      // Target NPC (right side) — simple villager standing still
+      const tx = W - 50, ty = groundY;
+      ctx.fillStyle = '#ddaa77'; // skin
+      ctx.beginPath(); ctx.arc(tx, ty-36, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#4466aa'; // tunic
+      ctx.fillRect(tx-8, ty-28, 16, 20);
+      ctx.fillStyle = '#3a3a2a'; // legs
+      ctx.fillRect(tx-6, ty-8, 5, 10);
+      ctx.fillRect(tx+1, ty-8, 5, 10);
+      // exclamation mark
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('!', tx-3, ty-48);
+
+      // Creature position
+      const creatureStartX = 50;
+      const creatureEndX = W - 80;
+      let cx;
+      const isMoving = f > startFrame && f < endFrame;
+      if(f <= startFrame){
+        cx = creatureStartX; // idle
+      } else if(f >= endFrame){
+        cx = creatureEndX; // arrived
+      } else {
+        const progress = (f - startFrame) / (endFrame - startFrame);
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        cx = creatureStartX + (creatureEndX - creatureStartX) * eased;
+      }
+
+      // Leg animation cycle — only cycles when moving
+      // f is in thousandths, so scale down for natural walk speed
+      const legCycle = isMoving ? Math.sin(f * 0.05) : 0;
+      const armCycle = isMoving ? Math.sin(f * 0.05 + Math.PI) : 0;
+
+      ctx.save();
+      ctx.translate(cx, groundY);
+      const c = scenario.color;
+
+      if(scenario.body === 'goblin'){
+        // Legs (animate when moving)
+        ctx.fillStyle = '#2a7a2a';
+        ctx.fillRect(-8, -4, 5, 14 + legCycle*6);   // left leg
+        ctx.fillRect(3, -4, 5, 14 - legCycle*6);     // right leg
+        // Feet
+        ctx.fillStyle = '#1a5a1a';
+        ctx.fillRect(-9, 10 + legCycle*6, 7, 4);
+        ctx.fillRect(2, 10 - legCycle*6, 7, 4);
+        // Body
+        ctx.fillStyle = c;
+        ctx.fillRect(-10, -24, 20, 22);
+        // Arms (swing when moving)
+        ctx.fillStyle = '#2a8a2a';
+        const armL = armCycle * 10;
+        const armR = -armCycle * 10;
+        ctx.fillRect(-16, -20 + armL, 6, 14);  // left arm
+        ctx.fillRect(10, -20 + armR, 6, 14);   // right arm
+        // Head
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(0, -30, 10, 0, Math.PI*2); ctx.fill();
+        // Ears
+        ctx.fillStyle = '#3a9a3a';
+        ctx.beginPath(); ctx.ellipse(-10, -34, 6, 3, -0.4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(10, -34, 6, 3, 0.4, 0, Math.PI*2); ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#ff0';
+        ctx.beginPath(); ctx.arc(-4, -32, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, -32, 3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-3, -32, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(5, -32, 1.5, 0, Math.PI*2); ctx.fill();
+      }
+      else if(scenario.body === 'skeleton'){
+        // Legs — bony sticks
+        ctx.strokeStyle = c; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-5, -4); ctx.lineTo(-5 - legCycle*8, 14); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(5, -4); ctx.lineTo(5 + legCycle*8, 14); ctx.stroke();
+        // Feet
+        ctx.fillStyle = '#aaa';
+        ctx.fillRect(-8 - legCycle*8, 12, 8, 3);
+        ctx.fillRect(2 + legCycle*8, 12, 8, 3);
+        // Ribcage body
+        ctx.fillStyle = c;
+        ctx.fillRect(-8, -26, 16, 24);
+        ctx.fillStyle = '#333';
+        for(let r=0;r<4;r++) ctx.fillRect(-6, -24 + r*5, 12, 2);
+        // Arms — bony sticks swinging
+        ctx.strokeStyle = c; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-8, -22); ctx.lineTo(-18, -10 + armCycle*12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(8, -22); ctx.lineTo(18, -10 - armCycle*12); ctx.stroke();
+        // Hands
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(-18, -10 + armCycle*12, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(18, -10 - armCycle*12, 3, 0, Math.PI*2); ctx.fill();
+        // Skull
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(0, -34, 10, 0, Math.PI*2); ctx.fill();
+        // Eye sockets
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(-4, -36, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, -36, 3, 0, Math.PI*2); ctx.fill();
+        // Jaw
+        ctx.fillStyle = '#333';
+        ctx.fillRect(-5, -28, 10, 2);
+      }
+      else if(scenario.body === 'slime'){
+        // Slime hops — body squashes/stretches when moving
+        const hopPhase = isMoving ? Math.abs(Math.sin(f * 0.03)) : 0;
+        const squashX = 1 + hopPhase * 0.2;
+        const squashY = 1 - hopPhase * 0.15;
+        const hopY = -hopPhase * 14;
+        ctx.save();
+        ctx.translate(0, hopY);
+        ctx.scale(squashX, squashY);
+        // Body blob
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.ellipse(0, -14, 18, 16, 0, 0, Math.PI*2);
+        ctx.fill();
+        // Shine
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath(); ctx.ellipse(-6, -20, 5, 4, -0.3, 0, Math.PI*2); ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(-6, -16, 5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(6, -16, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(-4, -15, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(8, -15, 2.5, 0, Math.PI*2); ctx.fill();
+        // Mouth
+        ctx.strokeStyle = '#1a6a3a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, -10, 6, 0.2, Math.PI-0.2); ctx.stroke();
+        // Little feet poke out at bottom when hopping
+        if(isMoving){
+          ctx.fillStyle = '#2a9a5a';
+          ctx.beginPath(); ctx.ellipse(-8, 0, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(8, 0, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+      }
+      else if(scenario.body === 'bandit'){
+        // Legs
+        ctx.fillStyle = '#664422';
+        ctx.fillRect(-7, -4, 5, 16 + legCycle*6);
+        ctx.fillRect(2, -4, 5, 16 - legCycle*6);
+        // Boots
+        ctx.fillStyle = '#3a2a1a';
+        ctx.fillRect(-9, 12 + legCycle*6, 8, 4);
+        ctx.fillRect(1, 12 - legCycle*6, 8, 4);
+        // Body (tunic)
+        ctx.fillStyle = c;
+        ctx.fillRect(-11, -28, 22, 26);
+        // Belt
+        ctx.fillStyle = '#5a3a1a';
+        ctx.fillRect(-11, -8, 22, 4);
+        // Arms swinging
+        ctx.fillStyle = '#bb7733';
+        ctx.fillRect(-17, -24 + armCycle*10, 6, 16);
+        ctx.fillRect(11, -24 - armCycle*10, 6, 16);
+        // Head
+        ctx.fillStyle = '#ddaa77';
+        ctx.beginPath(); ctx.arc(0, -36, 10, 0, Math.PI*2); ctx.fill();
+        // Bandana
+        ctx.fillStyle = '#cc2222';
+        ctx.beginPath();
+        ctx.arc(0, -36, 10, Math.PI, 2*Math.PI);
+        ctx.fill();
+        // Mask
+        ctx.fillStyle = '#222';
+        ctx.fillRect(-10, -36, 20, 5);
+        // Eyes (through mask)
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(-4, -34, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, -34, 2, 0, Math.PI*2); ctx.fill();
+      }
+      else if(scenario.body === 'spider'){
+        // 4 legs on each side, animated
+        ctx.strokeStyle = c; ctx.lineWidth = 2.5;
+        for(let side=-1; side<=1; side+=2){
+          for(let leg=0; leg<4; leg++){
+            const angle = (leg - 1.5) * 0.35;
+            const swing = (leg % 2 === 0 ? legCycle : -legCycle) * 8;
+            const baseX = side * 10;
+            const baseY = -12 + leg * 4;
+            const kneeX = baseX + side * 14;
+            const kneeY = baseY - 6 + swing;
+            const footX = kneeX + side * 8;
+            const footY = baseY + 8 + swing * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.lineTo(kneeX, kneeY);
+            ctx.lineTo(footX, footY);
+            ctx.stroke();
+          }
+        }
+        // Body (abdomen)
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.ellipse(0, -6, 12, 9, 0, 0, Math.PI*2); ctx.fill();
+        // Head
+        ctx.fillStyle = scenario.color;
+        ctx.beginPath(); ctx.ellipse(0, -18, 8, 7, 0, 0, Math.PI*2); ctx.fill();
+        // Pattern on abdomen
+        ctx.fillStyle = '#aa33aa';
+        ctx.beginPath(); ctx.ellipse(0, -4, 4, 3, 0, 0, Math.PI*2); ctx.fill();
+        // Eyes (cluster of 4)
+        ctx.fillStyle = '#ff0000';
+        ctx.beginPath(); ctx.arc(-3, -20, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, -20, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-1.5, -17, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(1.5, -17, 1.5, 0, Math.PI*2); ctx.fill();
+        // Fangs
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.moveTo(-2, -12); ctx.lineTo(-3, -8); ctx.lineTo(-1, -8); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(2, -12); ctx.lineTo(1, -8); ctx.lineTo(3, -8); ctx.fill();
+      }
+
+      ctx.restore();
+
+      // Scenario label
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(scenario.name, 10, 20);
+    }
+
+    function setFrame(f){
+      currentFrame = Math.max(0, Math.min(TOTAL_FRAMES, f));
+      const t = frameToTime(currentFrame);
+      timerDisp.textContent = fmtTime(t);
+      const pct = (currentFrame / TOTAL_FRAMES) * 100;
+      thumb.style.left = pct + '%';
+      drawFrame(currentFrame);
+    }
+
+    // Timeline scrubbing
+    function scrubFromEvent(e){
+      const rect = tlWrap.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      setFrame(Math.round(x * TOTAL_FRAMES));
+    }
+    let dragging = false;
+    tlWrap.addEventListener('mousedown', e=>{ dragging=true; scrubFromEvent(e); });
+    tlWrap.addEventListener('touchstart', e=>{ dragging=true; scrubFromEvent(e.touches[0]); }, {passive:true});
+    document.addEventListener('mousemove', e=>{ if(dragging) scrubFromEvent(e); });
+    document.addEventListener('touchmove', e=>{ if(dragging) scrubFromEvent(e.touches[0]); }, {passive:true});
+    document.addEventListener('mouseup', ()=>{ dragging=false; });
+    document.addEventListener('touchend', ()=>{ dragging=false; });
+
+    // Step buttons — single = 1 thousandth, double = 10 thousandths
+    stepBack.addEventListener('click', ()=> setFrame(currentFrame - 1));
+    stepFwd.addEventListener('click', ()=> setFrame(currentFrame + 1));
+    stepBack10.addEventListener('click', ()=> setFrame(currentFrame - 10));
+    stepFwd10.addEventListener('click', ()=> setFrame(currentFrame + 10));
+
+    // Play/pause — advance 10 frames (thousandths) per tick for ~real-time playback
+    playBtn.addEventListener('click', ()=>{
+      if(playing){
+        playing = false;
+        clearInterval(playInterval);
+        playBtn.textContent = '\u25B6';
+      } else {
+        playing = true;
+        playBtn.textContent = '\u23F8';
+        if(currentFrame >= TOTAL_FRAMES) currentFrame = 0;
+        playInterval = setInterval(()=>{
+          if(currentFrame >= TOTAL_FRAMES){ playing=false; clearInterval(playInterval); playBtn.textContent='\u25B6'; return; }
+          setFrame(currentFrame + 10);
+        }, 10);
+      }
+    });
+
+    // Mark buttons — snap to correct frame if within 0.250s
+    const SNAP_TOLERANCE = 250; // thousandths (0.250s)
+
+    markStartBtn.addEventListener('click', ()=>{
+      let snapFrame = currentFrame;
+      if(Math.abs(currentFrame - startFrame) <= SNAP_TOLERANCE) snapFrame = startFrame;
+      markedStart = snapFrame;
+      setFrame(snapFrame); // jump scrubber to snapped position
+      startMarker.style.display = 'block';
+      startMarker.style.left = (snapFrame / TOTAL_FRAMES * 100) + '%';
+      startLabel.textContent = fmtTime(frameToTime(snapFrame));
+      markStartBtn.classList.add('start-set');
+      markStartBtn.textContent = 'Start: ' + fmtTime(frameToTime(snapFrame));
+      checkCanSubmit();
+    });
+    markEndBtn.addEventListener('click', ()=>{
+      let snapFrame = currentFrame;
+      if(Math.abs(currentFrame - endFrame) <= SNAP_TOLERANCE) snapFrame = endFrame;
+      markedEnd = snapFrame;
+      setFrame(snapFrame);
+      endMarker.style.display = 'block';
+      endMarker.style.left = (snapFrame / TOTAL_FRAMES * 100) + '%';
+      endLabel.textContent = fmtTime(frameToTime(snapFrame));
+      markEndBtn.classList.add('end-set');
+      markEndBtn.textContent = 'End: ' + fmtTime(frameToTime(snapFrame));
+      checkCanSubmit();
+    });
+
+    function checkCanSubmit(){
+      sub.disabled = !(markedStart !== null && markedEnd !== null);
+    }
+
+    // Keyboard controls
+    function handleKey(e){
+      if(state.locked) return;
+      if(e.key === 'ArrowLeft') setFrame(currentFrame - (e.shiftKey ? 10 : 1));
+      else if(e.key === 'ArrowRight') setFrame(currentFrame + (e.shiftKey ? 10 : 1));
+      else if(e.key === ' '){ e.preventDefault(); playBtn.click(); }
+    }
+    document.addEventListener('keydown', handleKey);
+    // Clean up listener when round ends (simple: it'll be overwritten)
+
+    // Submit
+    sub.addEventListener('click', ()=>{
+      if(state.locked) return;
+
+      // Check marker accuracy: within 50 thousandths (0.050s) tolerance
+      const markerTolerance = 50; // frames (thousandths)
+      const startOK = Math.abs(markedStart - startFrame) <= markerTolerance;
+      const endOK = Math.abs(markedEnd - endFrame) <= markerTolerance;
+
+      // Check elapsed time answer
+      const raw = parseFloat(inp.value);
+      if(isNaN(raw)){
+        inp.style.borderColor = 'var(--miss)';
+        setTimeout(()=> inp.style.borderColor='', 500);
+        return;
+      }
+
+      const elapsedOK = Math.abs(raw - correctElapsed) <= 0.01;
+      const allCorrect = startOK && endOK && elapsedOK;
+
+      // Stop playback
+      if(playing){ playing=false; clearInterval(playInterval); }
+
+      grade(allCorrect,
+        `Start: ${fmtTime(startTime)}, End: ${fmtTime(endTime)}, Elapsed: ${correctElapsed.toFixed(2)}s (rounded to hundredths)`);
+    });
+
+    // Initial frame
+    setFrame(0);
+    // Auto-play once so student can see the animation
+    setTimeout(()=>{
+      playing = true;
+      playBtn.textContent = '\u23F8';
+      playInterval = setInterval(()=>{
+        if(currentFrame >= TOTAL_FRAMES){ playing=false; clearInterval(playInterval); playBtn.textContent='\u25B6'; return; }
+        setFrame(currentFrame + 10);
+      }, 10);
+    }, 300);
+  }
+
+  // ================================================================
+  //  2. ELAPSED TIME CALCULATOR
+  // ================================================================
+  function setupElapsed(){
+    els.qtext.textContent = 'Find the elapsed time. Subtract the start time from the end time. Round your answer to the hundredths place.';
+
+    // Generate two times in thousandths — student must round answer to hundredths
+    const startThou = randInt(100, 40000);    // thousandths of a second (0.100 - 40.000)
+    const elapsedThou = randInt(500, 20000);   // 0.500 - 20.000 seconds
+    const endThou = startThou + elapsedThou;
+    const startSec = startThou / 1000;
+    const endSec = endThou / 1000;
+    const rawElapsedSec = elapsedThou / 1000;
+    const elapsedSec = Math.round(rawElapsedSec * 100) / 100; // rounded to hundredths
+
+    const pair = document.createElement('div');
+    pair.className = 'stopwatch-pair';
+
+    const startCol = document.createElement('div');
+    startCol.style.textAlign = 'center';
+    const sLabel = document.createElement('div'); sLabel.className = 'sw-label'; sLabel.textContent = 'END TIME';
+    const sDisp = document.createElement('div'); sDisp.className = 'stopwatch-display'; sDisp.textContent = fmtTime(endSec);
+    startCol.appendChild(sLabel); startCol.appendChild(sDisp);
+
+    const minus = document.createElement('div'); minus.className = 'minus-sign'; minus.textContent = '\u2212';
+
+    const endCol = document.createElement('div');
+    endCol.style.textAlign = 'center';
+    const eLabel = document.createElement('div'); eLabel.className = 'sw-label'; eLabel.textContent = 'START TIME';
+    const eDisp = document.createElement('div'); eDisp.className = 'stopwatch-display'; eDisp.textContent = fmtTime(startSec);
+    endCol.appendChild(eLabel); endCol.appendChild(eDisp);
+
+    const eq = document.createElement('div'); eq.className = 'equals-sign'; eq.textContent = '=';
+    const qMark = document.createElement('div');
+    qMark.className = 'stopwatch-display';
+    qMark.style.color = 'var(--gold)'; qMark.style.borderColor = 'var(--gold)';
+    qMark.textContent = '??.??s';
+
+    pair.appendChild(startCol);
+    pair.appendChild(minus);
+    pair.appendChild(endCol);
+    pair.appendChild(eq);
+    pair.appendChild(qMark);
+    els.body.appendChild(pair);
+
+    const row = document.createElement('div');
+    row.className = 'answer-row';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'time-input'; inp.placeholder = '0.00';
+    inp.inputMode = 'decimal';
+    inp.style.width = '120px';
+    const unitLbl = document.createElement('span');
+    unitLbl.style.fontWeight = '700'; unitLbl.textContent = 'seconds';
+    const sub = document.createElement('button');
+    sub.className = 'submit-btn'; sub.textContent = 'Submit';
+    row.appendChild(inp); row.appendChild(unitLbl); row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click', ()=>{
+      if(state.locked) return;
+      const raw = parseFloat(inp.value);
+      if(isNaN(raw)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+      const diff = Math.abs(raw - elapsedSec);
+      grade(diff <= 0.01, `${elapsedSec.toFixed(2)} seconds`);
+    });
+
+    setTimeout(()=> inp.focus(), 50);
+  }
+
+  // Start on the start screen
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>
