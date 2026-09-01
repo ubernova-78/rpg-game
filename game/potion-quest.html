@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="measure-shared.js"></script>
 <style>
   :root{
     --charcoal:#262b31;
@@ -330,6 +331,7 @@
     margin-bottom:14px;
   }
   .caliper-wrap{
+    position:relative;
     overflow-x:auto;
     margin-bottom:14px;
     padding:10px 0 4px;
@@ -338,6 +340,18 @@
     border-radius:8px;
   }
   .caliper-wrap svg{ display:block; }
+  .caliper-unit-badge{
+    position:absolute;
+    top:8px; left:10px;
+    font-size:1.4rem; font-weight:900;
+    color:var(--charcoal);
+    background:rgba(255,255,255,0.85);
+    padding:2px 12px;
+    border-radius:6px;
+    border:2px solid var(--charcoal);
+    z-index:5;
+    pointer-events:none;
+  }
   .caliper-item-preview{
     display:flex;
     align-items:center;
@@ -917,54 +931,15 @@ function buildSpecimenSVG(type, color, x0, barY, barW, barH){
   return `<rect x="${x0}" y="${barY}" width="${barW}" height="${barH}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
 }
 
+// Caliper SVG — delegates to shared renderer, passing a custom specimen shape
 function buildCaliperSVG(valueMM, maxMM){
-  const pxPerMM = 6;
-  const beamX = 30, beamW = maxMM*pxPerMM;
-  const railW = beamX + beamW + 30;
-  const beamY = 26, beamH = 30;
-  const jawH = 46, jawW = 14;
-  const barY = beamY+beamH+14, barH = 24;
-
-  let ticks = '';
-  for(let mm=0; mm<=maxMM; mm++){
-    const x = beamX + mm*pxPerMM;
-    const isCM = mm%10===0;
-    const isHalfCM = !isCM && mm%5===0;
-    const tickH = isCM ? 16 : isHalfCM ? 12 : 9;
-    const tickW = isCM ? 1.4 : isHalfCM ? 1.1 : 0.8;
-    ticks += `<line x1="${x}" y1="${beamY+beamH}" x2="${x}" y2="${beamY+beamH-tickH}" stroke="#fff" stroke-width="${tickW}"/>`;
-    if(isCM) ticks += `<text x="${x}" y="${beamY+10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${mm}</text>`;
-  }
-
-  const fixedX = beamX, slideX = beamX + valueMM*pxPerMM;
   const item = state.currentForestItem;
   const itemType = item ? item.type : 'fruit';
   const itemColor = item ? item.color : 'red';
-  const barW = Math.abs(slideX - fixedX);
-  const barX = Math.min(fixedX, slideX);
-
-  // Extra vertical room for legs/stems that extend beyond the bar
-  const extraBelow = 16;
-  const H = barY + barH + extraBelow + 20;
-
-  const specimen = buildSpecimenSVG(itemType, itemColor, barX, barY, barW, barH);
-
-  const fixedJaw = `<path d="M${fixedX-jawW/2} ${beamY+beamH} h${jawW} l-${jawW/2-1} ${jawH} h-2 Z" fill="#14171a"/>`;
-  const handle = `<rect x="${slideX-9}" y="${beamY-20}" width="18" height="16" rx="2" fill="#2c3138" stroke="#14171a" stroke-width="1.5"/>`;
-  const slideLine = `<rect x="${slideX-1.5}" y="${beamY-4}" width="3" height="4" fill="#2c3138"/>`;
-  const slideJaw = `<path d="M${slideX-jawW/2} ${beamY+beamH} h${jawW} l-${jawW/2-1} ${jawH} h-2 Z" fill="#2c3138"/>`;
-  const pointer = `<polygon points="${slideX},${beamY+beamH+2} ${slideX-5},${beamY+beamH+12} ${slideX+5},${beamY+beamH+12}" fill="#f2c230"/>`;
-
-  return `<svg width="${railW}" height="${H}" viewBox="0 0 ${railW} ${H}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="${beamX-14}" y="${beamY-6}" width="${beamW+28}" height="${beamH+12}" rx="3" fill="#1a1d21"/>
-    ${ticks}
-    ${specimen}
-    ${fixedJaw}
-    ${handle}
-    ${slideLine}
-    ${slideJaw}
-    ${pointer}
-  </svg>`;
+  return MeasureShared.buildCaliperSVG(valueMM, maxMM, {
+    extraH: 16,
+    specimenSVG: function(box){ return buildSpecimenSVG(itemType, itemColor, box.x, box.y, box.w, box.h); },
+  });
 }
 
 // ── RECIPE RENDERING ──
@@ -1206,6 +1181,10 @@ function openCaliper(item){
 
   // Build caliper
   els.caliperWrap.innerHTML = buildCaliperSVG(item.sizeMM, 80);
+  const badge = document.createElement('div');
+  badge.className = 'caliper-unit-badge';
+  badge.textContent = 'mm';
+  els.caliperWrap.appendChild(badge);
 
   // Reset UI
   els.caliperAnswer.value = '';
