@@ -17,7 +17,8 @@
       "Bash(node -c game/session.js)",
       "Bash(node -c game/gameplay.js)",
       "Bash(node -c game/world.js)",
-      "Bash(node -c game/npcs.js)"
+      "Bash(node -c game/npcs.js)",
+      "WebFetch(domain:place-value-bench-default-rtdb.firebaseio.com)"
     ]
   }
 }

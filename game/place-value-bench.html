@@ -521,7 +521,7 @@ const REWARDS=[
 
 /* ============ state ============ */
 const GOAL=120;
-let S={score:0,round:1,mode:'read',level:'standard',digits:[],counts:[],attempt:1,
+let S={score:0,round:1,mode:'read',level:'full',digits:[],counts:[],attempt:1,
        solved:false,name:'',period:'',t0:0,demo:false};
 
 const $=id=>document.getElementById(id);
@@ -807,7 +807,7 @@ function renderShelf(){
 
 /* ============ overlays ============ */
 function start(){
-  S={score:0,round:1,mode:'read',level:S.level||'standard',digits:[],counts:[],attempt:1,
+  S={score:0,round:1,mode:'read',level:'full',digits:[],counts:[],attempt:1,
      solved:false,name:S.name||'',period:S.period||'',t0:0,demo:false,teacher:false};
   $('score').textContent=0; $('fill').style.width='0%';
   [1,2,3,4].forEach(v=>$('n'+v).classList.remove('lit'));
@@ -840,10 +840,7 @@ function start(){
         ${PERIODS.map(x=>`<option value="${x}"${S.period===x?' selected':''}>Period ${x}</option>`).join('')}
       </select>
     </div>
-    <div class="levels">
-      ${Object.entries(LEVELS).map(([k,v])=>
-        `<button class="lvl" data-lvl="${k}" disabled><b>${v.name}</b><span>${v.desc}</span></button>`).join('')}
-    </div>
+    <button class="btn brass" id="pvStartBtn" disabled style="width:100%;padding:14px;font-size:15px;margin-top:6px">Start</button>
     ${DB_OK?'':'<div class="warn">Scores are not being saved &mdash; the teacher needs to add the database settings.</div>'}
     <div style="margin-top:26px;padding-top:22px;border-top:1px solid var(--bench3);text-align:center">
       <button class="btn ghost" id="lbOpenBtn" style="padding:12px 26px;font-size:14px">
@@ -859,7 +856,7 @@ function start(){
   const nm=$('nm'), pd=$('pd'), pin=$('pin');
   const gate=()=>{
     const ok = nm.value.trim().length>0 && pd.value!=='' && /^\d{4}$/.test(pin.value.trim());
-    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=!ok);
+    $('pvStartBtn').disabled=!ok;
   };
   nm.oninput=gate; pd.onchange=gate; gate();
   pin.oninput=()=>{ pin.value=pin.value.replace(/\D/g,'').slice(0,4); gate(); };
@@ -873,9 +870,9 @@ function start(){
     pd.closest('.field').style.display='none';
     const welcome=document.createElement('p');
     welcome.style.cssText='font-weight:800;color:var(--brass)';
-    welcome.textContent='Signed in as Demo (preview mode — nothing is saved). Choose a level below.';
-    $('card').querySelector('.levels').before(welcome);
-    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=false);
+    welcome.textContent='Signed in as Demo (preview mode — nothing is saved). Press Start to begin.';
+    $('pvStartBtn').before(welcome);
+    $('pvStartBtn').disabled=false;
   } else if(EMBED_LOGIN){
     nm.value = EMBED_LOGIN.name; pin.value = EMBED_LOGIN.pin; pd.value = EMBED_LOGIN.period;
     nm.closest('.field').style.display='none';
@@ -884,9 +881,9 @@ function start(){
     const welcome=document.createElement('p');
     welcome.style.cssText='font-weight:800;color:var(--teal)';
     welcome.textContent = EMBED_LOGIN.teacher
-      ? `Signed in as ${EMBED_LOGIN.name} (teacher — hidden from leaderboards). Choose a level below.`
-      : `Signed in as ${EMBED_LOGIN.name}. Choose a level below.`;
-    $('card').querySelector('.levels').before(welcome);
+      ? `Signed in as ${EMBED_LOGIN.name} (teacher — hidden from leaderboards). Press Start to begin.`
+      : `Signed in as ${EMBED_LOGIN.name}. Press Start to begin.`;
+    $('pvStartBtn').before(welcome);
     gate();
   }
 
@@ -894,19 +891,19 @@ function start(){
   $('demoBtn').onclick=(e)=>{
     e.preventDefault();
     S.demo=true;
-    $('card').querySelectorAll('.lvl').forEach(b=>b.disabled=false);
+    $('pvStartBtn').disabled=false;
     const flag=document.createElement('p');
     flag.style.cssText='font-size:12px;color:var(--brass);margin:16px 0 0;font-weight:700';
-    flag.textContent='Preview mode \u2014 pick a level below. Nothing you do will be saved.';
+    flag.textContent='Preview mode \u2014 press Start. Nothing you do will be saved.';
     $('demoBtn').parentElement.replaceWith(flag);
   };
 
-  $('card').querySelectorAll('.lvl').forEach(b=>b.onclick=async ()=>{
-    if(b.disabled) return;
+  $('pvStartBtn').onclick=async ()=>{
+    if($('pvStartBtn').disabled) return;
     if(S.demo){
       S.name='Demo'; S.period=''; S.pin=''; S.studentRecord={totalEXP:0,coins:0};
     } else {
-      b.disabled = true;
+      $('pvStartBtn').disabled = true;
       const errBox=$('pinError'); errBox.style.display='none';
       const name=nm.value.trim(), pinVal=pin.value.trim(), period=pd.value;
       const result = await loadOrCreateStudent(name, pinVal, period);
@@ -924,11 +921,11 @@ function start(){
       S.studentRecord=result.record; S.studentKey=result.nameKey;
       saveStudent(result.nameKey, result.record).catch(()=>{});
     }
-    S.level=b.dataset.lvl;
+    S.level='full';
     S.t0=Date.now();
     $('overlay').style.display='none';
     newProblem();
-  });
+  };
   renderShelf();
 }
 

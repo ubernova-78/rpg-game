@@ -539,8 +539,15 @@
   <!-- LEADERBOARD SCREEN -->
   <div class="screen hidden" id="screen-leaderboard">
     <div class="leaderboard">
-      <h3 id="lb-title">Top scores</h3>
+      <h3>Top scores</h3>
       <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="diffrow" style="margin-bottom:6px;" id="lb-bench-tabs">
+        <button class="diffbtn" data-bench="unit">Unit</button>
+        <button class="diffbtn" data-bench="mm">mm</button>
+        <button class="diffbtn" data-bench="cm">cm</button>
+        <button class="diffbtn" data-bench="m">m</button>
+        <button class="diffbtn" data-bench="mixed">Mixed</button>
+      </div>
       <div class="diffrow" style="margin-bottom:10px;" id="lb-period-tabs">
         <button class="diffbtn" data-period="2">P2</button>
         <button class="diffbtn" data-period="6">P6</button>
@@ -781,7 +788,6 @@
     state.hintPotions = hintPotions || 0;
     document.getElementById('login-fields').classList.add('hidden');
     document.getElementById('demo-note').classList.add('hidden');
-    // The student already chose which table to walk up to in-game — no need to ask again.
     document.getElementById('bench-label').classList.add('hidden');
     document.getElementById('bench-row').classList.add('hidden');
 
@@ -806,6 +812,7 @@
       state.record = result.record;
       state.nameKey = result.nameKey;
       state.teacher = !!teacher;
+      paintLevelUI(state.record.totalEXP, state.record.coins, els.levelBadge, els.expFill, els.coinBadge);
       try{ await saveRecord(state.nameKey, state.record); }catch(err){ /* ignore */ }
     } else {
       els.embedWelcome.textContent = `Sign-in error: ${result.error}`;
@@ -1281,7 +1288,7 @@
 
     if(state.score >= 120){
       els.endTitle.textContent = 'Perfect score!';
-      els.endMessage.textContent = 'Great work — show your teacher for a reward!';
+      els.endMessage.textContent = 'Great work!';
     } else if(state.score >= 90){
       els.endTitle.textContent = 'Solid round!';
       els.endMessage.textContent = 'Nice measuring. Try again to get a perfect score.';
@@ -1318,7 +1325,6 @@
     }
   }
 
-  const BENCH_LABELS = {unit:'Choose the Unit',mm:'Millimeter',cm:'Centimeter',m:'Meter',mixed:'Mixed Practice'};
 
   async function renderEndLeaderboard(period){
     const wrap = document.getElementById('end-leaderboard');
@@ -1330,6 +1336,7 @@
         .sort((a,b)=> (b._s - a._s) || (a._t - b._t))
         .slice(0,10);
       if(!rows.length){ wrap.style.display='none'; return; }
+      const BENCH_LABELS = {unit:'Choose the Unit',mm:'Millimeter',cm:'Centimeter',m:'Meter',mixed:'Mixed Practice'};
       let html = `<h3>${BENCH_LABELS[state.bench]||state.bench} — P${period} leaders</h3>`;
       html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
       rows.forEach((r,i) => {
@@ -1348,28 +1355,35 @@
   });
 
   // ---------- Leaderboard ----------
-  let lbPeriod = '2';
+  let lbPeriod = '2', lbBench = 'mixed';
 
   els.btnLeaderboard.addEventListener('click', ()=>{
     showScreen(els.lb);
+    lbBench = state.bench || 'mixed';
     lbPeriod = state.period || '2';
-    const bench = state.bench || 'mixed';
-    document.getElementById('lb-title').textContent =
-      (BENCH_LABELS[bench] || bench) + ' — Top scores';
     refreshLbTabs();
-    loadLeaderboard(lbPeriod, bench);
+    loadLeaderboard(lbPeriod, lbBench);
   });
   els.btnBackFromLb.addEventListener('click', ()=>{ showScreen(els.start); });
 
   function refreshLbTabs(){
+    document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(b =>
+      b.classList.toggle('selected', b.dataset.bench === lbBench));
     document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(b =>
       b.classList.toggle('selected', b.dataset.period === String(lbPeriod)));
   }
+  document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      lbBench = btn.dataset.bench;
+      refreshLbTabs();
+      loadLeaderboard(lbPeriod, lbBench);
+    });
+  });
   document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       lbPeriod = btn.dataset.period;
       refreshLbTabs();
-      loadLeaderboard(lbPeriod, state.bench || 'mixed');
+      loadLeaderboard(lbPeriod, lbBench);
     });
   });
 
