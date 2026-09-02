@@ -241,6 +241,31 @@ function drawInterior() {
   if (scene.buildingId === 'dojo') { drawDojoSparrers(); drawDojoMaster(); }
   mapCtx.restore();
 
+  // Scroll arrows for wide rooms — pulsing chevrons on the left/right edges hint
+  // that there are more workbenches off-screen in that direction.
+  if (roomW > mapCanvas.width) {
+    const canScroll = { left: ox < 0, right: ox > -(roomW - mapCanvas.width) };
+    const pulse = 0.45 + 0.35 * Math.sin(Date.now() / 400);
+    mapCtx.save();
+    mapCtx.font = 'bold 22px Trebuchet MS, sans-serif';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillStyle = `rgba(244,247,250,${pulse})`;
+    mapCtx.strokeStyle = `rgba(10,14,20,${pulse * 0.7})`;
+    mapCtx.lineWidth = 3;
+    const midY = mapCanvas.height / 2;
+    if (canScroll.left) {
+      mapCtx.textAlign = 'left';
+      mapCtx.strokeText('◂ more', 8, midY);
+      mapCtx.fillText('◂ more', 8, midY);
+    }
+    if (canScroll.right) {
+      mapCtx.textAlign = 'right';
+      mapCtx.strokeText('more ▸', mapCanvas.width - 8, midY);
+      mapCtx.fillText('more ▸', mapCanvas.width - 8, midY);
+    }
+    mapCtx.restore();
+  }
+
   const b = BUILDING_DEFS.find(bd => bd.id === scene.buildingId);
   mapCtx.fillStyle = '#e8ecf1';
   mapCtx.font = '13px Trebuchet MS, sans-serif';
