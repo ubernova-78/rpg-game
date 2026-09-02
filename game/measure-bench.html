@@ -539,15 +539,8 @@
   <!-- LEADERBOARD SCREEN -->
   <div class="screen hidden" id="screen-leaderboard">
     <div class="leaderboard">
-      <h3>Top scores</h3>
+      <h3 id="lb-title">Top scores</h3>
       <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
-      <div class="diffrow" style="margin-bottom:6px;" id="lb-bench-tabs">
-        <button class="diffbtn" data-bench="unit">Unit</button>
-        <button class="diffbtn" data-bench="mm">mm</button>
-        <button class="diffbtn" data-bench="cm">cm</button>
-        <button class="diffbtn" data-bench="m">m</button>
-        <button class="diffbtn" data-bench="mixed">Mixed</button>
-      </div>
       <div class="diffrow" style="margin-bottom:10px;" id="lb-period-tabs">
         <button class="diffbtn" data-period="2">P2</button>
         <button class="diffbtn" data-period="6">P6</button>
@@ -1319,7 +1312,7 @@
         expEarned: state.roundEXP,
         timeSec,
         ts: Date.now()
-      }).catch(()=>{});
+      }).catch(e => console.warn('measure score save failed', e));
       // Show post-game leaderboard
       renderEndLeaderboard(String(state.period));
     }
@@ -1355,35 +1348,28 @@
   });
 
   // ---------- Leaderboard ----------
-  let lbPeriod = '2', lbBench = 'mixed';
+  let lbPeriod = '2';
 
   els.btnLeaderboard.addEventListener('click', ()=>{
     showScreen(els.lb);
-    lbBench = state.bench || 'mixed';
     lbPeriod = state.period || '2';
+    const bench = state.bench || 'mixed';
+    document.getElementById('lb-title').textContent =
+      (BENCH_LABELS[bench] || bench) + ' — Top scores';
     refreshLbTabs();
-    loadLeaderboard(lbPeriod, lbBench);
+    loadLeaderboard(lbPeriod, bench);
   });
   els.btnBackFromLb.addEventListener('click', ()=>{ showScreen(els.start); });
 
   function refreshLbTabs(){
-    document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(b =>
-      b.classList.toggle('selected', b.dataset.bench === lbBench));
     document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(b =>
       b.classList.toggle('selected', b.dataset.period === String(lbPeriod)));
   }
-  document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      lbBench = btn.dataset.bench;
-      refreshLbTabs();
-      loadLeaderboard(lbPeriod, lbBench);
-    });
-  });
   document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       lbPeriod = btn.dataset.period;
       refreshLbTabs();
-      loadLeaderboard(lbPeriod, lbBench);
+      loadLeaderboard(lbPeriod, state.bench || 'mixed');
     });
   });
 

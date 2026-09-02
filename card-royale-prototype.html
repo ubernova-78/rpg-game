@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Royale - Monster Math</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-60px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInRight{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+@keyframes shakeHit{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(1.3)}}
+@keyframes cardGlow{0%,100%{box-shadow:0 0 8px rgba(255,215,0,0.4)}50%{box-shadow:0 0 25px rgba(255,215,0,0.9)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes cardFlip{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+@keyframes bounceIn{0%{transform:scale(0.3);opacity:0}50%{transform:scale(1.1)}70%{transform:scale(0.9)}100%{transform:scale(1);opacity:1}}
+@keyframes hpDrain{from{background-position:left}to{background-position:right}}
+@keyframes starPop{0%{transform:scale(0) rotate(-30deg);opacity:0}60%{transform:scale(1.3) rotate(10deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes toastSlide{0%{transform:translateX(120%);opacity:0}10%{transform:translateX(0);opacity:1}90%{transform:translateX(0);opacity:1}100%{transform:translateX(120%);opacity:0}}
+@keyframes attackSlash{0%{transform:translateX(0) rotate(0)}40%{transform:translateX(80px) rotate(15deg)}60%{transform:translateX(80px) rotate(15deg)}100%{transform:translateX(0) rotate(0)}}
+@keyframes defendHit{0%{transform:translateX(0)}30%{transform:translateX(-10px)}100%{transform:translateX(0)}}
+
+body{
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+  background:#0f0f23;
+  color:#e0e0e0;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+#app{max-width:1200px;margin:0 auto;padding:0 12px 30px;}
+
+/* HEADER */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;
+  background:linear-gradient(135deg,#1a1a2e,#16213e);
+  border-bottom:2px solid #e2b84a;
+  position:sticky;top:0;z-index:100;
+}
+.header h1{
+  font-size:1.4em;
+  background:linear-gradient(to right,#f5c842,#e2994a);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:1px;
+}
+.profile-bar{display:flex;align-items:center;gap:16px;font-size:0.95em;}
+.profile-bar .stat{display:flex;align-items:center;gap:4px;}
+.player-name{
+  background:transparent;border:1px solid #444;border-radius:4px;
+  color:#f5c842;padding:2px 8px;width:110px;font-size:0.95em;text-align:center;
+}
+.player-name:focus{border-color:#f5c842;outline:none;}
+.btn-reset{
+  background:transparent;border:1px solid #555;color:#888;
+  padding:2px 10px;border-radius:4px;cursor:pointer;font-size:0.75em;
+}
+.btn-reset:hover{border-color:#e74c3c;color:#e74c3c;}
+
+/* NAV TABS */
+.nav{
+  display:flex;gap:0;margin-top:0;
+  background:#12122a;
+  border-bottom:2px solid #333;
+}
+.nav button{
+  flex:1;padding:12px 0;
+  background:transparent;border:none;
+  color:#888;font-size:1em;font-weight:600;cursor:pointer;
+  transition:all 0.25s;position:relative;letter-spacing:0.5px;
+}
+.nav button:hover{color:#ccc;background:rgba(255,255,255,0.03);}
+.nav button.active{
+  color:#f5c842;
+  background:linear-gradient(to bottom,rgba(245,200,66,0.08),transparent);
+}
+.nav button.active::after{
+  content:'';position:absolute;bottom:-2px;left:15%;right:15%;height:2px;
+  background:#f5c842;border-radius:2px;
+}
+.tab-icon{font-size:1.2em;margin-right:6px;}
+
+/* SCREEN */
+.screen{display:none;animation:fadeIn 0.35s ease;}
+.screen.active{display:block;}
+
+/* ===== HUNT SCREEN ===== */
+.hunt-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+  padding:20px 0;
+}
+.zone-label{
+  grid-column:1/-1;font-size:0.85em;text-transform:uppercase;
+  letter-spacing:2px;color:#888;padding:8px 0 0;
+  border-top:1px solid #222;
+}
+.zone-label:first-child{border-top:none;}
+.monster-tile{
+  background:linear-gradient(145deg,#1e1e3a,#181830);
+  border:2px solid #333;border-radius:12px;
+  padding:20px 16px;text-align:center;cursor:pointer;
+  transition:all 0.25s;position:relative;overflow:hidden;
+}
+.monster-tile:hover{
+  border-color:#f5c842;transform:translateY(-4px);
+  box-shadow:0 8px 25px rgba(0,0,0,0.4);
+}
+.monster-tile.forest{border-color:#2d6a2d;}
+.monster-tile.forest:hover{border-color:#4a4;box-shadow:0 0 20px rgba(40,160,40,0.2);}
+.monster-tile.cave{border-color:#5a3d7a;}
+.monster-tile.cave:hover{border-color:#8a5abf;box-shadow:0 0 20px rgba(120,70,180,0.2);}
+.monster-emoji{font-size:3em;display:block;margin-bottom:8px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));}
+.monster-tile h3{font-size:1em;margin-bottom:4px;}
+.monster-tile .base-stats{font-size:0.8em;color:#999;}
+.monster-tile .zone-badge{
+  position:absolute;top:8px;right:8px;font-size:0.65em;
+  padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:1px;
+}
+.monster-tile.forest .zone-badge{background:rgba(40,120,40,0.3);color:#6c6;}
+.monster-tile.cave .zone-badge{background:rgba(100,50,150,0.3);color:#b88adf;}
+
+/* BATTLE OVERLAY */
+.battle-overlay{
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.85);z-index:200;
+  justify-content:center;align-items:center;
+}
+.battle-overlay.active{display:flex;}
+.battle-box{
+  background:linear-gradient(145deg,#1a1a3e,#12122e);
+  border:2px solid #f5c842;border-radius:16px;
+  padding:30px 40px;max-width:500px;width:90%;text-align:center;
+  animation:bounceIn 0.4s ease;
+}
+.battle-monster{font-size:5em;margin:10px 0;filter:drop-shadow(0 4px 15px rgba(0,0,0,0.6));}
+.battle-box h2{color:#f5c842;margin-bottom:16px;font-size:1.4em;}
+.question-text{
+  font-size:1.25em;margin:20px 0;padding:16px;
+  background:rgba(0,0,0,0.3);border-radius:10px;
+  border:1px solid #333;line-height:1.6;
+}
+.answer-input{
+  width:80%;padding:12px 16px;font-size:1.2em;text-align:center;
+  background:#0d0d22;border:2px solid #444;border-radius:8px;
+  color:#fff;margin:10px 0;
+}
+.answer-input:focus{border-color:#f5c842;outline:none;}
+.btn{
+  padding:10px 28px;font-size:1em;font-weight:600;
+  border:none;border-radius:8px;cursor:pointer;
+  transition:all 0.2s;margin:5px;
+}
+.btn-gold{
+  background:linear-gradient(135deg,#f5c842,#e2994a);
+  color:#1a1a2e;
+}
+.btn-gold:hover{transform:scale(1.05);box-shadow:0 4px 15px rgba(245,200,66,0.4);}
+.btn-secondary{background:#333;color:#ccc;}
+.btn-secondary:hover{background:#444;}
+.result-text{font-size:1.1em;margin:16px 0;font-weight:600;}
+.result-text.correct{color:#4caf50;}
+.result-text.wrong{color:#e74c3c;}
+
+/* ===== CARDS SCREEN ===== */
+.cards-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+  padding:20px 0;
+}
+.game-card{
+  background:linear-gradient(145deg,#1e1e3a,#161630);
+  border:3px solid #444;border-radius:14px;
+  padding:0;overflow:hidden;position:relative;
+  transition:all 0.3s;
+}
+.game-card:hover{transform:translateY(-4px);box-shadow:0 10px 30px rgba(0,0,0,0.5);}
+.game-card.forest-card{border-color:#2a7a2a;}
+.game-card.cave-card{border-color:#6a3d9a;}
+.game-card.locked{opacity:0.45;filter:grayscale(0.8);}
+.card-header{
+  padding:8px 12px;display:flex;justify-content:center;gap:3px;
+  background:rgba(0,0,0,0.3);
+}
+.star{font-size:1.1em;color:#555;transition:all 0.3s;}
+.star.filled{color:#f5c842;animation:starPop 0.3s ease;}
+.card-body{padding:16px;text-align:center;}
+.card-emoji{font-size:3.5em;display:block;margin:8px 0;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.5));}
+.card-name{font-size:1.1em;font-weight:700;margin:8px 0 4px;}
+.card-level{font-size:0.8em;color:#f5c842;margin-bottom:8px;}
+.card-stats{
+  display:flex;justify-content:space-between;
+  padding:8px 16px;margin-top:8px;
+}
+.stat-atk{color:#e74c3c;font-weight:700;font-size:1.1em;}
+.stat-hp{color:#4caf50;font-weight:700;font-size:1.1em;}
+.progress-section{padding:8px 16px 12px;}
+.progress-bar{
+  height:8px;background:#222;border-radius:4px;overflow:hidden;margin-top:4px;
+}
+.progress-fill{
+  height:100%;border-radius:4px;
+  background:linear-gradient(90deg,#f5c842,#e2994a);
+  transition:width 0.5s ease;
+}
+.progress-label{font-size:0.75em;color:#888;display:flex;justify-content:space-between;}
+.card-count{
+  position:absolute;top:8px;right:10px;font-size:0.7em;
+  background:rgba(0,0,0,0.5);padding:2px 8px;border-radius:10px;color:#aaa;
+}
+.locked-overlay{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:3em;color:#555;pointer-events:none;
+}
+
+/* ===== CASTLE SCREEN ===== */
+.castle-section{padding:20px 0;}
+.castle-visual{
+  background:linear-gradient(to bottom,#0a0a1a,#151530);
+  border:2px solid #555;border-radius:12px;
+  padding:20px;margin-bottom:20px;position:relative;overflow:hidden;
+}
+.castle-wall{
+  display:flex;justify-content:center;align-items:flex-end;
+  gap:0;margin-bottom:16px;height:120px;
+}
+.tower{
+  width:60px;height:120px;
+  background:linear-gradient(135deg,#4a4a5a,#3a3a4a);
+  border:2px solid #666;border-radius:6px 6px 0 0;position:relative;
+}
+.tower::before{
+  content:'';position:absolute;top:-20px;left:-5px;
+  width:0;height:0;border-left:35px solid transparent;
+  border-right:35px solid transparent;border-bottom:20px solid #5a5a6a;
+}
+.tower-window{
+  width:14px;height:20px;background:#1a1a2e;
+  border-radius:7px 7px 0 0;margin:20px auto 0;
+  box-shadow:inset 0 0 5px rgba(245,200,66,0.3);
+}
+.wall-section{
+  flex:1;height:80px;max-width:200px;
+  background:linear-gradient(135deg,#4a4a5a,#3a3a4a);
+  border:2px solid #666;border-top:4px solid #5a5a6a;
+  display:flex;flex-wrap:wrap;align-content:flex-start;padding:4px;
+}
+.brick{
+  width:calc(50% - 2px);height:16px;margin:1px;
+  background:linear-gradient(135deg,#555,#484858);
+  border-radius:1px;
+}
+.brick:nth-child(even){width:calc(50% - 2px);margin-left:calc(25%)}
+.gate{
+  width:80px;height:80px;
+  background:linear-gradient(to bottom,#3a2a1a,#2a1a0a);
+  border:3px solid #666;border-radius:40px 40px 0 0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:2em;
+}
+.castle-hp-section{text-align:center;margin:12px 0;}
+.castle-hp-bar{
+  width:80%;max-width:400px;height:20px;
+  background:#222;border-radius:10px;margin:8px auto;
+  overflow:hidden;border:1px solid #444;
+}
+.castle-hp-fill{
+  height:100%;border-radius:10px;
+  background:linear-gradient(90deg,#e74c3c,#4caf50);
+  transition:width 0.5s ease;
+}
+.castle-hp-text{font-size:0.9em;color:#aaa;}
+
+.defender-slots{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+  margin:20px 0;
+}
+.defender-slot{
+  min-height:140px;
+  background:rgba(0,0,0,0.3);border:2px dashed #444;
+  border-radius:12px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;transition:all 0.25s;
+  flex-direction:column;padding:10px;position:relative;
+}
+.defender-slot:hover{border-color:#f5c842;}
+.defender-slot.filled{border-style:solid;border-color:#555;}
+.slot-label{
+  position:absolute;top:6px;left:50%;transform:translateX(-50%);
+  font-size:0.7em;color:#666;text-transform:uppercase;letter-spacing:1px;
+}
+.slot-empty-text{color:#555;font-size:0.85em;}
+.slot-card{text-align:center;}
+.slot-card .card-emoji{font-size:2.2em;}
+.slot-card .card-name{font-size:0.85em;}
+.slot-card .card-stats{font-size:0.85em;justify-content:center;gap:16px;padding:4px 0;}
+.remove-btn{
+  position:absolute;top:4px;right:8px;
+  background:rgba(231,76,60,0.7);border:none;color:#fff;
+  width:20px;height:20px;border-radius:50%;cursor:pointer;
+  font-size:0.75em;display:flex;align-items:center;justify-content:center;
+}
+.remove-btn:hover{background:#e74c3c;}
+.defense-power{
+  text-align:center;margin:16px 0;font-size:1.1em;
+  color:#f5c842;
+}
+.card-picker{
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.85);z-index:200;
+  justify-content:center;align-items:center;
+}
+.card-picker.active{display:flex;}
+.picker-box{
+  background:linear-gradient(145deg,#1a1a3e,#12122e);
+  border:2px solid #f5c842;border-radius:16px;
+  padding:24px;max-width:600px;width:90%;
+  animation:bounceIn 0.3s ease;
+}
+.picker-box h3{color:#f5c842;margin-bottom:16px;text-align:center;}
+.picker-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+}
+.picker-card{
+  background:rgba(0,0,0,0.3);border:2px solid #444;border-radius:10px;
+  padding:12px;text-align:center;cursor:pointer;transition:all 0.2s;
+}
+.picker-card:hover{border-color:#f5c842;background:rgba(245,200,66,0.05);}
+.picker-card.disabled{opacity:0.3;pointer-events:none;}
+.picker-card .card-emoji{font-size:2em;}
+
+.defense-log{margin-top:20px;}
+.defense-log h3{color:#f5c842;margin-bottom:10px;font-size:1em;}
+.log-entry{
+  background:rgba(0,0,0,0.2);border:1px solid #333;border-radius:8px;
+  padding:10px 14px;margin-bottom:6px;font-size:0.85em;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.log-result.win{color:#4caf50;}
+.log-result.lose{color:#e74c3c;}
+
+/* ===== ATTACK SCREEN ===== */
+.opponents-list{padding:20px 0;}
+.opponent-card{
+  background:linear-gradient(145deg,#1e1e3a,#181830);
+  border:2px solid #333;border-radius:12px;
+  padding:16px 20px;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:space-between;
+  transition:all 0.25s;
+}
+.opponent-card:hover{border-color:#555;transform:translateX(4px);}
+.opp-info{display:flex;align-items:center;gap:16px;}
+.opp-avatar{
+  width:50px;height:50px;border-radius:50%;
+  background:linear-gradient(135deg,#333,#222);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5em;border:2px solid #555;
+}
+.opp-name{font-weight:700;font-size:1.05em;}
+.opp-trophies{color:#f5c842;font-size:0.9em;}
+.opp-defenders{display:flex;gap:4px;margin-top:4px;}
+.opp-def-icon{
+  width:28px;height:28px;background:rgba(0,0,0,0.3);
+  border:1px solid #444;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:0.9em;
+}
+.btn-attack{
+  background:linear-gradient(135deg,#e74c3c,#c0392b);
+  color:#fff;padding:10px 24px;border:none;border-radius:8px;
+  font-weight:700;cursor:pointer;transition:all 0.2s;font-size:0.95em;
+}
+.btn-attack:hover{transform:scale(1.05);box-shadow:0 4px 15px rgba(231,76,60,0.4);}
+
+/* RAID OVERLAY */
+.raid-overlay{
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.9);z-index:200;
+  flex-direction:column;align-items:center;justify-content:center;
+}
+.raid-overlay.active{display:flex;}
+.raid-arena{
+  width:90%;max-width:700px;
+  background:linear-gradient(145deg,#1a1a3e,#0f0f25);
+  border:2px solid #555;border-radius:16px;
+  padding:24px;position:relative;
+}
+.raid-header{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:16px;
+}
+.raid-vs{
+  display:flex;justify-content:space-around;align-items:center;
+  margin:16px 0;gap:20px;
+}
+.raid-card{
+  text-align:center;padding:16px;
+  background:rgba(0,0,0,0.3);border:2px solid #444;
+  border-radius:12px;width:180px;transition:all 0.3s;
+}
+.raid-card.attacking{animation:attackSlash 0.6s ease;}
+.raid-card.hit{animation:shakeHit 0.4s ease;}
+.raid-card .card-emoji{font-size:3em;}
+.raid-card .card-name{font-size:0.9em;margin:6px 0;}
+.raid-hp-bar{
+  width:100%;height:10px;background:#222;border-radius:5px;
+  margin-top:6px;overflow:hidden;
+}
+.raid-hp-fill{
+  height:100%;border-radius:5px;transition:width 0.4s ease;
+}
+.raid-hp-fill.player{background:linear-gradient(90deg,#f5c842,#4caf50);}
+.raid-hp-fill.enemy{background:linear-gradient(90deg,#e74c3c,#c0392b);}
+.vs-text{font-size:2em;color:#f5c842;font-weight:900;}
+.raid-log{
+  max-height:120px;overflow-y:auto;
+  background:rgba(0,0,0,0.3);border-radius:8px;
+  padding:10px;margin:12px 0;font-size:0.85em;
+}
+.raid-log p{margin:3px 0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+.dmg-num{
+  position:absolute;font-weight:900;font-size:1.5em;
+  animation:floatUp 1s ease forwards;pointer-events:none;z-index:10;
+}
+.dmg-num.player-dmg{color:#e74c3c;}
+.dmg-num.enemy-dmg{color:#4caf50;}
+.raid-question{
+  background:rgba(0,0,0,0.4);border:1px solid #f5c842;
+  border-radius:10px;padding:16px;margin:12px 0;text-align:center;
+}
+.raid-pick{text-align:center;padding:20px;}
+.raid-pick h3{color:#f5c842;margin-bottom:16px;}
+.raid-pick-grid{
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+}
+.raid-pick-card{
+  background:rgba(0,0,0,0.3);border:2px solid #444;
+  border-radius:10px;padding:12px 16px;text-align:center;
+  cursor:pointer;transition:all 0.2s;min-width:100px;
+}
+.raid-pick-card:hover{border-color:#f5c842;}
+.raid-pick-card.disabled{opacity:0.3;pointer-events:none;}
+.raid-summary{text-align:center;padding:20px;}
+.raid-summary h2{font-size:1.8em;margin-bottom:10px;}
+.raid-summary.win h2{color:#4caf50;}
+.raid-summary.lose h2{color:#e74c3c;}
+.raid-summary .trophy-change{font-size:1.3em;color:#f5c842;margin:10px 0;}
+
+.opponent-defenders-row{
+  display:flex;gap:8px;justify-content:center;margin:12px 0;
+}
+.opp-def-slot{
+  background:rgba(0,0,0,0.3);border:1px solid #444;
+  border-radius:8px;padding:6px 10px;text-align:center;font-size:0.8em;
+  min-width:60px;transition:all 0.3s;
+}
+.opp-def-slot.defeated{opacity:0.3;text-decoration:line-through;}
+.opp-def-slot.current{border-color:#e74c3c;box-shadow:0 0 10px rgba(231,76,60,0.3);}
+.castle-assault{
+  text-align:center;margin:12px 0;padding:12px;
+  background:rgba(231,76,60,0.1);border:1px solid #e74c3c;border-radius:8px;
+}
+
+/* TOAST */
+.toast-container{
+  position:fixed;top:80px;right:20px;z-index:300;
+  display:flex;flex-direction:column;gap:8px;
+}
+.toast{
+  background:linear-gradient(135deg,#1a3a1a,#0a2a0a);
+  border:2px solid #4caf50;border-radius:10px;
+  padding:14px 20px;min-width:280px;
+  animation:toastSlide 3.5s ease forwards;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5);
+}
+.toast.warn{border-color:#e74c3c;background:linear-gradient(135deg,#3a1a1a,#2a0a0a);}
+.toast-title{font-weight:700;color:#4caf50;font-size:0.95em;}
+.toast.warn .toast-title{color:#e74c3c;}
+.toast-sub{font-size:0.8em;color:#aaa;margin-top:3px;}
+
+/* UTILITY */
+.section-title{
+  font-size:1.2em;color:#f5c842;margin:16px 0 8px;
+  display:flex;align-items:center;gap:8px;
+}
+.section-title::after{
+  content:'';flex:1;height:1px;background:linear-gradient(to right,#f5c842,transparent);
+}
+.text-center{text-align:center;}
+.mt-12{margin-top:12px;}
+.mb-12{margin-bottom:12px;}
+
+/* Responsive */
+@media(max-width:800px){
+  .hunt-grid,.cards-grid{grid-template-columns:repeat(2,1fr);}
+  .defender-slots{grid-template-columns:repeat(2,1fr);}
+  .raid-vs{flex-direction:column;}
+}
+@media(max-width:500px){
+  .hunt-grid,.cards-grid,.picker-grid{grid-template-columns:1fr 1fr;}
+  .profile-bar{gap:8px;font-size:0.8em;}
+  .player-name{width:80px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="header">
+    <h1>CARD ROYALE</h1>
+    <div class="profile-bar">
+      <input class="player-name" id="playerName" value="Player" maxlength="14">
+      <span class="stat">🏆 <span id="trophyCount">500</span></span>
+      <span class="stat">🃏 <span id="totalCards">0</span></span>
+      <span class="stat" title="Win/Loss">⚔️ <span id="winLoss">0/0</span></span>
+      <button class="btn-reset" id="btnReset" title="Reset all progress">Reset</button>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <button class="active" data-tab="hunt"><span class="tab-icon">⚔️</span>Hunt</button>
+    <button data-tab="cards"><span class="tab-icon">🃏</span>Cards</button>
+    <button data-tab="castle"><span class="tab-icon">🏰</span>Castle</button>
+    <button data-tab="attack"><span class="tab-icon">💥</span>Attack</button>
+  </nav>
+
+  <div id="huntScreen" class="screen active"></div>
+  <div id="cardsScreen" class="screen"></div>
+  <div id="castleScreen" class="screen"></div>
+  <div id="attackScreen" class="screen"></div>
+</div>
+
+<div class="battle-overlay" id="battleOverlay"></div>
+<div class="card-picker" id="cardPicker"></div>
+<div class="raid-overlay" id="raidOverlay"></div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ===== DATA =====
+const MONSTERS = [
+  {id:'pinecoon',name:'Pinecoon',emoji:'🌰',zone:'forest',atk:2,hp:3,rarity:1},
+  {id:'wasp',name:'Meadow Wasp',emoji:'🐝',zone:'forest',atk:3,hp:2,rarity:1},
+  {id:'snake',name:'Grass Snake',emoji:'🐍',zone:'forest',atk:3,hp:4,rarity:2},
+  {id:'bat',name:'Cave Bat',emoji:'🦇',zone:'cave',atk:4,hp:3,rarity:2},
+  {id:'slime',name:'Cave Slime',emoji:'🟢',zone:'cave',atk:2,hp:6,rarity:2},
+  {id:'flameskull',name:'Flame Skull',emoji:'💀',zone:'cave',atk:6,hp:5,rarity:3},
+];
+const LEVEL_THRESHOLDS = [0,1,5,15,30,50];
+const OPPONENTS = [
+  {name:'Dragon_Slayer_99',avatar:'🐉',trophies:1200,defenders:['flameskull','bat','snake','slime'],levels:[3,3,2,2]},
+  {name:'MathWizard',avatar:'🧙',trophies:950,defenders:['snake','slime','bat','wasp'],levels:[2,3,2,2]},
+  {name:'PixelKnight',avatar:'🛡️',trophies:800,defenders:['bat','wasp','pinecoon','snake'],levels:[2,2,2,1]},
+  {name:'StarCrusher',avatar:'⭐',trophies:600,defenders:['slime','pinecoon','wasp',null],levels:[2,1,1,0]},
+  {name:'NoobMaster',avatar:'👶',trophies:350,defenders:['pinecoon','wasp',null,null],levels:[1,1,0,0]},
+];
+
+// ===== STATE =====
+let state = loadState();
+function defaultState(){
+  return {
+    playerName:'Player',trophies:500,wins:0,losses:0,
+    cards:{pinecoon:0,wasp:0,snake:0,bat:0,slime:0,flameskull:0},
+    defenders:[null,null,null,null],
+    defenseLog:[],
+  };
+}
+function loadState(){
+  try{
+    const s=JSON.parse(localStorage.getItem('cardRoyaleState'));
+    if(s&&s.cards)return s;
+  }catch(e){}
+  return defaultState();
+}
+function saveState(){
+  localStorage.setItem('cardRoyaleState',JSON.stringify(state));
+  updateHeader();
+}
+function resetState(){
+  if(!confirm('Reset ALL progress? This cannot be undone.'))return;
+  state=defaultState();saveState();renderAll();
+}
+
+// ===== UTILS =====
+function getLevel(count){
+  for(let i=LEVEL_THRESHOLDS.length-1;i>=0;i--){
+    if(count>=LEVEL_THRESHOLDS[i])return i;
+  }
+  return 0;
+}
+function getStats(monster,level){
+  const lv=Math.max(1,level);
+  return {atk:monster.atk+(lv-1),hp:monster.hp+(lv-1)*2};
+}
+function getNextThreshold(count){
+  for(let i=0;i<LEVEL_THRESHOLDS.length;i++){
+    if(count<LEVEL_THRESHOLDS[i])return LEVEL_THRESHOLDS[i];
+  }
+  return LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length-1];
+}
+function getMonster(id){return MONSTERS.find(m=>m.id===id);}
+function totalCards(){return Object.values(state.cards).reduce((a,b)=>a+b,0);}
+
+// ===== MATH QUESTIONS =====
+function genQuestion(){
+  const types=['digit_place','value_of','build_number','round_hundred','compare'];
+  const type=types[Math.floor(Math.random()*types.length)];
+  const places=['ones','tens','hundreds','thousands'];
+  const placeVal=[1,10,100,1000];
+
+  switch(type){
+    case 'digit_place':{
+      const num=1000+Math.floor(Math.random()*8999);
+      const pi=Math.floor(Math.random()*4);
+      const digits=String(num).split('').reverse();
+      const answer=parseInt(digits[pi]);
+      return {q:`What digit is in the <b>${places[pi]}</b> place of <b>${num.toLocaleString()}</b>?`,a:String(answer)};
+    }
+    case 'value_of':{
+      const num=1000+Math.floor(Math.random()*8999);
+      const numStr=String(num);
+      const pi=Math.floor(Math.random()*4);
+      const digits=numStr.split('').reverse();
+      const d=parseInt(digits[pi]);
+      if(d===0)return genQuestion();
+      const val=d*placeVal[pi];
+      return {q:`What is the <b>value</b> of the <b>${d}</b> in <b>${num.toLocaleString()}</b>?`,a:String(val)};
+    }
+    case 'build_number':{
+      const th=Math.floor(Math.random()*9)+1;
+      const hu=Math.floor(Math.random()*10);
+      const te=Math.floor(Math.random()*10);
+      const on=Math.floor(Math.random()*10);
+      const answer=th*1000+hu*100+te*10+on;
+      return {q:`Build the number:<br><b>${th}</b> thousands + <b>${hu}</b> hundreds + <b>${te}</b> tens + <b>${on}</b> ones`,a:String(answer)};
+    }
+    case 'round_hundred':{
+      const num=100+Math.floor(Math.random()*9800);
+      const rounded=Math.round(num/100)*100;
+      return {q:`Round <b>${num.toLocaleString()}</b> to the nearest <b>hundred</b>.`,a:String(rounded)};
+    }
+    case 'compare':{
+      const base=1000+Math.floor(Math.random()*8000);
+      const diff=Math.floor(Math.random()*3)-1;
+      let num2=base+(diff===0?0:(Math.floor(Math.random()*90)+1)*(diff>0?1:-1));
+      if(num2<1000)num2=base+Math.floor(Math.random()*50)+1;
+      const ans=base>num2?'>':base<num2?'<':'=';
+      return {q:`Compare: <b>${base.toLocaleString()}</b> ___ <b>${num2.toLocaleString()}</b><br>Type &gt; or &lt; or =`,a:ans};
+    }
+  }
+  return genQuestion();
+}
+
+// ===== TOAST =====
+function showToast(title,sub,warn=false){
+  const c=document.getElementById('toastContainer');
+  const t=document.createElement('div');
+  t.className='toast'+(warn?' warn':'');
+  t.innerHTML=`<div class="toast-title">${title}</div><div class="toast-sub">${sub}</div>`;
+  c.appendChild(t);
+  setTimeout(()=>t.remove(),3600);
+}
+
+// ===== HEADER =====
+function updateHeader(){
+  document.getElementById('trophyCount').textContent=state.trophies;
+  document.getElementById('totalCards').textContent=totalCards();
+  document.getElementById('winLoss').textContent=`${state.wins}/${state.losses}`;
+  document.getElementById('playerName').value=state.playerName;
+}
+
+// ===== TAB NAV =====
+document.querySelector('.nav').addEventListener('click',e=>{
+  const btn=e.target.closest('button[data-tab]');
+  if(!btn)return;
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const id=btn.dataset.tab;
+  document.getElementById(id+'Screen').classList.add('active');
+  renderTab(id);
+});
+document.getElementById('playerName').addEventListener('change',e=>{
+  state.playerName=e.target.value.trim()||'Player';saveState();
+});
+document.getElementById('btnReset').addEventListener('click',resetState);
+
+function renderTab(id){
+  if(id==='hunt')renderHunt();
+  else if(id==='cards')renderCards();
+  else if(id==='castle')renderCastle();
+  else if(id==='attack')renderAttack();
+}
+
+// ===== HUNT SCREEN =====
+function renderHunt(){
+  const el=document.getElementById('huntScreen');
+  const forestMons=MONSTERS.filter(m=>m.zone==='forest');
+  const caveMons=MONSTERS.filter(m=>m.zone==='cave');
+  el.innerHTML=`
+    <div class="section-title">Choose a Monster to Hunt</div>
+    <div class="hunt-grid">
+      <div class="zone-label">🌲 Forest Zone</div>
+      ${forestMons.map(m=>`
+        <div class="monster-tile forest" data-id="${m.id}">
+          <span class="zone-badge">Forest</span>
+          <span class="monster-emoji">${m.emoji}</span>
+          <h3>${m.name}</h3>
+          <div class="base-stats">⚔️${m.atk} ❤️${m.hp}</div>
+        </div>`).join('')}
+      <div class="zone-label">🕳️ Cave Zone</div>
+      ${caveMons.map(m=>`
+        <div class="monster-tile cave" data-id="${m.id}">
+          <span class="zone-badge">Cave</span>
+          <span class="monster-emoji">${m.emoji}</span>
+          <h3>${m.name}</h3>
+          <div class="base-stats">⚔️${m.atk} ❤️${m.hp}</div>
+        </div>`).join('')}
+    </div>`;
+  el.querySelectorAll('.monster-tile').forEach(tile=>{
+    tile.addEventListener('click',()=>startBattle(tile.dataset.id));
+  });
+}
+
+function startBattle(monsterId){
+  const mon=getMonster(monsterId);
+  const q=genQuestion();
+  const ov=document.getElementById('battleOverlay');
+  ov.innerHTML=`
+    <div class="battle-box">
+      <div class="battle-monster">${mon.emoji}</div>
+      <h2>A wild ${mon.name} appears!</h2>
+      <div class="question-text">${q.q}</div>
+      <input class="answer-input" id="battleAnswer" autocomplete="off" placeholder="Your answer...">
+      <div>
+        <button class="btn btn-gold" id="btnSubmitBattle">Submit</button>
+        <button class="btn btn-secondary" id="btnRunBattle">Run Away</button>
+      </div>
+      <div class="result-text" id="battleResult"></div>
+    </div>`;
+  ov.classList.add('active');
+  const inp=document.getElementById('battleAnswer');
+  setTimeout(()=>inp.focus(),100);
+
+  const submit=()=>{
+    const userAns=inp.value.trim().replace(/,/g,'');
+    const correct=userAns.toLowerCase()===q.a.toLowerCase();
+    const res=document.getElementById('battleResult');
+    if(correct){
+      state.cards[monsterId]++;
+      saveState();
+      const count=state.cards[monsterId];
+      const lv=getLevel(count);
+      const next=getNextThreshold(count);
+      res.className='result-text correct';
+      res.textContent='✅ Correct! Monster defeated!';
+      showToast(`${mon.name} Card earned!`,`${count}/${next} to Level ${Math.min(lv+1,5)}`);
+    } else {
+      res.className='result-text wrong';
+      res.textContent=`❌ Wrong! The answer was ${q.a}. Monster escaped!`;
+      showToast(`${mon.name} escaped!`,'Try again!',true);
+    }
+    document.getElementById('btnSubmitBattle').disabled=true;
+    inp.disabled=true;
+    setTimeout(()=>{ov.classList.remove('active');},1800);
+  };
+  document.getElementById('btnSubmitBattle').addEventListener('click',submit);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+  document.getElementById('btnRunBattle').addEventListener('click',()=>ov.classList.remove('active'));
+}
+
+// ===== CARDS SCREEN =====
+function renderCards(){
+  const el=document.getElementById('cardsScreen');
+  el.innerHTML=`<div class="section-title">Monster Collection</div><div class="cards-grid">${
+    MONSTERS.map(m=>{
+      const count=state.cards[m.id];
+      const lv=getLevel(count);
+      const unlocked=count>0;
+      const stats=getStats(m,lv);
+      const next=getNextThreshold(count);
+      const prev=LEVEL_THRESHOLDS[lv]||0;
+      const prog=lv>=5?100:((count-prev)/(next-prev)*100);
+      const zoneClass=m.zone==='forest'?'forest-card':'cave-card';
+      return `<div class="game-card ${zoneClass}${unlocked?'':' locked'}">
+        ${unlocked?`<span class="card-count">x${count}</span>`:''}
+        <div class="card-header">${
+          [1,2,3,4,5].map(i=>`<span class="star${i<=lv?' filled':''}">★</span>`).join('')
+        }</div>
+        <div class="card-body">
+          <span class="card-emoji">${unlocked?m.emoji:'❓'}</span>
+          <div class="card-name">${unlocked?m.name:'???'}</div>
+          <div class="card-level">${unlocked?`Level ${lv}`:'Locked'}</div>
+          ${unlocked?`<div class="card-stats"><span class="stat-atk">⚔️ ${stats.atk}</span><span class="stat-hp">❤️ ${stats.hp}</span></div>`:''}
+        </div>
+        <div class="progress-section">
+          <div class="progress-label"><span>${lv>=5?'MAX':count+'/'+next}</span><span>Lv ${Math.min(lv+1,5)}</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${prog}%"></div></div>
+        </div>
+        ${!unlocked?'<div class="locked-overlay">🔒</div>':''}
+      </div>`;
+    }).join('')
+  }</div>`;
+}
+
+// ===== CASTLE SCREEN =====
+let pickerSlotIndex=-1;
+function renderCastle(){
+  const el=document.getElementById('castleScreen');
+  const defPower=state.defenders.reduce((sum,d)=>{
+    if(!d)return sum;
+    const m=getMonster(d);
+    const s=getStats(m,getLevel(state.cards[d]));
+    return sum+s.atk+s.hp;
+  },0);
+
+  el.innerHTML=`
+    <div class="section-title">Your Castle Defense</div>
+    <div class="castle-visual">
+      <div class="castle-wall">
+        <div class="tower"><div class="tower-window"></div></div>
+        <div class="wall-section">${'<div class="brick"></div>'.repeat(12)}</div>
+        <div class="gate">🏰</div>
+        <div class="wall-section">${'<div class="brick"></div>'.repeat(12)}</div>
+        <div class="tower"><div class="tower-window"></div></div>
+      </div>
+      <div class="castle-hp-section">
+        <div class="castle-hp-text">Castle HP: 20 / 20</div>
+        <div class="castle-hp-bar"><div class="castle-hp-fill" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div class="section-title">Defender Slots</div>
+    <div class="defender-slots">${
+      state.defenders.map((d,i)=>{
+        if(d){
+          const m=getMonster(d);
+          const lv=getLevel(state.cards[d]);
+          const s=getStats(m,lv);
+          return `<div class="defender-slot filled" data-slot="${i}">
+            <span class="slot-label">Slot ${i+1}</span>
+            <button class="remove-btn" data-slot="${i}">&times;</button>
+            <div class="slot-card">
+              <span class="card-emoji">${m.emoji}</span>
+              <div class="card-name">${m.name}</div>
+              <div class="card-stats"><span class="stat-atk">⚔️${s.atk}</span><span class="stat-hp">❤️${s.hp}</span></div>
+            </div>
+          </div>`;
+        }
+        return `<div class="defender-slot" data-slot="${i}">
+          <span class="slot-label">Slot ${i+1}</span>
+          <span class="slot-empty-text">+ Add Defender</span>
+        </div>`;
+      }).join('')
+    }</div>
+    <div class="defense-power">Combined Defense Power: ⚡ ${defPower}</div>
+    <div class="text-center"><button class="btn btn-gold" id="btnSaveDef">💾 Save Defense</button></div>
+    <div class="defense-log">
+      <h3>📜 Recent Attack Log</h3>
+      ${state.defenseLog.length===0?'<div class="log-entry" style="color:#666">No attacks yet.</div>':''}
+      ${state.defenseLog.slice(-5).reverse().map(l=>`
+        <div class="log-entry">
+          <span>${l.attacker} attacked your castle</span>
+          <span class="log-result ${l.result}">${l.result==='win'?'Defended!':'Breached! -'+l.dmg+' HP'}</span>
+        </div>`).join('')}
+    </div>`;
+
+  el.querySelectorAll('.defender-slot').forEach(slot=>{
+    slot.addEventListener('click',e=>{
+      if(e.target.closest('.remove-btn'))return;
+      pickerSlotIndex=parseInt(slot.dataset.slot);
+      openPicker();
+    });
+  });
+  el.querySelectorAll('.remove-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      state.defenders[parseInt(btn.dataset.slot)]=null;
+      saveState();renderCastle();
+    });
+  });
+  document.getElementById('btnSaveDef').addEventListener('click',()=>{
+    saveState();showToast('Defense Saved!','Your castle defenders are set.');
+  });
+}
+
+function openPicker(){
+  const pk=document.getElementById('cardPicker');
+  const available=MONSTERS.filter(m=>state.cards[m.id]>0);
+  pk.innerHTML=`<div class="picker-box">
+    <h3>Choose a Defender</h3>
+    <div class="picker-grid">${
+      MONSTERS.map(m=>{
+        const owned=state.cards[m.id]>0;
+        const lv=getLevel(state.cards[m.id]);
+        const s=getStats(m,lv);
+        return `<div class="picker-card${owned?'':' disabled'}" data-id="${m.id}">
+          <span class="card-emoji">${m.emoji}</span>
+          <div class="card-name" style="font-size:0.85em">${m.name}</div>
+          ${owned?`<div style="font-size:0.8em;margin-top:4px"><span class="stat-atk">⚔️${s.atk}</span> <span class="stat-hp">❤️${s.hp}</span></div>`:'<div style="font-size:0.75em;color:#666">Locked</div>'}
+        </div>`;
+      }).join('')
+    }</div>
+    <div class="text-center mt-12"><button class="btn btn-secondary" id="btnClosePicker">Cancel</button></div>
+  </div>`;
+  pk.classList.add('active');
+  pk.querySelectorAll('.picker-card:not(.disabled)').forEach(card=>{
+    card.addEventListener('click',()=>{
+      state.defenders[pickerSlotIndex]=card.dataset.id;
+      saveState();pk.classList.remove('active');renderCastle();
+    });
+  });
+  document.getElementById('btnClosePicker').addEventListener('click',()=>pk.classList.remove('active'));
+}
+
+// ===== ATTACK SCREEN =====
+function renderAttack(){
+  const el=document.getElementById('attackScreen');
+  el.innerHTML=`<div class="section-title">Raid an Opponent's Castle</div>
+    <div class="opponents-list">${
+      OPPONENTS.map((opp,oi)=>`
+        <div class="opponent-card">
+          <div class="opp-info">
+            <div class="opp-avatar">${opp.avatar}</div>
+            <div>
+              <div class="opp-name">${opp.name}</div>
+              <div class="opp-trophies">🏆 ${opp.trophies}</div>
+              <div class="opp-defenders">${
+                opp.defenders.map(d=>{
+                  if(!d)return '';
+                  const m=getMonster(d);
+                  return `<div class="opp-def-icon">${m.emoji}</div>`;
+                }).join('')
+              }</div>
+            </div>
+          </div>
+          <button class="btn-attack" data-opp="${oi}">⚔️ Attack</button>
+        </div>`).join('')
+    }</div>`;
+  el.querySelectorAll('.btn-attack').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const hasCards=Object.values(state.cards).some(c=>c>0);
+      if(!hasCards){showToast('No cards!','Hunt monsters first to earn cards.',true);return;}
+      startRaid(parseInt(btn.dataset.opp));
+    });
+  });
+}
+
+// ===== RAID SYSTEM =====
+let raidState=null;
+function startRaid(oppIndex){
+  const opp=OPPONENTS[oppIndex];
+  const defs=opp.defenders.filter(d=>d!==null).map((d,i)=>{
+    const m=getMonster(d);
+    const s=getStats(m,opp.levels[i]);
+    return {id:d,name:m.name,emoji:m.emoji,atk:s.atk,hp:s.hp,maxHp:s.hp,alive:true};
+  });
+  raidState={opp,oppIndex,defenders:defs,defIdx:0,
+    playerCard:null,playerHp:0,playerMaxHp:0,playerAtk:0,
+    phase:'pick',log:[],castleHp:20,trophyChange:0};
+  renderRaid();
+  document.getElementById('raidOverlay').classList.add('active');
+}
+
+function renderRaid(){
+  const rs=raidState;
+  const ov=document.getElementById('raidOverlay');
+
+  if(rs.phase==='pick'){
+    ov.innerHTML=`<div class="raid-arena">
+      <div class="raid-header">
+        <span style="color:#f5c842;font-weight:700">Raiding: ${rs.opp.name}</span>
+        <span>🏰 Castle HP: ${rs.castleHp}/20</span>
+      </div>
+      <div class="opponent-defenders-row">${rs.defenders.map((d,i)=>`
+        <div class="opp-def-slot${!d.alive?' defeated':''}${i===rs.defIdx?' current':''}">
+          ${d.emoji}<br>${d.name}<br>❤️${d.alive?d.hp:0}
+        </div>`).join('')}</div>
+      <div class="raid-pick">
+        <h3>Choose your fighter!</h3>
+        <div class="raid-pick-grid">${
+          MONSTERS.filter(m=>state.cards[m.id]>0).map(m=>{
+            const lv=getLevel(state.cards[m.id]);
+            const s=getStats(m,lv);
+            return `<div class="raid-pick-card" data-id="${m.id}">
+              <span style="font-size:2em">${m.emoji}</span>
+              <div style="font-size:0.85em;margin:4px 0">${m.name}</div>
+              <div style="font-size:0.8em"><span class="stat-atk">⚔️${s.atk}</span> <span class="stat-hp">❤️${s.hp}</span></div>
+            </div>`;
+          }).join('')
+        }</div>
+      </div>
+      <div class="text-center mt-12"><button class="btn btn-secondary" id="btnFleeRaid">Flee</button></div>
+    </div>`;
+    ov.querySelectorAll('.raid-pick-card').forEach(c=>{
+      c.addEventListener('click',()=>{
+        const m=getMonster(c.dataset.id);
+        const lv=getLevel(state.cards[m.id]);
+        const s=getStats(m,lv);
+        rs.playerCard={id:m.id,name:m.name,emoji:m.emoji};
+        rs.playerAtk=s.atk;rs.playerHp=s.hp;rs.playerMaxHp=s.hp;
+        rs.phase='question';renderRaid();
+      });
+    });
+    document.getElementById('btnFleeRaid').addEventListener('click',()=>ov.classList.remove('active'));
+    return;
+  }
+
+  if(rs.phase==='question'){
+    const def=rs.defenders[rs.defIdx];
+    const q=genQuestion();
+    rs._currentQ=q;
+    ov.innerHTML=`<div class="raid-arena">
+      <div class="raid-header">
+        <span style="color:#f5c842;font-weight:700">Raiding: ${rs.opp.name}</span>
+        <span>🏰 Castle HP: ${rs.castleHp}/20</span>
+      </div>
+      <div class="opponent-defenders-row">${rs.defenders.map((d,i)=>`
+        <div class="opp-def-slot${!d.alive?' defeated':''}${i===rs.defIdx?' current':''}">
+          ${d.emoji}<br>${d.name}<br>❤️${d.alive?d.hp:0}
+        </div>`).join('')}</div>
+      <div class="raid-vs">
+        <div class="raid-card" id="playerRaidCard">
+          <span class="card-emoji">${rs.playerCard.emoji}</span>
+          <div class="card-name">${rs.playerCard.name}</div>
+          <div style="margin:4px 0"><span class="stat-atk">⚔️${rs.playerAtk}</span></div>
+          <div class="raid-hp-bar"><div class="raid-hp-fill player" style="width:${rs.playerHp/rs.playerMaxHp*100}%"></div></div>
+          <div style="font-size:0.8em;color:#aaa">❤️ ${rs.playerHp}/${rs.playerMaxHp}</div>
+        </div>
+        <span class="vs-text">VS</span>
+        <div class="raid-card" id="enemyRaidCard">
+          <span class="card-emoji">${def.emoji}</span>
+          <div class="card-name">${def.name}</div>
+          <div style="margin:4px 0"><span class="stat-atk">⚔️${def.atk}</span></div>
+          <div class="raid-hp-bar"><div class="raid-hp-fill enemy" style="width:${def.hp/def.maxHp*100}%"></div></div>
+          <div style="font-size:0.8em;color:#aaa">❤️ ${def.hp}/${def.maxHp}</div>
+        </div>
+      </div>
+      <div class="raid-question">
+        <div style="font-size:0.85em;color:#aaa;margin-bottom:6px">Answer correctly for full damage!</div>
+        <div style="font-size:1.1em;margin-bottom:10px">${q.q}</div>
+        <input class="answer-input" id="raidAnswer" autocomplete="off" placeholder="Your answer...">
+        <div><button class="btn btn-gold" id="btnRaidSubmit">Attack!</button></div>
+      </div>
+      <div class="raid-log" id="raidLog">${rs.log.map(l=>`<p>${l}</p>`).join('')}</div>
+    </div>`;
+    const inp=document.getElementById('raidAnswer');
+    setTimeout(()=>inp.focus(),100);
+    const doAttack=()=>{
+      const userAns=inp.value.trim().replace(/,/g,'');
+      const correct=userAns.toLowerCase()===q.a.toLowerCase();
+      rs.phase='animate';
+      resolveAttack(correct);
+    };
+    document.getElementById('btnRaidSubmit').addEventListener('click',doAttack);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')doAttack();});
+    return;
+  }
+
+  if(rs.phase==='summary'){
+    const won=rs.castleHp<=0;
+    rs.trophyChange=won?30:-15;
+    state.trophies=Math.max(0,state.trophies+rs.trophyChange);
+    if(won)state.wins++;else state.losses++;
+    // Add to defense log of player (simulate AI attacks)
+    if(Math.random()>0.5){
+      const aiNames=['Pixel_Panda','Math_Legend','Sword_Fish','Calc_Hero'];
+      state.defenseLog.push({
+        attacker:aiNames[Math.floor(Math.random()*aiNames.length)],
+        result:Math.random()>0.5?'win':'lose',dmg:Math.floor(Math.random()*8)+2
+      });
+    }
+    saveState();
+    ov.innerHTML=`<div class="raid-arena">
+      <div class="raid-summary ${won?'win':'lose'}">
+        <h2>${won?'🎉 VICTORY!':'💀 DEFEAT!'}</h2>
+        <p style="font-size:1.1em;margin:10px 0">${won?`You destroyed ${rs.opp.name}'s castle!`:`${rs.opp.name}'s defenders held strong!`}</p>
+        <div class="trophy-change">🏆 ${rs.trophyChange>0?'+':''}${rs.trophyChange} Trophies (Total: ${state.trophies})</div>
+        <div class="raid-log" style="text-align:left;max-height:180px">${rs.log.map(l=>`<p>${l}</p>`).join('')}</div>
+        <button class="btn btn-gold mt-12" id="btnCloseRaid">Continue</button>
+      </div>
+    </div>`;
+    document.getElementById('btnCloseRaid').addEventListener('click',()=>{
+      ov.classList.remove('active');renderAttack();
+    });
+    return;
+  }
+}
+
+function resolveAttack(correct){
+  const rs=raidState;
+  const def=rs.defenders[rs.defIdx];
+  const dmg=correct?rs.playerAtk:Math.max(1,Math.floor(rs.playerAtk/2));
+
+  if(correct){
+    rs.log.push(`✅ Correct! ${rs.playerCard.name} deals <span style="color:#e74c3c">${dmg} damage</span> to ${def.name}!`);
+  } else {
+    rs.log.push(`❌ Wrong! ${rs.playerCard.name} deals only <span style="color:#e74c3c">${dmg} damage</span> (half power).`);
+  }
+
+  def.hp-=dmg;
+  if(def.hp<=0){
+    def.hp=0;def.alive=false;
+    rs.log.push(`💥 ${def.name} is destroyed!`);
+  }
+
+  // Enemy counter-attack
+  if(def.alive){
+    rs.playerHp-=def.atk;
+    rs.log.push(`${def.emoji} ${def.name} strikes back for <span style="color:#e74c3c">${def.atk} damage</span>!`);
+    if(rs.playerHp<=0){
+      rs.playerHp=0;
+      rs.log.push(`💀 ${rs.playerCard.name} has been defeated!`);
+    }
+  }
+
+  // Show animated fight phase
+  showFightAnimation(correct,dmg,def,()=>{
+    // After animation, determine next phase
+    if(!def.alive){
+      rs.defIdx++;
+      if(rs.defIdx>=rs.defenders.length){
+        // Attack castle with remaining ATK
+        const castleDmg=rs.playerAtk+Math.floor(rs.playerHp/2);
+        rs.castleHp=Math.max(0,rs.castleHp-castleDmg);
+        rs.log.push(`🏰 All defenders defeated! Your forces deal ${castleDmg} damage to the castle!`);
+        rs.log.push(`🏰 Castle HP: ${rs.castleHp}/20`);
+        rs.phase='summary';
+        renderRaid();return;
+      }
+      if(rs.playerHp<=0){
+        // Player card died, pick new
+        rs.phase='pick';renderRaid();return;
+      }
+      // Move to next defender
+      rs.phase='question';renderRaid();return;
+    }
+
+    if(rs.playerHp<=0){
+      // Player card died, need new card
+      const hasMore=Object.values(state.cards).some(c=>c>0);
+      if(hasMore){
+        rs.phase='pick';renderRaid();
+      } else {
+        rs.log.push('No more cards to send! Raid failed.');
+        rs.phase='summary';renderRaid();
+      }
+      return;
+    }
+
+    // Both alive, ask another question
+    rs.phase='question';renderRaid();
+  });
+}
+
+function showFightAnimation(correct,dmg,def,cb){
+  // Animate the current raid view
+  const pCard=document.getElementById('playerRaidCard');
+  const eCard=document.getElementById('enemyRaidCard');
+  if(pCard)pCard.classList.add('attacking');
+  setTimeout(()=>{
+    if(eCard)eCard.classList.add('hit');
+    // Spawn damage number
+    spawnDmgNum(true,dmg);
+  },300);
+  setTimeout(()=>{
+    if(def.alive&&eCard){
+      // Counter-attack animation
+      eCard.classList.remove('hit');
+      eCard.classList.add('attacking');
+      setTimeout(()=>{
+        if(pCard)pCard.classList.add('hit');
+        spawnDmgNum(false,def.atk);
+      },200);
+    }
+  },800);
+  setTimeout(cb,1600);
+}
+
+function spawnDmgNum(isPlayerAttack,dmg){
+  const ov=document.getElementById('raidOverlay');
+  const el=document.createElement('div');
+  el.className='dmg-num '+(isPlayerAttack?'player-dmg':'enemy-dmg');
+  el.textContent='-'+dmg;
+  el.style.left=(isPlayerAttack?'60%':'30%');
+  el.style.top='40%';
+  const arena=ov.querySelector('.raid-arena');
+  if(arena){arena.style.position='relative';arena.appendChild(el);}
+  setTimeout(()=>el.remove(),1100);
+}
+
+// ===== RENDER ALL =====
+function renderAll(){
+  updateHeader();renderHunt();renderCards();renderCastle();renderAttack();
+}
+renderAll();
+</script>
+</body>
+</html>

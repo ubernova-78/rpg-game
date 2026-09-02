@@ -375,7 +375,7 @@ const INTERIOR_OBJECTS = {
     { id: 'closet', kind: 'closet', img: closetImg, col: 10, row: 1 },
     { id: 'mirror', kind: 'decor', img: mirrorImg, col: 11, row: 1 },
     { id: 'storage', kind: 'pickup', img: workbenchImg, pickupImg: backpackImg, col: 2, row: 7, label: 'Backpack', claimed: false },
-    { id: 'homeChest', kind: 'storageChest', img: chestImg, col: 6, row: 7, label: 'Storage Chest' },
+    { id: 'homeChest', kind: 'storageChest', img: chestImg, col: 9, row: 7, label: 'Storage Chest' },
   ],
   cave: [
     // Once the boulders clear (see objectsFor below), this becomes a real door leading to
