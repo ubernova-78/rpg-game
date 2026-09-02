@@ -338,11 +338,11 @@
     try{
       const results = [];
       const s1 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
-      s1.forEach(c=> results.push(c.val()));
+      s1.forEach(c => { results.push(c.val()); });
       const n = Number(period);
       if(!isNaN(n)){
         const s2 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(n).once('value');
-        s2.forEach(c=> results.push(c.val()));
+        s2.forEach(c => { results.push(c.val()); });
       }
       return results;
     }catch(e){ console.warn('load failed',e); return []; }

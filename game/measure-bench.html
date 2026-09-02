@@ -737,15 +737,12 @@
       // Try both string and number forms — Firebase equalTo is type-sensitive
       const results = [];
       const snap1 = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(String(period)).once('value');
-      console.log('[LB] snap1 exists:', snap1.exists(), 'numChildren:', snap1.numChildren());
-      snap1.forEach(child=> results.push(child.val()));
+      snap1.forEach(child => { results.push(child.val()); });
       const numPeriod = Number(period);
       if(!isNaN(numPeriod)){
         const snap2 = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(numPeriod).once('value');
-        console.log('[LB] snap2 exists:', snap2.exists(), 'numChildren:', snap2.numChildren());
-        snap2.forEach(child=> results.push(child.val()));
+        snap2.forEach(child => { results.push(child.val()); });
       }
-      console.log('[LB] total results:', results.length, results.map(r => r.name + '/' + r.bench));
       return results;
     }catch(e){ console.warn('measure leaderboard load failed', e); return []; }
   }
