@@ -19,6 +19,7 @@ function saveSession() {
   };
   session.record.inventory = inventory;
   session.record.equipped = equipped;
+  session.record.chestStorage = chestStorage;
   session.record.hasBackpack = hasBackpack;
   session.record.claimedChests = allChestIds().filter(id => findInteriorObject(id).claimed);
   session.record.hp = playerStats.hp;
@@ -64,6 +65,12 @@ function loadSessionIntoGame() {
   // re-apply equipped gear's visual effect on top of the base look above
   for (const item of Object.values(equipped)) {
     if (item) { loadout[item.manifestKey] = item.manifestIndex; variantIndex[item.manifestKey] = item.variantIndex || 0; }
+  }
+
+  // Restore chest storage
+  chestStorage.fill(null);
+  if (Array.isArray(rec.chestStorage)) {
+    rec.chestStorage.forEach((item, i) => { if (i < chestStorage.length) chestStorage[i] = item; });
   }
 
   hasBackpack = !!rec.hasBackpack;
@@ -278,6 +285,21 @@ function openGameOverlay(wb) {
 window.addEventListener('message', e => {
   if (e.data && e.data.type === 'consume-hint-potion') {
     consumePotion('hintPotion');
+  }
+  // Listen for equippable item grants from mini-game iframes
+  if (e.data && e.data.type === 'grant-item' && e.data.item) {
+    const item = e.data.item;
+    if (session.demo || !item.name) return;
+    // Check if already owned (don't duplicate)
+    const alreadyOwned = inventory.some(x => x && x.name === item.name) ||
+      Object.values(equipped).some(x => x && x.name === item.name);
+    if (alreadyOwned) return;
+    const openSlot = inventory.findIndex(x => x === null);
+    if (openSlot !== -1) {
+      inventory[openSlot] = item;
+      renderInventory();
+      saveSession();
+    }
   }
 });
 

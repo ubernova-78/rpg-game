@@ -387,3 +387,89 @@ function grantBackpack() {
   saveSession();
 }
 
+// ---------- Storage chest (home) ----------
+const CHEST_SIZE = 12;
+const chestStorage = new Array(CHEST_SIZE).fill(null);
+const storageModal = document.getElementById('storageChestModal');
+
+function openStorageChest() {
+  scene.modalOpen = true;
+  renderStorageChest();
+  storageModal.classList.remove('hidden');
+}
+
+function renderStorageChest() {
+  // Inventory side
+  const invGrid = document.getElementById('storageInvGrid');
+  invGrid.innerHTML = '';
+  inventory.forEach((item, idx) => {
+    const slot = document.createElement('div');
+    slot.className = 'inv-slot';
+    if (item && item.kind === 'consumable') {
+      slot.innerHTML = `<span style="font-size:22px;line-height:44px;">${item.icon}</span><span style="position:absolute;bottom:2px;right:4px;font-size:11px;color:var(--muted);">x${item.count}</span>`;
+      slot.style.position = 'relative';
+      slot.title = `${item.name} x${item.count}`;
+      slot.addEventListener('click', () => { moveToChest(idx); });
+    } else if (item) {
+      const path = `assets/${item.manifestKey}/${MANIFEST[item.manifestKey][item.manifestIndex].variants[item.variantIndex || 0]}`;
+      slot.appendChild(makeThumb(path, 44));
+      slot.title = item.name + ' (tap to store)';
+      slot.addEventListener('click', () => { moveToChest(idx); });
+    } else {
+      slot.innerHTML = '<span class="inv-empty">empty</span>';
+    }
+    invGrid.appendChild(slot);
+  });
+
+  // Chest side
+  const chestGrid = document.getElementById('storageChestGrid');
+  chestGrid.innerHTML = '';
+  chestStorage.forEach((item, idx) => {
+    const slot = document.createElement('div');
+    slot.className = 'inv-slot';
+    if (item && item.kind === 'consumable') {
+      slot.innerHTML = `<span style="font-size:22px;line-height:44px;">${item.icon}</span><span style="position:absolute;bottom:2px;right:4px;font-size:11px;color:var(--muted);">x${item.count}</span>`;
+      slot.style.position = 'relative';
+      slot.title = `${item.name} x${item.count}`;
+      slot.addEventListener('click', () => { moveFromChest(idx); });
+    } else if (item) {
+      const path = `assets/${item.manifestKey}/${MANIFEST[item.manifestKey][item.manifestIndex].variants[item.variantIndex || 0]}`;
+      slot.appendChild(makeThumb(path, 44));
+      slot.title = item.name + ' (tap to take)';
+      slot.addEventListener('click', () => { moveFromChest(idx); });
+    } else {
+      slot.innerHTML = '<span class="inv-empty">empty</span>';
+    }
+    chestGrid.appendChild(slot);
+  });
+}
+
+function moveToChest(invIdx) {
+  const item = inventory[invIdx];
+  if (!item) return;
+  const openSlot = chestStorage.findIndex(x => x === null);
+  if (openSlot === -1) return; // chest full
+  chestStorage[openSlot] = item;
+  inventory[invIdx] = null;
+  renderStorageChest();
+  renderInventory();
+  saveSession();
+}
+
+function moveFromChest(chestIdx) {
+  const item = chestStorage[chestIdx];
+  if (!item) return;
+  const openSlot = inventory.findIndex(x => x === null);
+  if (openSlot === -1) return; // inventory full
+  inventory[openSlot] = item;
+  chestStorage[chestIdx] = null;
+  renderStorageChest();
+  renderInventory();
+  saveSession();
+}
+
+document.getElementById('storageCloseBtn').addEventListener('click', () => {
+  scene.modalOpen = false;
+  storageModal.classList.add('hidden');
+});
+

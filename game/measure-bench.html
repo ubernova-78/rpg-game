@@ -541,7 +541,14 @@
     <div class="leaderboard">
       <h3>Top scores</h3>
       <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
-      <div class="diffrow" style="margin-bottom:10px;">
+      <div class="diffrow" style="margin-bottom:6px;" id="lb-bench-tabs">
+        <button class="diffbtn" data-bench="unit">Unit</button>
+        <button class="diffbtn" data-bench="mm">mm</button>
+        <button class="diffbtn" data-bench="cm">cm</button>
+        <button class="diffbtn" data-bench="m">m</button>
+        <button class="diffbtn" data-bench="mixed">Mixed</button>
+      </div>
+      <div class="diffrow" style="margin-bottom:10px;" id="lb-period-tabs">
         <button class="diffbtn" data-period="2">P2</button>
         <button class="diffbtn" data-period="6">P6</button>
         <button class="diffbtn" data-period="7">P7</button>
@@ -1318,16 +1325,19 @@
     }
   }
 
+  const BENCH_LABELS = {unit:'Choose the Unit',mm:'Millimeter',cm:'Centimeter',m:'Meter',mixed:'Mixed Practice'};
+
   async function renderEndLeaderboard(period){
     const wrap = document.getElementById('end-leaderboard');
     if(!wrap || !Shared.DB_OK) return;
     try{
-      const entries = await loadMeasureLeaderboard(period);
+      const all = await loadMeasureLeaderboard(period);
+      const entries = all.filter(r => r.bench === state.bench);
       const rows = bestByScore(entries)
         .sort((a,b)=> (b._s - a._s) || (a._t - b._t))
         .slice(0,10);
       if(!rows.length){ wrap.style.display='none'; return; }
-      let html = `<h3>Period ${period} leaders</h3>`;
+      let html = `<h3>${BENCH_LABELS[state.bench]||state.bench} — P${period} leaders</h3>`;
       html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
       rows.forEach((r,i) => {
         const me = state.nameKey && (r.nameKey||'')=== state.nameKey;
@@ -1345,16 +1355,35 @@
   });
 
   // ---------- Leaderboard ----------
+  let lbPeriod = '2', lbBench = 'mixed';
+
   els.btnLeaderboard.addEventListener('click', ()=>{
     showScreen(els.lb);
-    loadLeaderboard('2');
+    lbBench = state.bench || 'mixed';
+    lbPeriod = state.period || '2';
+    refreshLbTabs();
+    loadLeaderboard(lbPeriod, lbBench);
   });
   els.btnBackFromLb.addEventListener('click', ()=>{ showScreen(els.start); });
-  document.querySelectorAll('#screen-leaderboard .diffbtn').forEach(btn=>{
+
+  function refreshLbTabs(){
+    document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(b =>
+      b.classList.toggle('selected', b.dataset.bench === lbBench));
+    document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(b =>
+      b.classList.toggle('selected', b.dataset.period === String(lbPeriod)));
+  }
+  document.querySelectorAll('#lb-bench-tabs .diffbtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      document.querySelectorAll('#screen-leaderboard .diffbtn').forEach(b=>b.classList.remove('selected'));
-      btn.classList.add('selected');
-      loadLeaderboard(btn.dataset.period);
+      lbBench = btn.dataset.bench;
+      refreshLbTabs();
+      loadLeaderboard(lbPeriod, lbBench);
+    });
+  });
+  document.querySelectorAll('#lb-period-tabs .diffbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      lbPeriod = btn.dataset.period;
+      refreshLbTabs();
+      loadLeaderboard(lbPeriod, lbBench);
     });
   });
 
@@ -1378,19 +1407,20 @@
     return Object.values(m);
   }
 
-  async function loadLeaderboard(period){
+  async function loadLeaderboard(period, bench){
     els.lbList.innerHTML = '<p>Loading…</p>';
     if(!Shared.DB_OK){
       els.lbList.innerHTML = '<p>Leaderboard unavailable offline.</p>';
       return;
     }
     try{
-      const entries = await loadMeasureLeaderboard(period);
+      const all = await loadMeasureLeaderboard(period);
+      const entries = bench ? all.filter(r => r.bench === bench || r.difficulty === bench) : all;
       const rows = bestByScore(entries)
         .sort((a,b)=> (b._s - a._s) || (a._t - b._t))
         .slice(0,10);
       if(rows.length === 0){
-        els.lbList.innerHTML = '<p>No runs yet for this period.</p>';
+        els.lbList.innerHTML = '<p>No runs yet for this bench and period.</p>';
         return;
       }
       let html = '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';

@@ -363,7 +363,8 @@ const INTERIOR_OBJECTS = {
     { id: 'mBench',        kind: 'workbench', img: workbenchImg, col: 14, row: 2, label: 'Measure to the Meter Work Bench',        shortLabel: 'Meter',           src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
     { id: 'mixedBench',    kind: 'workbench', img: workbenchImg, col: 18, row: 2, label: 'Mixed Practice Work Bench',              shortLabel: 'Mixed Practice',  src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
     { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 22, row: 2, label: 'Rounding to Hundredths Work Bench',      shortLabel: 'Rounding',        src: 'rounding-bench.html', messageType: 'rb-login' },
-    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 22, row: 6, label: 'Averaging Work Bench',                   shortLabel: 'Averaging',       src: 'average-bench.html', messageType: 'ab-login' },
+    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 18, row: 6, label: 'Average Distance Work Bench',              shortLabel: 'Avg Distance',    src: 'average-bench.html', messageType: 'ab-login' },
+    { id: 'measAvgBench',  kind: 'workbench', img: workbenchImg, col: 22, row: 6, label: 'Measure & Average Distance Work Bench',    shortLabel: 'Measure & Avg',   src: 'measure-average-bench.html', messageType: 'mab-login' },
   ],
   blue: [
     { id: 'placevalue', kind: 'workbench', img: workbenchImg, col: INTERIORS.blue.exitCol, row: 1, label: 'Place Value Work Bench', shortLabel: 'Place Value', src: 'place-value-bench.html', messageType: 'pvb-login' },
@@ -374,6 +375,7 @@ const INTERIOR_OBJECTS = {
     { id: 'closet', kind: 'closet', img: closetImg, col: 10, row: 1 },
     { id: 'mirror', kind: 'decor', img: mirrorImg, col: 11, row: 1 },
     { id: 'storage', kind: 'pickup', img: workbenchImg, pickupImg: backpackImg, col: 2, row: 7, label: 'Backpack', claimed: false },
+    { id: 'homeChest', kind: 'storageChest', img: chestImg, col: 6, row: 7, label: 'Storage Chest' },
   ],
   cave: [
     // Once the boulders clear (see objectsFor below), this becomes a real door leading to

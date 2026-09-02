@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Measure & Average Distance Workbench</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<script src="measure-shared.js"></script>
+<style>
+  :root{
+    --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
+    --paper:#f0ece2; --accent:#e94560; --teal:#1a936f;
+    --gold:#f6c90e; --ink:#1a1a2e; --dim:#7a7a8e;
+    --miss:#c1443a; --good:#2d936c; --line:#ddd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Verdana,sans-serif;background:var(--bench);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .app{width:100%;max-width:820px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;border:3px solid var(--bench3);}
+  .titlebar{background:linear-gradient(135deg,var(--bench2),var(--bench3));padding:14px 20px;
+    display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--accent);}
+  .titlebar h1{margin:0;font-size:1.2rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;font-weight:bold;font-size:0.82rem;}
+  .screen{padding:24px;} .hidden{display:none !important;}
+
+  .hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;}
+  .pill{background:#fff;border:2px solid #ddd;border-radius:20px;padding:5px 12px;font-size:0.9rem;}
+  .progressbar{height:10px;background:#e0ddd4;border-radius:6px;overflow:hidden;margin-bottom:18px;border:1px solid #ccc;}
+  .progressfill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+
+  .qtext{font-size:1.05rem;font-weight:700;margin:0 0 14px;}
+  .feedback{padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;margin-top:14px;display:none;text-align:center;}
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  .start-title{font-size:1.5rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:20px;line-height:1.5;}
+  .primary{width:100%;padding:14px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
+  .primary:hover{filter:brightness(1.08);}
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  .unit-tag{display:inline-block;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.8rem;margin-bottom:10px;}
+  .unit-tag.mm{background:#ede0f7;color:#6a3d9a;} .unit-tag.cm{background:#d4edda;color:#1a936f;} .unit-tag.m{background:#fce4e4;color:#c1443a;}
+
+  /* Caliper */
+  .caliper-wrap{overflow-x:auto;margin:12px 0;text-align:center;}
+  .caliper-wrap svg{max-width:100%;height:auto;}
+
+  /* Ruler/tape — reuse measure-shared.js styles */
+  .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
+  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
+    border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{position:relative;height:100%;}
+  .measure-bar{position:absolute;top:65px;height:20px;background:rgba(52,120,180,0.2);border:2px solid #3478b4;border-radius:2px;}
+  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;color:var(--bench3);z-index:2;}
+  .tick{position:absolute;top:8px;width:1px;background:#999;}
+  .tick.cm{background:#333;width:1.5px;height:30px;}
+  .tick.cm5{height:20px;} .tick.cm10{height:28px;background:#555;width:1.2px;}
+  .tick.meter{background:var(--accent);width:2px;height:56px;}
+  .tick-label{position:absolute;font-size:11px;font-weight:700;color:#333;transform:translateX(-50%);}
+  .tick-label.cm{top:38px;} .tick-label.cm10{top:38px;color:#333;} .tick-label.meter{top:66px;color:var(--accent);font-size:12px;}
+
+  /* Measurement input */
+  .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+  .measure-input{width:120px;padding:8px;font-size:1.1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:'Courier New',monospace;}
+  .measure-input:focus{border-color:var(--teal);outline:none;}
+  .submit-btn{padding:10px 24px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;}
+  .submit-btn:hover{filter:brightness(1.1);}
+
+  /* Summary table */
+  .summary-table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.95rem;}
+  .summary-table th{background:var(--bench2);color:var(--paper);padding:8px 12px;text-align:left;}
+  .summary-table td{padding:8px 12px;border-bottom:1px solid #ddd;}
+  .summary-table .wrong{color:var(--miss);font-weight:700;}
+  .summary-table .correct{color:var(--good);font-weight:700;}
+
+  .avg-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+  .avg-label{font-weight:800;font-size:1.05rem;}
+  .avg-input{width:120px;padding:10px;font-size:1.15rem;border:2px solid var(--gold);border-radius:6px;text-align:center;font-family:'Courier New',monospace;background:#fffbea;}
+  .avg-input:focus{border-color:var(--teal);outline:none;}
+
+  /* Measurement log */
+  .meas-log{margin:12px 0;padding:8px 12px;background:#fff;border:2px solid var(--line);border-radius:8px;}
+  .meas-log .entry{display:inline-block;padding:4px 10px;margin:3px 4px;border-radius:6px;font-weight:700;font-family:monospace;font-size:0.95rem;}
+  .meas-log .entry.mm{background:#ede0f7;color:#6a3d9a;}
+  .meas-log .entry.cm{background:#d4edda;color:#1a936f;}
+  .meas-log .entry.m{background:#fce4e4;color:#c1443a;}
+
+  /* Leaderboard */
+  .leaderboard{text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;}
+  .leaderboard h3{margin:0 0 4px;color:var(--ink);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .leaderboard .tm{text-align:right;font-family:monospace;color:var(--dim);}
+  .lb-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .lb-tabs button{flex:1;padding:8px 12px;border:2px solid #ddd;border-radius:8px;background:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;color:var(--ink);}
+  .lb-tabs button.active{background:var(--bench3);color:#fff;border-color:var(--bench3);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>Measure & Average Distance</h1>
+    <div class="badge">MEASURE + AVG</div>
+  </div>
+
+  <div class="screen" id="screen-start">
+    <div class="start-title">Measure & Average</div>
+    <div class="start-sub">Measure items using calipers (mm), rulers (cm), or tape measures (m). After measuring all items in a set, calculate the average. Round to the nearest hundredth.</div>
+    <p style="font-size:0.9rem;color:var(--dim);">12 rounds across mm, cm, and m. 120 points possible.</p>
+    <button class="primary" id="btn-start">Start Practice</button>
+    <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
+  </div>
+
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-unit">mm</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+    <div class="qtext" id="qtext"></div>
+    <div id="question-body"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="screen hidden" id="screen-end">
+    <div class="end-title" id="end-title">Round complete</div>
+    <div class="end-score" id="end-score">0</div>
+    <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
+    <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
+    <button class="primary" id="btn-again">Play Again</button>
+  </div>
+
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3>Top scores</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="lb-tabs" id="lb-tabs"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:#555;margin-top:16px;">Back</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GOAL = 120, TOTAL_ROUNDS = 12, PERIODS = ['2','6','7'];
+  let S = { round:0, score:0, locked:false, startTime:0, modeSeq:[] };
+  let player = { name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    start:$('screen-start'), game:$('screen-game'), end:$('screen-end'), lb:$('screen-leaderboard'),
+    btnStart:$('btn-start'), btnAgain:$('btn-again'), btnViewLb:$('btn-view-lb'), btnBackFromLb:$('btn-back-from-lb'),
+    hudRound:$('hud-round'), hudUnit:$('hud-unit'), hudScore:$('hud-score'),
+    progressfill:$('progressfill'), qtext:$('qtext'), body:$('question-body'),
+    feedback:$('feedback'),
+    endTitle:$('end-title'), endScore:$('end-score'), endMsg:$('end-msg'),
+    endLeaderboard:$('end-leaderboard'), lbTabs:$('lb-tabs'), lbBody:$('lb-body'),
+  };
+  const allScreens=[els.start,els.game,els.end,els.lb];
+  function showScreen(s){allScreens.forEach(x=>x.classList.add('hidden'));s.classList.remove('hidden');}
+
+  const randInt=(lo,hi)=>Math.floor(Math.random()*(hi-lo+1))+lo;
+  const fmtTime=sec=>{sec=Math.max(0,Math.round(sec));return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');};
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---------- Firebase ----------
+  const DB_PATH='measure_average_scores';
+  async function saveRun(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){}}
+  async function loadRuns(period){
+    if(!Shared.DB_OK)return [];
+    try{
+      const r=[];
+      const s1=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s1.forEach(c=>r.push(c.val()));
+      const n=Number(period);if(!isNaN(n)){const s2=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(n).once('value');s2.forEach(c=>r.push(c.val()));}
+      return r;
+    }catch(e){return[];}
+  }
+  function bestBy(runs){const m={};runs.forEach(r=>{const k=r.nameKey||String(r.name||'').toLowerCase();const c=m[k];if(!c||r.score>c.score||(r.score===c.score&&r.timeSec<c.timeSec))m[k]=r;});return Object.values(m);}
+  function renderLbTable(rows,container,label){
+    if(!rows.length){container.innerHTML='<p>No runs yet for this period.</p>';return;}
+    let h='';if(label)h+=`<h3>Period ${label} leaders</h3>`;
+    h+='<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i)=>{const me=player.nameKey&&(r.nameKey||'')===player.nameKey;
+      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="sc">${r.score}</td><td class="tm">${r.timeSec!=null?fmtTime(r.timeSec):'—'}</td></tr>`;});
+    h+='</table>';container.innerHTML=h;
+  }
+  async function showLeaderboard(p){els.lbBody.innerHTML='<p>Loading…</p>';els.lbTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.per===String(p)));
+    const runs=await loadRuns(p);renderLbTable(bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10),els.lbBody);}
+  PERIODS.forEach(p=>{const b=document.createElement('button');b.textContent='P'+p;b.dataset.per=p;b.addEventListener('click',()=>showLeaderboard(p));els.lbTabs.appendChild(b);});
+  els.btnViewLb.addEventListener('click',()=>{showScreen(els.lb);showLeaderboard(player.period||PERIODS[0]);});
+  els.btnBackFromLb.addEventListener('click',()=>showScreen(els.start));
+
+  // ---------- Bug specimen SVG (from potion quest) ----------
+  const BUG_COLORS=['#c1443a','#d4a017','#7b4ba0','#d4729a','#3a7ec1','#2d936c'];
+  function bugSpecimenSVG(box){
+    const fill=BUG_COLORS[randInt(0,BUG_COLORS.length-1)];
+    const {x:x0,y:barY,w:barW,h:barH}=box;
+    const stroke='#26445a', midY=barY+barH/2;
+    const bodyH=barH*0.5, bodyY=midY-bodyH/2, legLen=barH*0.3;
+    let legs='';
+    for(let i=0;i<3;i++){const lx=x0+barW*(0.2+i*0.3);
+      legs+=`<line x1="${lx}" y1="${bodyY}" x2="${lx}" y2="${bodyY-legLen}" stroke="${stroke}" stroke-width="1.5" stroke-linecap="round"/>`;
+      legs+=`<line x1="${lx}" y1="${bodyY+bodyH}" x2="${lx}" y2="${bodyY+bodyH+legLen}" stroke="${stroke}" stroke-width="1.5" stroke-linecap="round"/>`;
+    }
+    const eyeR=Math.min(3,barW*0.04);
+    const eyes=`<circle cx="${x0+barW*0.82}" cy="${bodyY+bodyH*0.3}" r="${eyeR}" fill="#fff"/><circle cx="${x0+barW*0.82}" cy="${bodyY+bodyH*0.7}" r="${eyeR}" fill="#fff"/>`;
+    return `${legs}<rect x="${x0}" y="${bodyY}" width="${barW}" height="${bodyH}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>${eyes}`;
+  }
+
+  // ---------- Round sequence ----------
+  const UNITS=['mm','cm','m'];
+  const UNIT_LABELS={mm:'Millimeters (mm)',cm:'Centimeters (cm)',m:'Meters (m)'};
+
+  function buildModeSequence(){
+    const counts={mm:2,cm:2,m:2};let rem=6;
+    while(rem>0){counts[UNITS[randInt(0,2)]]++;rem--;}
+    const order=[...UNITS];for(let i=order.length-1;i>0;i--){const j=randInt(0,i);[order[i],order[j]]=[order[j],order[i]];}
+    const seq=[];for(const u of order)for(let i=0;i<counts[u];i++)seq.push(u);
+    return seq;
+  }
+
+  // ---------- Value generators ----------
+  function genValues(unit,count){
+    const vals=[];
+    for(let i=0;i<count;i++){
+      if(unit==='mm') vals.push(randInt(80,550)/10);       // 8.0-55.0 mm (bug lengths)
+      else if(unit==='cm') vals.push(randInt(10,120)/10);   // 1.0-12.0 cm (axe throws)
+      else vals.push(randInt(50,600)/10);                   // 5.0-60.0 m (archery)
+    }
+    return vals;
+  }
+  function toMM(val,unit){return unit==='mm'?val:unit==='cm'?val*10:val*1000;}
+  function unitContext(unit){
+    if(unit==='mm')return{tool:'calipers',items:'bug lengths',icon:'🐛'};
+    if(unit==='cm')return{tool:'ruler',items:'axe throw distances',icon:'🪓'};
+    return{tool:'tape measure',items:'archery shot distances',icon:'🏹'};
+  }
+
+  // ---------- Game flow ----------
+  let R=null; // round state
+
+  els.btnStart.addEventListener('click',()=>{
+    S.round=0;S.score=0;S.startTime=Date.now();
+    S.modeSeq=buildModeSequence();
+    els.hudScore.textContent=`0 of ${GOAL} points`;
+    els.progressfill.style.width='0%';
+    els.endLeaderboard.style.display='none';
+    showScreen(els.game);nextRound();
+  });
+  els.btnAgain.addEventListener('click',()=>showScreen(els.start));
+
+  function nextRound(){
+    if(S.round>=TOTAL_ROUNDS){finishGame();return;}
+    S.locked=false;S.round++;
+    const unit=S.modeSeq[S.round-1];
+    els.hudRound.textContent=`Round ${S.round} / ${TOTAL_ROUNDS}`;
+    els.hudUnit.textContent=unit;
+    els.hudScore.textContent=`${S.score} of ${GOAL} points`;
+    els.progressfill.style.width=`${(S.round/TOTAL_ROUNDS)*100}%`;
+    els.feedback.classList.remove('show','good','bad');
+    els.body.innerHTML='';
+    const count=randInt(3,4);
+    const values=genValues(unit,count);
+    R={unit,count,values,measurements:[],currentItem:0};
+    showMeasureItem();
+  }
+
+  // ---------- Show one measurement tool ----------
+  function showMeasureItem(){
+    els.body.innerHTML='';
+    els.feedback.classList.remove('show');
+    const {unit,count,values,measurements,currentItem}=R;
+    const ctx=unitContext(unit);
+    const val=values[currentItem];
+    const valMM=toMM(val,unit);
+
+    els.qtext.innerHTML=`${ctx.icon} Measure item ${currentItem+1} of ${count} using the ${ctx.tool}. (${UNIT_LABELS[unit]})`;
+
+    // Show previous measurements log if any
+    if(measurements.length>0){
+      const log=document.createElement('div');
+      log.className='meas-log';
+      log.innerHTML='<strong>Your measurements so far:</strong> ';
+      measurements.forEach((m,i)=>{
+        const sp=document.createElement('span');
+        sp.className=`entry ${unit}`;
+        sp.textContent=`#${i+1}: ${m} ${unit}`;
+        log.appendChild(sp);
+      });
+      els.body.appendChild(log);
+    }
+
+    // Render the measurement tool
+    if(unit==='mm'){
+      // Calipers with bug specimen
+      const wrap=document.createElement('div');
+      wrap.className='caliper-wrap';
+      wrap.innerHTML=MeasureShared.buildCaliperSVG(val,Math.ceil(val)+randInt(10,20),{
+        specimenSVG:bugSpecimenSVG,extraH:16
+      });
+      els.body.appendChild(wrap);
+    } else {
+      // Ruler/tape
+      const container=document.createElement('div');
+      const rulerOpts={
+        pxPerMM: unit==='m'?0.9:6,
+        padMM: unit==='m'?100:20,
+        badge: unit==='cm'?'cm':'m',
+        scaleLabel: unit==='cm'
+          ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
+          : 'Scale: small ticks = cm \u00b7 numbered ticks = 10 cm \u00b7 red ticks = each meter'
+      };
+      MeasureShared.buildRulerDOM(container,valMM,rulerOpts);
+      els.body.appendChild(container);
+    }
+
+    // Input row
+    const row=document.createElement('div');row.className='measure-row';
+    const lbl=document.createElement('span');lbl.style.fontWeight='700';
+    lbl.textContent=`Item ${currentItem+1} (${unit}):`;
+    const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
+    inp.placeholder=unit==='mm'?'0.0':'0.00';inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click',()=>submitMeasure(inp));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submitMeasure(inp);});
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  function submitMeasure(inp){
+    const raw=inp.value.trim();
+    if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    const val=parseFloat(raw);
+    if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    R.measurements.push(val);
+    R.currentItem++;
+    if(R.currentItem<R.count) showMeasureItem();
+    else showAverageUI();
+  }
+
+  // ---------- Average phase ----------
+  function showAverageUI(){
+    els.body.innerHTML='';
+    els.feedback.classList.remove('show');
+    const {unit,count,values,measurements}=R;
+    const ctx=unitContext(unit);
+
+    els.qtext.innerHTML=`${ctx.icon} All ${count} items measured! Calculate the average. Round to the nearest hundredth.`;
+
+    // Show all measurements
+    const log=document.createElement('div');log.className='meas-log';
+    log.innerHTML='<strong>Your measurements:</strong> ';
+    measurements.forEach((m,i)=>{
+      const sp=document.createElement('span');sp.className=`entry ${unit}`;
+      sp.textContent=`#${i+1}: ${m} ${unit}`;log.appendChild(sp);
+    });
+    els.body.appendChild(log);
+
+    // Average input
+    const row=document.createElement('div');row.className='avg-row';
+    const lbl=document.createElement('span');lbl.className='avg-label';lbl.textContent=`Average (${unit}):`;
+    const inp=document.createElement('input');inp.type='text';inp.className='avg-input';inp.placeholder='0.00';inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit Average';
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click',()=>submitAverage(inp));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submitAverage(inp);});
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  function submitAverage(inp){
+    if(S.locked)return;
+    const raw=inp.value.trim();
+    if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    const val=parseFloat(raw);
+    if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    S.locked=true;
+
+    const {unit,count,values,measurements}=R;
+    // Tolerance per unit
+    const measTol=unit==='m'?0.05:0.5; // 0.5mm for mm/cm, 5cm (0.05m) for m
+
+    // Check each measurement
+    let allMeasOK=true;
+    const measOK=[];
+    for(let i=0;i<count;i++){
+      const actual=values[i];
+      const student=measurements[i];
+      const ok=Math.abs(toMM(student,unit)-toMM(actual,unit))<=0.5; // 0.5mm tolerance in all units
+      measOK.push(ok);
+      if(!ok)allMeasOK=false;
+    }
+
+    // Correct average from actual values
+    const actualAvg=Math.round((values.reduce((a,v)=>a+v,0)/count)*100)/100;
+    // Student's average from their measurements
+    const studentMeasAvg=Math.round((measurements.reduce((a,v)=>a+v,0)/count)*100)/100;
+
+    const avgMatchesActual=Math.abs(val-actualAvg)<=0.01;
+    const avgMatchesTheirs=Math.abs(val-studentMeasAvg)<=0.01;
+
+    // Build feedback table
+    const table=document.createElement('table');table.className='summary-table';
+    const thead=document.createElement('thead');
+    thead.innerHTML='<tr><th>#</th><th>Your Measurement</th><th>Actual</th><th></th></tr>';
+    table.appendChild(thead);
+    const tbody=document.createElement('tbody');
+    for(let i=0;i<count;i++){
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${i+1}</td><td>${measurements[i]} ${unit}</td><td>${values[i]} ${unit}</td>
+        <td class="${measOK[i]?'correct':'wrong'}">${measOK[i]?'✓':'✗'}</td>`;
+      tbody.appendChild(tr);
+    }
+    // Average row
+    const avgTr=document.createElement('tr');
+    avgTr.style.borderTop='2px solid #999';
+    const avgOK=allMeasOK&&avgMatchesActual;
+    avgTr.innerHTML=`<td><strong>Avg</strong></td><td><strong>${val} ${unit}</strong></td><td><strong>${actualAvg.toFixed(2)} ${unit}</strong></td>
+      <td class="${avgOK?'correct':'wrong'}"><strong>${avgOK?'✓':'✗'}</strong></td>`;
+    tbody.appendChild(avgTr);
+    table.appendChild(tbody);
+
+    // Insert table before feedback
+    els.body.appendChild(table);
+
+    // Determine result
+    const isCorrect=allMeasOK&&avgMatchesActual;
+    if(isCorrect){
+      S.score=Math.min(GOAL,S.score+10);
+      els.feedback.textContent='Correct! +10 points';
+      els.feedback.className='feedback show good';
+    } else if(!allMeasOK&&avgMatchesTheirs&&!avgMatchesActual){
+      els.feedback.textContent=`Your average math was right, but some measurements were off. Answer: ${actualAvg.toFixed(2)} ${unit}`;
+      els.feedback.className='feedback show bad';
+    } else if(allMeasOK&&!avgMatchesActual){
+      els.feedback.textContent=`Measurements were correct, but the average was wrong. Answer: ${actualAvg.toFixed(2)} ${unit}`;
+      els.feedback.className='feedback show bad';
+    } else {
+      els.feedback.textContent=`Not quite — the average was ${actualAvg.toFixed(2)} ${unit}`;
+      els.feedback.className='feedback show bad';
+    }
+    els.hudScore.textContent=`${S.score} of ${GOAL} points`;
+    setTimeout(nextRound,2400);
+  }
+
+  // ---------- End game ----------
+  async function finishGame(){
+    showScreen(els.end);
+    els.endScore.textContent=S.score;
+    if(S.score>=120){els.endTitle.textContent='Perfect score!';els.endMsg.textContent='Measuring and averaging master!';}
+    else if(S.score>=90){els.endTitle.textContent='Great job!';els.endMsg.textContent='Strong skills! Try again for a perfect score.';}
+    else if(S.score>=60){els.endTitle.textContent='Getting there!';els.endMsg.textContent='Keep practicing your measurements and averages!';}
+    else{els.endTitle.textContent='Round complete';els.endMsg.textContent='Keep practicing to improve your score.';}
+
+    if(player.loggedIn&&!player.demo&&!player.teacher){
+      const timeSec=Math.round((Date.now()-S.startTime)/1000);
+      await saveRun({name:player.name,nameKey:player.nameKey,period:String(player.period),score:S.score,timeSec,ts:Date.now()});
+      const runs=await loadRuns(player.period);
+      const rows=bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
+      if(rows.length){renderLbTable(rows,els.endLeaderboard,player.period);els.endLeaderboard.style.display='block';}
+    }
+  }
+
+  // ---------- PostMessage login ----------
+  window.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='mab-login'){
+      const d=e.data;
+      player.name=d.name||'';player.nameKey=Shared.normalizeName(d.name||'');
+      player.period=String(d.period||'');player.demo=!!d.demo;player.teacher=!!d.teacher;player.loggedIn=true;
+    }
+  });
+
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>

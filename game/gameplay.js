@@ -72,6 +72,7 @@ function updatePlayer(dt) {
         if (touched.kind === 'workbench') openWorkbench(touched);
         else if (touched.kind === 'closet') openCloset();
         else if (touched.kind === 'chest') openChest(touched);
+        else if (touched.kind === 'storageChest') openStorageChest();
         else if (touched.kind === 'bed') openBedRest(touched);
         else if (touched.kind === 'caveDoor') enterCaveDeepRoom();
         else if (touched.kind === 'pickup' && !touched.claimed) {

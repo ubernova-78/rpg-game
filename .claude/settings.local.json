@@ -12,7 +12,12 @@
       "Bash(git commit *)",
       "Bash(screencapture /tmp/potion-quest-test.png)",
       "Bash(ls /Users/nicholaswright/Documents/rpg-game/game/*.html)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(node -c game/character.js)",
+      "Bash(node -c game/session.js)",
+      "Bash(node -c game/gameplay.js)",
+      "Bash(node -c game/world.js)",
+      "Bash(node -c game/npcs.js)"
     ]
   }
 }

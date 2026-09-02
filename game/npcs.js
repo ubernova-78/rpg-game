@@ -125,6 +125,18 @@ const NPC_DEFS = [
     message: "The forest holds many secrets for those who know how to measure. Gather ingredients for my potions — but you'll need sharp eyes and a steady caliper hand.",
     game: { src: 'potion-quest.html', messageType: 'potion-login', label: 'Potion Gathering' },
   },
+  {
+    id: 'woodsman', name: 'Woodsman',
+    homeCol: CLEARING_COL - 2, homeRow: CLEARING_ROW + 4,
+    range: 2,
+    spec: {
+      head: 'head6', hair: 'hair2', top: 'top5', bottom: 'bottom5',
+      weapon: 'pickaxe1', skinTone: 2,
+      variantIndex: { top: 2 }, // earthy brown
+    },
+    message: "Think you've got a steady arm? Try your hand at axe throwing! Hit the center of the log and measure your accuracy. Land a bullseye and nail the average to earn a Woodsman's Axe.",
+    game: { src: 'axe-throw.html', messageType: 'axe-login', label: 'Axe Throwing' },
+  },
 ];
 for (const npc of NPC_DEFS) {
   npc.sheet = buildStaticSheet(npc.spec);

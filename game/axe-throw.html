@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Axe Throwing</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<script src="measure-shared.js"></script>
+<style>
+  :root{
+    --bg:#1a2e1a; --bg2:#16301e; --bg3:#0f3a1f;
+    --paper:#f0ece2; --accent:#8b4513; --teal:#1a936f;
+    --gold:#f6c90e; --ink:#1a1a2e; --dim:#7a7a8e;
+    --miss:#c1443a; --good:#2d936c; --line:#ddd;
+    --steel:slategray; --wood:#8b6914;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Verdana,sans-serif;background:var(--bg);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .app{width:100%;max-width:780px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;border:3px solid var(--bg3);}
+  .titlebar{background:linear-gradient(135deg,var(--bg2),var(--bg3));padding:14px 20px;
+    display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--accent);}
+  .titlebar h1{margin:0;font-size:1.3rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;font-weight:bold;font-size:0.82rem;}
+  .screen{padding:24px;} .hidden{display:none !important;}
+
+  .start-title{font-size:1.6rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:20px;line-height:1.5;}
+  .primary{width:100%;padding:14px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
+  .primary:hover{filter:brightness(1.08);}
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  .hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;}
+  .pill{background:#fff;border:2px solid #ddd;border-radius:20px;padding:5px 12px;font-size:0.9rem;}
+
+  .feedback{padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;margin-top:14px;display:none;text-align:center;}
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  /* Log round target */
+  .log-canvas{display:block;margin:0 auto 12px;border-radius:50%;border:3px solid #5a3a1a;}
+
+  /* Aim bars */
+  .aim-section{text-align:center;margin:12px 0;}
+  .aim-bar-wrap{position:relative;background:#222;border-radius:4px;overflow:hidden;border:1px solid #555;}
+  .aim-bar-wrap.horiz{width:260px;height:32px;margin:0 auto 8px;}
+  .aim-bar-wrap.vert{width:32px;height:180px;margin:0 auto;}
+  .aim-indicator{position:absolute;background:var(--gold);border-radius:2px;transition:none;}
+  .aim-bar-wrap.horiz .aim-indicator{width:4px;height:100%;top:0;}
+  .aim-bar-wrap.vert .aim-indicator{height:4px;width:100%;left:0;}
+  .aim-center{position:absolute;background:rgba(255,255,255,0.2);}
+  .aim-bar-wrap.horiz .aim-center{width:24px;height:100%;top:0;left:calc(50% - 12px);}
+  .aim-bar-wrap.vert .aim-center{height:24px;width:100%;left:0;top:calc(50% - 12px);}
+  .aim-label{font-weight:700;font-size:0.8rem;color:var(--dim);margin:4px 0;}
+  .aim-prompt{font-weight:800;font-size:1rem;color:var(--gold);margin:10px 0;text-align:center;}
+  .throw-count{font-weight:700;font-size:0.95rem;color:var(--dim);margin:8px 0;text-align:center;}
+
+  /* Ruler */
+  .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
+  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
+    border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{position:relative;height:100%;}
+  .measure-bar{position:absolute;top:65px;height:20px;background:rgba(52,120,180,0.2);border:2px solid #3478b4;border-radius:2px;}
+  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;color:var(--bg3);z-index:2;}
+  .tick{position:absolute;top:8px;width:1px;background:#999;}
+  .tick.cm{background:#333;width:1.5px;height:30px;}
+  .tick-label{position:absolute;top:38px;font-size:11px;font-weight:700;color:#333;transform:translateX(-50%);}
+  .tick-label.cm{top:38px;}
+
+  .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+  .measure-input{width:120px;padding:8px;font-size:1.1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:'Courier New',monospace;}
+  .measure-input:focus{border-color:var(--teal);outline:none;}
+  .submit-btn{padding:10px 24px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;}
+  .submit-btn:hover{filter:brightness(1.1);}
+
+  /* Measurement log */
+  .meas-log{margin:12px 0;padding:8px 12px;background:#fff;border:2px solid var(--line);border-radius:8px;}
+  .meas-log .entry{display:inline-block;padding:4px 10px;margin:3px 4px;border-radius:6px;font-weight:700;font-family:monospace;font-size:0.95rem;background:#d4edda;color:#1a936f;}
+
+  .avg-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+  .avg-label{font-weight:800;font-size:1.05rem;}
+  .avg-input{width:120px;padding:10px;font-size:1.15rem;border:2px solid var(--gold);border-radius:6px;text-align:center;font-family:'Courier New',monospace;background:#fffbea;}
+  .avg-input:focus{border-color:var(--teal);outline:none;}
+
+  .summary-table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.95rem;}
+  .summary-table th{background:var(--bg2);color:var(--paper);padding:8px 12px;text-align:left;}
+  .summary-table td{padding:8px 12px;border-bottom:1px solid #ddd;}
+  .summary-table .wrong{color:var(--miss);font-weight:700;}
+  .summary-table .correct{color:var(--good);font-weight:700;}
+
+  .result-banner{padding:14px;border-radius:10px;text-align:center;font-weight:800;font-size:1.1rem;margin:12px 0;}
+  .result-banner.bullseye{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .result-banner.hit{background:#fff3cd;color:#856404;border:2px solid #ffc107;}
+  .result-banner.miss-result{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  .reward-row{display:flex;gap:20px;justify-content:center;font-weight:700;margin:10px 0;font-size:1rem;}
+  .exp-val{color:var(--teal);} .coin-val{color:var(--gold);}
+
+  /* Item popup */
+  .item-popup-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);
+    display:flex;align-items:center;justify-content:center;z-index:100;}
+  .item-popup{background:var(--paper);color:var(--ink);padding:32px;border-radius:16px;text-align:center;max-width:340px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.5);border:3px solid var(--gold);}
+  .item-popup .item-icon{font-size:3rem;margin-bottom:8px;}
+  .item-popup h3{margin:0 0 8px;}
+  .item-popup p{color:var(--dim);margin:0 0 16px;}
+  .item-popup button{padding:10px 28px;border:none;border-radius:8px;background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;}
+
+  /* Leaderboard */
+  .leaderboard{text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;}
+  .leaderboard h3{margin:0 0 4px;color:var(--ink);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .lb-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .lb-tabs button{flex:1;padding:8px 12px;border:2px solid #ddd;border-radius:8px;background:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;color:var(--ink);}
+  .lb-tabs button.active{background:var(--bg3);color:#fff;border-color:var(--bg3);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>🪓 Axe Throwing</h1>
+    <div class="badge">MINI-GAME</div>
+  </div>
+
+  <!-- START -->
+  <div class="screen" id="screen-start">
+    <div class="start-title">Axe Throwing Challenge</div>
+    <div class="start-sub">Throw axes at the log target! After each throw, measure how far from the center your axe landed. Then calculate the average distance of all your throws. Land a bullseye and get the average right to earn a Woodsman's Axe!</div>
+    <p style="font-size:0.9rem;color:var(--dim);">3–4 throws per round. Measure in cm, average to the hundredth.</p>
+    <button class="primary" id="btn-start">Start Throwing</button>
+    <button class="primary" id="btn-view-lb" style="background:var(--steel);margin-top:10px;">View leaderboard</button>
+  </div>
+
+  <!-- AIM -->
+  <div class="screen hidden" id="screen-aim">
+    <div class="hud">
+      <div class="pill" id="hud-throw">Throw 1 / 3</div>
+      <div class="pill" id="hud-exp">0 EXP</div>
+    </div>
+    <div id="aim-body"></div>
+  </div>
+
+  <!-- MEASURE -->
+  <div class="screen hidden" id="screen-measure">
+    <div class="hud">
+      <div class="pill" id="hud-throw2">Throw 1 / 3</div>
+      <div class="pill" id="hud-exp2">0 EXP</div>
+    </div>
+    <p class="aim-prompt" id="measure-prompt">Measure the distance from the center.</p>
+    <div id="measure-body"></div>
+    <div class="feedback" id="measure-feedback"></div>
+  </div>
+
+  <!-- AVERAGE -->
+  <div class="screen hidden" id="screen-average">
+    <p class="aim-prompt">All throws measured! Calculate the average distance.</p>
+    <div id="average-body"></div>
+    <div class="feedback" id="average-feedback"></div>
+  </div>
+
+  <!-- END -->
+  <div class="screen hidden" id="screen-end">
+    <div class="result-banner" id="result-banner"></div>
+    <div class="reward-row">
+      <span>EXP earned: <span class="exp-val" id="end-exp">0</span></span>
+      <span>Coins earned: <span class="coin-val" id="end-coins">0</span></span>
+    </div>
+    <div class="end-msg" id="end-msg"></div>
+    <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
+    <button class="primary" id="btn-play-again">Play again</button>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3>Top throws</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Closest average to the center wins.</p>
+      <div class="lb-tabs" id="lb-tabs"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:var(--steel);margin-top:16px;">Back</button>
+  </div>
+</div>
+
+<!-- Item popup -->
+<div class="item-popup-overlay hidden" id="item-popup-overlay">
+  <div class="item-popup">
+    <div class="item-icon">🪓</div>
+    <h3>You earned the Woodsman's Axe!</h3>
+    <p>Forged from forest iron and hardwood. A true lumberjack's weapon.</p>
+    <button id="btn-dismiss-item">Awesome!</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const PERIODS=['2','6','7'];
+  const AXE_COLORS=['#c1443a','#f6c90e','#1a936f','#4488ff'];
+  const LOG_SIZE=220, LOG_R=LOG_SIZE/2-10, LOG_CX=LOG_SIZE/2, LOG_CY=LOG_SIZE/2;
+  const MAX_DIST_CM=8, PX_PER_CM=LOG_R/MAX_DIST_CM;
+  const MEASURE_EXP=12, BULLSEYE_BONUS=40, HIT_BONUS=20;
+  function coinFromExp(e){return Math.floor(e/2);}
+
+  const $=id=>document.getElementById(id);
+  const els={
+    start:$('screen-start'),aim:$('screen-aim'),measure:$('screen-measure'),
+    avg:$('screen-average'),end:$('screen-end'),lb:$('screen-leaderboard'),
+    btnStart:$('btn-start'),btnAgain:$('btn-play-again'),btnViewLb:$('btn-view-lb'),btnBackFromLb:$('btn-back-from-lb'),
+    hudThrow:$('hud-throw'),hudExp:$('hud-exp'),hudThrow2:$('hud-throw2'),hudExp2:$('hud-exp2'),
+    aimBody:$('aim-body'),measureBody:$('measure-body'),measurePrompt:$('measure-prompt'),
+    measureFeedback:$('measure-feedback'),avgBody:$('average-body'),avgFeedback:$('average-feedback'),
+    resultBanner:$('result-banner'),endExp:$('end-exp'),endCoins:$('end-coins'),endMsg:$('end-msg'),
+    endLeaderboard:$('end-leaderboard'),lbTabs:$('lb-tabs'),lbBody:$('lb-body'),
+    itemPopup:$('item-popup-overlay'),btnDismiss:$('btn-dismiss-item'),
+  };
+  const allScreens=[els.start,els.aim,els.measure,els.avg,els.end,els.lb];
+  function showScreen(s){allScreens.forEach(x=>x.classList.add('hidden'));s.classList.remove('hidden');}
+
+  let state={name:'',pin:'',period:'',demo:false,teacher:false,embedded:false,nameKey:'',record:null,
+    numThrows:0,throws:[],measurements:[],bestMiss:Infinity,currentThrow:0,roundEXP:0,roundCoins:0};
+  let cleanup=null;
+
+  const randInt=(lo,hi)=>Math.floor(Math.random()*(hi-lo+1))+lo;
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---------- Firebase ----------
+  const DB_PATH='axe_scores';
+  async function saveScore(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){}}
+  async function loadScores(period){
+    if(!Shared.DB_OK)return[];
+    try{const r=[];
+      const s1=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s1.forEach(c=>r.push(c.val()));
+      const n=Number(period);if(!isNaN(n)){const s2=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(n).once('value');s2.forEach(c=>r.push(c.val()));}
+      return r;
+    }catch(e){return[];}
+  }
+  function bestByAvg(runs){
+    const m={};runs.forEach(r=>{const k=r.nameKey||String(r.name||'').toLowerCase();const c=m[k];
+      if(!c||(r.avgMiss!=null&&r.avgMiss<(c.avgMiss||Infinity)))m[k]=r;});
+    return Object.values(m);
+  }
+  function renderLb(rows,container,label){
+    if(!rows.length){container.innerHTML='<p>No throws yet for this period.</p>';return;}
+    let h='';if(label)h+=`<h3>Period ${label} leaders</h3>`;
+    h+='<table><tr><th></th><th>Name</th><th style="text-align:right">Avg Miss</th><th style="text-align:right">EXP</th></tr>';
+    rows.forEach((r,i)=>{const me=state.nameKey&&(r.nameKey||'')===state.nameKey;
+      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="sc">${r.avgMiss!=null?r.avgMiss.toFixed(2)+' cm':'—'}</td><td class="sc">${r.expEarned||0}</td></tr>`;});
+    h+='</table>';container.innerHTML=h;
+  }
+  async function showLb(p){els.lbBody.innerHTML='<p>Loading…</p>';els.lbTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.per===String(p)));
+    const runs=await loadScores(p);renderLb(bestByAvg(runs).sort((a,b)=>(a.avgMiss||Infinity)-(b.avgMiss||Infinity)).slice(0,10),els.lbBody);}
+  PERIODS.forEach(p=>{const b=document.createElement('button');b.textContent='P'+p;b.dataset.per=p;b.addEventListener('click',()=>showLb(p));els.lbTabs.appendChild(b);});
+  els.btnViewLb.addEventListener('click',()=>{showScreen(els.lb);showLb(state.period||PERIODS[0]);});
+  els.btnBackFromLb.addEventListener('click',()=>showScreen(els.start));
+
+  // ---------- Draw log round ----------
+  function drawLog(canvas,throws,highlightIdx){
+    canvas.width=LOG_SIZE;canvas.height=LOG_SIZE;
+    const ctx=canvas.getContext('2d'),cx=LOG_CX,cy=LOG_CY;
+    // Background
+    ctx.fillStyle='#3d2b1f';ctx.fillRect(0,0,LOG_SIZE,LOG_SIZE);
+    // Growth rings
+    const numRings=12;
+    for(let i=numRings;i>=0;i--){
+      const r=LOG_R*(i/numRings);
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.fillStyle=i%2===0?'#c4a055':'#a88840';ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;ctx.stroke();
+    }
+    // Center bullseye
+    ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.fillStyle='#8b0000';ctx.fill();
+    ctx.beginPath();ctx.arc(cx,cy,2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+    // Crosshairs
+    ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cx,cy-LOG_R);ctx.lineTo(cx,cy+LOG_R);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx-LOG_R,cy);ctx.lineTo(cx+LOG_R,cy);ctx.stroke();
+    // Axes
+    for(let i=0;i<throws.length;i++){
+      const t=throws[i];
+      const dx=cx+t.xCm*PX_PER_CM,dy=cy+t.yCm*PX_PER_CM;
+      const isHi=i===highlightIdx;
+      // Line from center
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(dx,dy);
+      ctx.strokeStyle=AXE_COLORS[i];ctx.lineWidth=isHi?2:1;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      // Axe marker
+      ctx.beginPath();ctx.arc(dx,dy,isHi?8:6,0,Math.PI*2);
+      ctx.fillStyle=AXE_COLORS[i];ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=isHi?2:1;ctx.stroke();
+      // Label
+      ctx.fillStyle='#fff';ctx.font=`bold ${isHi?12:10}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(i+1),dx,dy);
+    }
+  }
+
+  // ---------- Game flow ----------
+  els.btnStart.addEventListener('click',startNewRound);
+  els.btnAgain.addEventListener('click',startNewRound);
+  els.btnDismiss.addEventListener('click',()=>els.itemPopup.classList.add('hidden'));
+
+  function startNewRound(){
+    els.itemPopup.classList.add('hidden');
+    state.numThrows=randInt(3,4);
+    state.throws=[];state.measurements=[];state.bestMiss=Infinity;
+    state.currentThrow=0;state.roundEXP=0;state.roundCoins=0;
+    els.endLeaderboard.style.display='none';
+    showAimPhase();
+  }
+
+  // ---------- Aim phase ----------
+  function showAimPhase(){
+    if(cleanup){cleanup();cleanup=null;}
+    showScreen(els.aim);
+    const idx=state.currentThrow;
+    els.hudThrow.textContent=`Throw ${idx+1} / ${state.numThrows}`;
+    els.hudExp.textContent=`${state.roundEXP} EXP`;
+    els.aimBody.innerHTML='';
+
+    const canvas=document.createElement('canvas');canvas.className='log-canvas';
+    drawLog(canvas,state.throws,-1);
+    els.aimBody.appendChild(canvas);
+
+    const aimSection=document.createElement('div');aimSection.className='aim-section';
+    const throwLabel=document.createElement('div');throwLabel.className='throw-count';
+    throwLabel.innerHTML=`Throw <strong style="color:${AXE_COLORS[idx]}">#${idx+1}</strong> of ${state.numThrows}`;
+    const prompt=document.createElement('div');prompt.className='aim-prompt';
+    prompt.textContent='Press SPACE to set left/right aim';
+
+    // Horizontal bar
+    const hLabel=document.createElement('div');hLabel.className='aim-label';hLabel.textContent='\u2190 Left / Right \u2192';
+    const hWrap=document.createElement('div');hWrap.className='aim-bar-wrap horiz';
+    const hCenter=document.createElement('div');hCenter.className='aim-center';
+    const hInd=document.createElement('div');hInd.className='aim-indicator';
+    hWrap.appendChild(hCenter);hWrap.appendChild(hInd);
+
+    // Vertical bar
+    const vLabel=document.createElement('div');vLabel.className='aim-label';vLabel.textContent='\u2191 Up / Down \u2193';vLabel.style.display='none';
+    const vWrap=document.createElement('div');vWrap.className='aim-bar-wrap vert';vWrap.style.display='none';
+    const vCenter=document.createElement('div');vCenter.className='aim-center';
+    const vInd=document.createElement('div');vInd.className='aim-indicator';
+    vWrap.appendChild(vCenter);vWrap.appendChild(vInd);
+
+    aimSection.appendChild(throwLabel);aimSection.appendChild(prompt);
+    aimSection.appendChild(hLabel);aimSection.appendChild(hWrap);
+    aimSection.appendChild(vLabel);aimSection.appendChild(vWrap);
+    els.aimBody.appendChild(aimSection);
+
+    // Oscillation
+    let pos=Math.random()<0.5?-0.8:0.8,dir=pos<0?1:-1;
+    let speed=0.02+Math.random()*0.025,phase='h',lockedX=0,animId=null;
+
+    function animate(){
+      pos+=speed*dir;if(pos>=1){pos=1;dir=-1;}if(pos<=-1){pos=-1;dir=1;}
+      if(phase==='h') hInd.style.left=((pos+1)/2*(260-4))+'px';
+      else vInd.style.top=((pos+1)/2*(180-4))+'px';
+      animId=requestAnimationFrame(animate);
+    }
+    animId=requestAnimationFrame(animate);
+
+    function handleKey(e){
+      if(e.code!=='Space'&&e.key!==' ')return;e.preventDefault();
+      if(phase==='h'){
+        lockedX=pos;hInd.style.background='#0f0';phase='v';
+        hWrap.style.display='none';hLabel.style.display='none';
+        vWrap.style.display='';vLabel.style.display='';
+        prompt.textContent='Press SPACE to set up/down aim';
+        pos=Math.random()<0.5?-0.7:0.7;dir=pos<0?1:-1;speed=0.02+Math.random()*0.025;
+      } else {
+        const lockedY=pos;cancelAnimationFrame(animId);document.removeEventListener('keydown',handleKey);
+        // Calculate landing
+        const xCm=lockedX*MAX_DIST_CM+(Math.random()-0.5)*0.4;
+        const yCm=lockedY*MAX_DIST_CM+(Math.random()-0.5)*0.4;
+        const dist=Math.sqrt(xCm*xCm+yCm*yCm);
+        const distCm=Math.round(dist*10)/10; // nearest mm
+        state.throws.push({xCm,yCm,distCm});
+        if(distCm<state.bestMiss)state.bestMiss=distCm;
+        drawLog(canvas,state.throws,idx);
+        phase='done';
+        setTimeout(()=>showMeasurePhase(idx),600);
+      }
+    }
+    document.addEventListener('keydown',handleKey);
+    cleanup=()=>{cancelAnimationFrame(animId);document.removeEventListener('keydown',handleKey);};
+  }
+
+  // ---------- Measure phase ----------
+  function showMeasurePhase(idx){
+    if(cleanup){cleanup();cleanup=null;}
+    showScreen(els.measure);
+    els.hudThrow2.textContent=`Throw ${idx+1} / ${state.numThrows}`;
+    els.hudExp2.textContent=`${state.roundEXP} EXP`;
+    els.measureFeedback.classList.remove('show');
+    els.measureBody.innerHTML='';
+
+    const t=state.throws[idx];
+    els.measurePrompt.textContent=`Throw #${idx+1} landed! Measure the distance from the center.`;
+
+    // Log with highlight
+    const canvas=document.createElement('canvas');canvas.className='log-canvas';
+    drawLog(canvas,state.throws,idx);
+    els.measureBody.appendChild(canvas);
+
+    // Show previous measurements
+    if(state.measurements.length>0){
+      const log=document.createElement('div');log.className='meas-log';
+      log.innerHTML='<strong>Previous:</strong> ';
+      state.measurements.forEach((m,i)=>{const sp=document.createElement('span');sp.className='entry';sp.textContent=`#${i+1}: ${m} cm`;log.appendChild(sp);});
+      els.measureBody.appendChild(log);
+    }
+
+    // Ruler
+    const rulerContainer=document.createElement('div');
+    MeasureShared.buildRulerDOM(rulerContainer,t.distCm*10,{pxPerMM:6,padMM:20,badge:'cm',
+      scaleLabel:'Scale: small ticks = mm \u00b7 numbered ticks = cm'});
+    els.measureBody.appendChild(rulerContainer);
+
+    // Input
+    const row=document.createElement('div');row.className='measure-row';
+    const lbl=document.createElement('span');lbl.style.fontWeight='700';lbl.textContent=`Distance (cm):`;
+    const inp=document.createElement('input');inp.type='text';inp.className='measure-input';inp.placeholder='0.0';inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
+    els.measureBody.appendChild(row);
+
+    function submit(){
+      const raw=inp.value.trim();if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+      const val=parseFloat(raw);if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+      state.measurements.push(val);
+      // Check measurement (±0.05 cm = half a mm)
+      const ok=Math.abs(val-t.distCm)<=0.05;
+      if(ok){
+        state.roundEXP+=MEASURE_EXP;state.roundCoins+=coinFromExp(MEASURE_EXP);
+        els.measureFeedback.textContent=`Correct! ${t.distCm.toFixed(1)} cm. +${MEASURE_EXP} EXP`;
+        els.measureFeedback.className='feedback show good';
+      } else {
+        els.measureFeedback.textContent=`Not quite — the distance was ${t.distCm.toFixed(1)} cm.`;
+        els.measureFeedback.className='feedback show bad';
+      }
+      state.currentThrow++;
+      setTimeout(()=>{
+        if(state.currentThrow<state.numThrows) showAimPhase();
+        else showAveragePhase();
+      },1600);
+    }
+    sub.addEventListener('click',submit);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  // ---------- Average phase ----------
+  function showAveragePhase(){
+    showScreen(els.avg);
+    els.avgFeedback.classList.remove('show');
+    els.avgBody.innerHTML='';
+
+    // Log with all throws
+    const canvas=document.createElement('canvas');canvas.className='log-canvas';
+    drawLog(canvas,state.throws,-1);
+    els.avgBody.appendChild(canvas);
+
+    // Show all measurements
+    const log=document.createElement('div');log.className='meas-log';
+    log.innerHTML='<strong>Your measurements:</strong> ';
+    state.measurements.forEach((m,i)=>{const sp=document.createElement('span');sp.className='entry';sp.textContent=`#${i+1}: ${m} cm`;log.appendChild(sp);});
+    els.avgBody.appendChild(log);
+
+    // Average input
+    const row=document.createElement('div');row.className='avg-row';
+    const lbl=document.createElement('span');lbl.className='avg-label';lbl.textContent='Average (cm):';
+    const inp=document.createElement('input');inp.type='text';inp.className='avg-input';inp.placeholder='0.00';inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit Average';
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
+    els.avgBody.appendChild(row);
+
+    let locked=false;
+    function submit(){
+      if(locked)return;
+      const raw=inp.value.trim();if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+      const val=parseFloat(raw);if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+      locked=true;
+
+      const actualDists=state.throws.map(t=>t.distCm);
+      const actualAvg=Math.round((actualDists.reduce((a,d)=>a+d,0)/state.numThrows)*100)/100;
+      const studentAvg=Math.round((state.measurements.reduce((a,d)=>a+d,0)/state.numThrows)*100)/100;
+      const avgOK=Math.abs(val-actualAvg)<=0.01;
+      const avgMatchesTheirs=Math.abs(val-studentAvg)<=0.01;
+
+      // Check measurements
+      let allMeasOK=true;const measOK=[];
+      for(let i=0;i<state.numThrows;i++){
+        const ok=Math.abs(state.measurements[i]-actualDists[i])<=0.05;
+        measOK.push(ok);if(!ok)allMeasOK=false;
+      }
+
+      // Summary table
+      const table=document.createElement('table');table.className='summary-table';
+      table.innerHTML='<thead><tr><th>#</th><th>Your Measurement</th><th>Actual</th><th></th></tr></thead>';
+      const tbody=document.createElement('tbody');
+      for(let i=0;i<state.numThrows;i++){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i+1}</td><td>${state.measurements[i]} cm</td><td>${actualDists[i].toFixed(1)} cm</td><td class="${measOK[i]?'correct':'wrong'}">${measOK[i]?'✓':'✗'}</td>`;
+        tbody.appendChild(tr);
+      }
+      const avgTr=document.createElement('tr');avgTr.style.borderTop='2px solid #999';
+      const fullOK=allMeasOK&&avgOK;
+      avgTr.innerHTML=`<td><strong>Avg</strong></td><td><strong>${val} cm</strong></td><td><strong>${actualAvg.toFixed(2)} cm</strong></td><td class="${fullOK?'correct':'wrong'}"><strong>${fullOK?'✓':'✗'}</strong></td>`;
+      tbody.appendChild(avgTr);table.appendChild(tbody);
+      els.avgBody.appendChild(table);
+
+      if(fullOK){
+        state.roundEXP+=MEASURE_EXP;state.roundCoins+=coinFromExp(MEASURE_EXP);
+        els.avgFeedback.textContent=`Correct! Average: ${actualAvg.toFixed(2)} cm. +${MEASURE_EXP} EXP`;
+        els.avgFeedback.className='feedback show good';
+      } else if(!allMeasOK&&avgMatchesTheirs){
+        els.avgFeedback.textContent=`Your math was right, but some measurements were off. Actual average: ${actualAvg.toFixed(2)} cm`;
+        els.avgFeedback.className='feedback show bad';
+      } else {
+        els.avgFeedback.textContent=`The average was ${actualAvg.toFixed(2)} cm`;
+        els.avgFeedback.className='feedback show bad';
+      }
+      setTimeout(()=>finishRound(fullOK),2200);
+    }
+    sub.addEventListener('click',submit);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  // ---------- Finish round ----------
+  async function finishRound(avgCorrect){
+    showScreen(els.end);
+    const best=state.bestMiss;
+    let bonusEXP=0,resultClass,resultText;
+
+    if(best<=1){
+      resultClass='bullseye';resultText='🪓 BULLSEYE! Within 1 cm of center!';bonusEXP=BULLSEYE_BONUS;
+    } else if(best<=3){
+      resultClass='hit';resultText='🎯 Great throw! Within 3 cm!';bonusEXP=HIT_BONUS;
+    } else {
+      resultClass='miss-result';resultText=`Closest throw was ${best.toFixed(1)} cm from center. Keep practicing!`;
+    }
+    state.roundEXP+=bonusEXP;state.roundCoins+=coinFromExp(bonusEXP);
+    els.resultBanner.className=`result-banner ${resultClass}`;
+    els.resultBanner.textContent=resultText;
+    els.endExp.textContent=state.roundEXP;
+    els.endCoins.textContent=state.roundCoins;
+
+    // Axe reward: bullseye AND correct average
+    const earnedAxe=best<=1&&avgCorrect;
+    if(earnedAxe){
+      els.endMsg.textContent='You earned the Woodsman\'s Axe!';
+      setTimeout(()=>els.itemPopup.classList.remove('hidden'),800);
+      // Tell the parent hub to grant the item
+      if(window.parent!==window){
+        window.parent.postMessage({type:'grant-item',item:{
+          name:"Woodsman's Axe",equipType:'weapon',manifestKey:'weapon',
+          manifestIndex:4,variantIndex:0 // pickaxe1_c2 index
+        }},'*');
+      }
+    } else if(best<=1){
+      els.endMsg.textContent='Bullseye! Get the average right too to earn the axe.';
+    } else {
+      els.endMsg.textContent='Train your aim and measurement skills!';
+    }
+
+    // Save to Firebase
+    if(!state.demo&&!state.teacher&&Shared.DB_OK){
+      const actualAvg=Math.round((state.throws.reduce((a,t)=>a+t.distCm,0)/state.numThrows)*100)/100;
+      try{await Shared.DB.ref(DB_PATH).push({
+        name:state.name,nameKey:state.nameKey,period:String(state.period),
+        avgMiss:actualAvg,bestMiss:Math.round(best*100)/100,
+        expEarned:state.roundEXP,timestamp:Date.now()
+      });}catch(e){}
+      // Save to student record
+      if(state.record&&state.nameKey){
+        state.record.totalEXP=(state.record.totalEXP||0)+state.roundEXP;
+        state.record.coins=(state.record.coins||0)+state.roundCoins;
+        try{await Shared.saveStudent(state.nameKey,state.record);}catch(e){}
+      }
+      // Show leaderboard
+      const runs=await loadScores(state.period);
+      const rows=bestByAvg(runs).sort((a,b)=>(a.avgMiss||Infinity)-(b.avgMiss||Infinity)).slice(0,10);
+      if(rows.length){renderLb(rows,els.endLeaderboard,state.period);els.endLeaderboard.style.display='block';}
+    }
+  }
+
+  // ---------- PostMessage login ----------
+  window.addEventListener('message',async e=>{
+    if(!e.data||e.data.type!=='axe-login')return;
+    const d=e.data;
+    state.embedded=true;state.name=d.name||'';state.period=String(d.period||'');
+    state.demo=!!d.demo;state.teacher=!!d.teacher;
+    if(d.demo){
+      state.record={name:'Demo',totalEXP:0,coins:0,inventory:[],equipped:{}};
+      return;
+    }
+    const result=await Shared.loadOrCreateStudent(d.name,d.pin,d.period);
+    if(result.ok){state.nameKey=result.nameKey;state.record=result.record;state.teacher=!!d.teacher;
+      try{await Shared.saveStudent(state.nameKey,state.record);}catch(e){}}
+  });
+
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>

@@ -249,6 +249,7 @@
     <div class="leaderboard">
       <h3>Top scores</h3>
       <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="lb-tabs" id="lb-bench-tabs"></div>
       <div class="lb-tabs" id="lb-tabs"></div>
       <div id="lb-body"></div>
     </div>
@@ -355,10 +356,14 @@
     });
     return Object.values(m);
   }
-  function renderLbTable(rows, container, periodLabel){
-    if(!rows.length){ container.innerHTML = '<p>No runs yet for this period.</p>'; return; }
+  const BENCH_LABELS = {simple:'Simple Elapsed',startstop:'Start & Stop'};
+  const BENCHES = ['simple','startstop'];
+  let lbPeriod = '2', lbBench = 'simple';
+
+  function renderLbTable(rows, container, header){
+    if(!rows.length){ container.innerHTML = '<p>No runs yet for this bench and period.</p>'; return; }
     let html = '';
-    if(periodLabel) html += `<h3>Period ${periodLabel} leaders</h3>`;
+    if(header) html += `<h3>${header}</h3>`;
     html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
     rows.forEach((r,i) => {
       const me = player.nameKey && (r.nameKey||'') === player.nameKey;
@@ -368,20 +373,40 @@
     html += '</table>';
     container.innerHTML = html;
   }
-  async function showLeaderboard(period){
+  function refreshElbTabs(){
+    const benchTabs = document.getElementById('lb-bench-tabs');
+    benchTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.bench === lbBench));
+    els.lbTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.per === String(lbPeriod)));
+  }
+  async function showLeaderboard(period, benchFilter){
+    lbPeriod = period; lbBench = benchFilter;
+    refreshElbTabs();
     els.lbBody.innerHTML = '<p>Loading…</p>';
-    els.lbTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.per === String(period)));
-    const runs = await loadRuns(period);
-    const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+    const all = await loadRuns(period);
+    const filtered = benchFilter ? all.filter(r => r.bench === benchFilter) : all;
+    const rows = bestBy(filtered).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
     renderLbTable(rows, els.lbBody);
   }
+  // Build bench tabs
+  const benchTabsEl = document.getElementById('lb-bench-tabs');
+  BENCHES.forEach(b => {
+    const btn = document.createElement('button');
+    btn.textContent = BENCH_LABELS[b]; btn.dataset.bench = b;
+    btn.addEventListener('click', ()=> showLeaderboard(lbPeriod, b));
+    benchTabsEl.appendChild(btn);
+  });
+  // Build period tabs
   PERIODS.forEach(p => {
     const btn = document.createElement('button');
     btn.textContent = 'P'+p; btn.dataset.per = p;
-    btn.addEventListener('click', ()=> showLeaderboard(p));
+    btn.addEventListener('click', ()=> showLeaderboard(p, lbBench));
     els.lbTabs.appendChild(btn);
   });
-  els.btnViewLb.addEventListener('click', ()=>{ showScreen(els.lb); showLeaderboard(player.period || PERIODS[0]); });
+  els.btnViewLb.addEventListener('click', ()=>{
+    showScreen(els.lb);
+    lbBench = bench || 'simple';
+    showLeaderboard(player.period || PERIODS[0], lbBench);
+  });
   els.btnBackFromLb.addEventListener('click', ()=> showScreen(els.start));
 
   // ========== GAME FLOW ==========
@@ -468,9 +493,10 @@
         period: String(player.period), bench, score: state.score, timeSec, ts: Date.now()
       });
       const runs = await loadRuns(player.period);
-      const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+      const filtered = runs.filter(r => r.bench === bench);
+      const rows = bestBy(filtered).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
       if(rows.length){
-        renderLbTable(rows, els.endLeaderboard, player.period);
+        renderLbTable(rows, els.endLeaderboard, (BENCH_LABELS[bench]||bench) + ' — P' + player.period);
         els.endLeaderboard.style.display = 'block';
       }
     }
@@ -995,18 +1021,23 @@
     const pair = document.createElement('div');
     pair.className = 'stopwatch-pair';
 
+    // Start time shown FIRST (green) — students must recognize they need to
+    // rearrange to "end − start" to get elapsed time.
     const startCol = document.createElement('div');
     startCol.style.textAlign = 'center';
-    const sLabel = document.createElement('div'); sLabel.className = 'sw-label'; sLabel.textContent = 'END TIME';
-    const sDisp = document.createElement('div'); sDisp.className = 'stopwatch-display'; sDisp.textContent = fmtTime(endSec);
+    const sLabel = document.createElement('div'); sLabel.className = 'sw-label'; sLabel.textContent = 'START TIME';
+    sLabel.style.color = '#2d936c';
+    const sDisp = document.createElement('div'); sDisp.className = 'stopwatch-display'; sDisp.textContent = fmtTime(startSec);
+    sDisp.style.color = '#2d936c'; sDisp.style.borderColor = '#2d936c';
     startCol.appendChild(sLabel); startCol.appendChild(sDisp);
 
-    const minus = document.createElement('div'); minus.className = 'minus-sign'; minus.textContent = '\u2212';
-
+    // End time shown SECOND (red)
     const endCol = document.createElement('div');
     endCol.style.textAlign = 'center';
-    const eLabel = document.createElement('div'); eLabel.className = 'sw-label'; eLabel.textContent = 'START TIME';
-    const eDisp = document.createElement('div'); eDisp.className = 'stopwatch-display'; eDisp.textContent = fmtTime(startSec);
+    const eLabel = document.createElement('div'); eLabel.className = 'sw-label'; eLabel.textContent = 'END TIME';
+    eLabel.style.color = '#c1443a';
+    const eDisp = document.createElement('div'); eDisp.className = 'stopwatch-display'; eDisp.textContent = fmtTime(endSec);
+    eDisp.style.color = '#c1443a'; eDisp.style.borderColor = '#c1443a';
     endCol.appendChild(eLabel); endCol.appendChild(eDisp);
 
     const eq = document.createElement('div'); eq.className = 'equals-sign'; eq.textContent = '=';
@@ -1016,7 +1047,6 @@
     qMark.textContent = '??.??s';
 
     pair.appendChild(startCol);
-    pair.appendChild(minus);
     pair.appendChild(endCol);
     pair.appendChild(eq);
     pair.appendChild(qMark);
