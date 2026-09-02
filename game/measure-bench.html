@@ -468,9 +468,14 @@
     border-radius:10px;
     padding:12px 16px;
   }
-  .leaderboard h3{margin:0 0 8px; color:var(--charcoal);}
-  .leaderboard ol{margin:0; padding-left:22px;}
-  .leaderboard li{padding:3px 0;}
+  .leaderboard h3{margin:0 0 4px; color:var(--charcoal);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid var(--line);}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#e8f5e9;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .leaderboard .tm{text-align:right;font-family:monospace;color:var(--dim);}
 
   .demo-note{
     font-size:0.8rem;
@@ -535,12 +540,13 @@
   <div class="screen hidden" id="screen-leaderboard">
     <div class="leaderboard">
       <h3>Top scores</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
       <div class="diffrow" style="margin-bottom:10px;">
         <button class="diffbtn" data-period="2">P2</button>
         <button class="diffbtn" data-period="6">P6</button>
         <button class="diffbtn" data-period="7">P7</button>
       </div>
-      <ol id="lb-list"></ol>
+      <div id="lb-list"></div>
     </div>
     <button class="primary" id="btn-back-from-lb" style="background:var(--steel); margin-top:16px;">Back</button>
   </div>
@@ -615,6 +621,7 @@
         <div class="exp-bar-wrap" style="width:140px;"><div class="exp-bar-fill" id="end-exp-fill"></div></div>
       </div>
       <p id="end-message"></p>
+      <div id="end-leaderboard" class="leaderboard" style="margin-top:16px;display:none;"></div>
       <button class="primary" id="btn-play-again">Play again</button>
     </div>
   </div>
@@ -719,11 +726,16 @@
   async function loadMeasureLeaderboard(period){
     if(!Shared.DB_OK) return [];
     try{
-      const snap = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(period).once('value');
-      const entries = [];
-      snap.forEach(child=> entries.push(child.val()));
-      entries.sort((a,b)=> (b.expEarned||0)-(a.expEarned||0));
-      return entries;
+      // Try both string and number forms — Firebase equalTo is type-sensitive
+      const results = [];
+      const snap1 = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(String(period)).once('value');
+      snap1.forEach(child=> results.push(child.val()));
+      const numPeriod = Number(period);
+      if(!isNaN(numPeriod)){
+        const snap2 = await Shared.DB.ref('measure_scores').orderByChild('period').equalTo(numPeriod).once('value');
+        snap2.forEach(child=> results.push(child.val()));
+      }
+      return results;
     }catch(e){ console.warn('measure leaderboard load failed', e); return []; }
   }
 
@@ -1294,13 +1306,38 @@
       saveMeasureRun({
         name: state.name,
         nameKey: state.nameKey,
-        period: state.period,
+        period: String(state.period),
         bench: state.bench,
+        score: state.score,
         expEarned: state.roundEXP,
         timeSec,
         ts: Date.now()
       }).catch(()=>{});
+      // Show post-game leaderboard
+      renderEndLeaderboard(String(state.period));
     }
+  }
+
+  async function renderEndLeaderboard(period){
+    const wrap = document.getElementById('end-leaderboard');
+    if(!wrap || !Shared.DB_OK) return;
+    try{
+      const entries = await loadMeasureLeaderboard(period);
+      const rows = bestByScore(entries)
+        .sort((a,b)=> (b._s - a._s) || (a._t - b._t))
+        .slice(0,10);
+      if(!rows.length){ wrap.style.display='none'; return; }
+      let html = `<h3>Period ${period} leaders</h3>`;
+      html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+      rows.forEach((r,i) => {
+        const me = state.nameKey && (r.nameKey||'')=== state.nameKey;
+        html += `<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${escHtml(r.name)}</td>` +
+                `<td class="sc">${r._s}</td><td class="tm">${r._t < Infinity ? fmtTime(r._t) : '—'}</td></tr>`;
+      });
+      html += '</table>';
+      wrap.innerHTML = html;
+      wrap.style.display = 'block';
+    }catch(e){ wrap.style.display='none'; }
   }
 
   els.btnPlayAgain.addEventListener('click', ()=>{
@@ -1321,26 +1358,51 @@
     });
   });
 
+  const fmtTime = sec => {
+    sec = Math.max(0, Math.round(sec));
+    return Math.floor(sec/60) + ':' + String(sec%60).padStart(2,'0');
+  };
+  const escHtml = t => String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  function bestByScore(runs){
+    const m = {};
+    runs.forEach(r => {
+      const k = r.nameKey || String(r.name||'').toLowerCase();
+      const cur = m[k];
+      const s = r.score != null ? r.score : (r.expEarned||0);
+      const t = r.timeSec != null ? r.timeSec : Infinity;
+      if(!cur || s > cur._s || (s === cur._s && t < cur._t)){
+        m[k] = Object.assign({}, r, {_s:s, _t:t});
+      }
+    });
+    return Object.values(m);
+  }
+
   async function loadLeaderboard(period){
-    els.lbList.innerHTML = '<li>Loading…</li>';
+    els.lbList.innerHTML = '<p>Loading…</p>';
     if(!Shared.DB_OK){
-      els.lbList.innerHTML = '<li>Leaderboard unavailable offline.</li>';
+      els.lbList.innerHTML = '<p>Leaderboard unavailable offline.</p>';
       return;
     }
     try{
       const entries = await loadMeasureLeaderboard(period);
-      els.lbList.innerHTML = '';
-      if(entries.length === 0){
-        els.lbList.innerHTML = '<li>No runs yet for this period.</li>';
+      const rows = bestByScore(entries)
+        .sort((a,b)=> (b._s - a._s) || (a._t - b._t))
+        .slice(0,10);
+      if(rows.length === 0){
+        els.lbList.innerHTML = '<p>No runs yet for this period.</p>';
         return;
       }
-      entries.slice(0,10).forEach(e=>{
-        const li = document.createElement('li');
-        li.textContent = `${e.name} — ${e.expEarned||0} EXP (${e.bench||'?'})`;
-        els.lbList.appendChild(li);
+      let html = '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+      rows.forEach((r,i) => {
+        const me = state.nameKey && (r.nameKey||'')=== state.nameKey;
+        html += `<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${escHtml(r.name)}</td>` +
+                `<td class="sc">${r._s}</td><td class="tm">${r._t < Infinity ? fmtTime(r._t) : '—'}</td></tr>`;
       });
+      html += '</table>';
+      els.lbList.innerHTML = html;
     }catch(e){
-      els.lbList.innerHTML = '<li>Could not load leaderboard.</li>';
+      els.lbList.innerHTML = '<p>Could not load leaderboard.</p>';
     }
   }
 

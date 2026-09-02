@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rounding Workbench</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
 <style>
   :root{
     --bench:#1a1a2e;
@@ -116,6 +119,26 @@
     background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;
   }
   .submit-btn:hover{filter:brightness(1.1);}
+
+  /* Leaderboard */
+  .leaderboard{
+    text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;
+    border-radius:10px;padding:12px 16px;
+  }
+  .leaderboard h3{margin:0 0 4px;color:var(--ink);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .leaderboard .tm{text-align:right;font-family:monospace;color:var(--dim);}
+  .lb-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .lb-tabs button{
+    flex:1;padding:8px 12px;border:2px solid #ddd;border-radius:8px;
+    background:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;color:var(--ink);
+  }
+  .lb-tabs button.active{background:var(--bench3);color:#fff;border-color:var(--bench3);}
 </style>
 </head>
 <body>
@@ -130,6 +153,7 @@
     <div class="start-sub">A number will appear on screen. Round it to the nearest hundredths place and type your answer.</div>
     <p style="font-size:0.9rem;color:var(--dim);">12 rounds, 120 points possible.</p>
     <button class="primary" id="btn-start">Start Practice</button>
+    <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
 
   <div class="screen hidden" id="screen-game">
@@ -148,7 +172,18 @@
     <div class="end-score" id="end-score">0</div>
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
+  </div>
+
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3>Top scores</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="lb-tabs" id="lb-tabs"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:#555;margin-top:16px;">Back</button>
   </div>
 </div>
 
@@ -156,54 +191,123 @@
 (function(){
   const GOAL = 120;
   const TOTAL_ROUNDS = 12;
-  let S = { round:0, score:0, attempt:0, locked:false };
+  const PERIODS = ['2','6','7'];
+  let S = { round:0, score:0, attempt:0, locked:false, startTime:0 };
+  let player = { name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
 
   const $ = id => document.getElementById(id);
   const els = {
     start: $('screen-start'), game: $('screen-game'), end: $('screen-end'),
-    btnStart: $('btn-start'), btnAgain: $('btn-again'),
+    lb: $('screen-leaderboard'),
+    btnStart: $('btn-start'), btnAgain: $('btn-again'), btnViewLb: $('btn-view-lb'),
+    btnBackFromLb: $('btn-back-from-lb'),
     hudRound: $('hud-round'), hudScore: $('hud-score'),
     progressfill: $('progressfill'),
     qtext: $('qtext'), body: $('question-body'),
     feedback: $('feedback'),
     endTitle: $('end-title'), endScore: $('end-score'), endMsg: $('end-msg'),
+    endLeaderboard: $('end-leaderboard'),
+    lbTabs: $('lb-tabs'), lbBody: $('lb-body'),
   };
+  const allScreens = [els.start, els.game, els.end, els.lb];
 
   function showScreen(s){
-    [els.start, els.game, els.end].forEach(x=>x.classList.add('hidden'));
+    allScreens.forEach(x=>x.classList.add('hidden'));
     s.classList.remove('hidden');
   }
 
   const randInt = (lo,hi) => Math.floor(Math.random()*(hi-lo+1))+lo;
+  const fmtTime = sec => { sec=Math.max(0,Math.round(sec)); return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'); };
+  const esc = t => String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-  // Generate a number with 3-6 decimal places that requires real rounding decisions
-  function generateNumber(){
-    // Whole part: 0-99
-    const whole = randInt(0, 99);
-    // Decimal places: 3 to 6
-    const places = randInt(3, 6);
-    // Generate each decimal digit
-    let decimals = '';
-    for(let i = 0; i < places; i++){
-      decimals += randInt(0, 9);
+  // ---------- Firebase score helpers ----------
+  const DB_PATH = 'rounding_scores';
+
+  async function saveRun(rec){
+    if(!Shared.DB_OK) return;
+    try{ await Shared.DB.ref(DB_PATH).push(rec); }catch(e){ console.warn('save failed',e); }
+  }
+  async function loadRuns(period){
+    if(!Shared.DB_OK) return [];
+    try{
+      const results = [];
+      const s1 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s1.forEach(c=> results.push(c.val()));
+      const n = Number(period);
+      if(!isNaN(n)){
+        const s2 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(n).once('value');
+        s2.forEach(c=> results.push(c.val()));
+      }
+      return results;
+    }catch(e){ console.warn('load failed',e); return []; }
+  }
+  function bestBy(runs){
+    const m = {};
+    runs.forEach(r => {
+      const k = r.nameKey || String(r.name||'').toLowerCase();
+      const cur = m[k];
+      if(!cur || r.score > cur.score || (r.score === cur.score && r.timeSec < cur.timeSec)) m[k] = r;
+    });
+    return Object.values(m);
+  }
+
+  // ---------- Leaderboard rendering ----------
+  function renderLbTable(rows, container, periodLabel){
+    if(!rows.length){
+      container.innerHTML = '<p>No runs yet for this period.</p>';
+      return;
     }
-    // Make sure the thousandths digit isn't always 0 (the rounding-critical digit)
-    // Replace 3rd digit if it's 0, at least sometimes, to get a mix
-    const numStr = whole + '.' + decimals;
-    return parseFloat(numStr);
+    let html = '';
+    if(periodLabel) html += `<h3>Period ${periodLabel} leaders</h3>`;
+    html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i) => {
+      const me = player.nameKey && (r.nameKey||'') === player.nameKey;
+      html += `<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td>`+
+              `<td class="sc">${r.score}</td><td class="tm">${r.timeSec!=null?fmtTime(r.timeSec):'—'}</td></tr>`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
   }
 
-  function formatFull(n, places){
-    return n.toFixed(places);
+  async function showLeaderboard(period){
+    els.lbBody.innerHTML = '<p>Loading…</p>';
+    // highlight active tab
+    els.lbTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.per === String(period)));
+    const runs = await loadRuns(period);
+    const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+    renderLbTable(rows, els.lbBody);
   }
 
-  // Build highlighted HTML: hundredths place highlighted, remaining digits faded
+  // Build period tabs
+  PERIODS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent = 'P'+p;
+    btn.dataset.per = p;
+    btn.addEventListener('click', ()=> showLeaderboard(p));
+    els.lbTabs.appendChild(btn);
+  });
+
+  els.btnViewLb.addEventListener('click', ()=>{
+    showScreen(els.lb);
+    showLeaderboard(player.period || PERIODS[0]);
+  });
+  els.btnBackFromLb.addEventListener('click', ()=> showScreen(els.start));
+
+  // ---------- Number generation ----------
+  function generateNumber(){
+    const whole = randInt(0, 99);
+    const places = randInt(3, 6);
+    let decimals = '';
+    for(let i = 0; i < places; i++) decimals += randInt(0, 9);
+    return parseFloat(whole + '.' + decimals);
+  }
+
   function highlightedNumber(numStr){
     const dotIdx = numStr.indexOf('.');
     if(dotIdx === -1) return numStr;
     let html = '';
     for(let i = 0; i < numStr.length; i++){
-      const decimalPos = i - dotIdx; // 1=tenths, 2=hundredths, 3+=beyond
+      const decimalPos = i - dotIdx;
       if(decimalPos === 1 || decimalPos === 2){
         html += `<span class="digit-h">${numStr[i]}</span>`;
       } else if(decimalPos >= 3){
@@ -215,10 +319,13 @@
     return html;
   }
 
+  // ---------- Game flow ----------
   els.btnStart.addEventListener('click', ()=>{
     S.round = 0; S.score = 0;
+    S.startTime = Date.now();
     els.hudScore.textContent = `0 of ${GOAL} points`;
     els.progressfill.style.width = '0%';
+    els.endLeaderboard.style.display = 'none';
     showScreen(els.game);
     nextRound();
   });
@@ -238,21 +345,17 @@
 
   function setupRound(){
     const num = generateNumber();
-    // Determine how many decimal places it actually has
     const numStr = String(num);
     const dotIdx = numStr.indexOf('.');
     const actualPlaces = dotIdx === -1 ? 0 : numStr.length - dotIdx - 1;
-    // Pad to at least 3 places so there's always something to round
     const displayPlaces = Math.max(actualPlaces, 3);
     const displayStr = num.toFixed(displayPlaces);
 
-    // Correct answer: rounded to hundredths
     const correct = Math.round(num * 100) / 100;
     const correctStr = correct.toFixed(2);
 
     els.qtext.textContent = 'Round this number to the nearest hundredths place.';
 
-    // Number display with highlighted digits
     const numDiv = document.createElement('div');
     numDiv.className = 'number-display';
     const bigNum = document.createElement('div');
@@ -266,7 +369,6 @@
     arrowDiv.textContent = '\u2193 Round to hundredths \u2193';
     els.body.appendChild(arrowDiv);
 
-    // Answer input
     const row = document.createElement('div');
     row.className = 'answer-row';
     const inp = document.createElement('input');
@@ -290,7 +392,6 @@
     if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
 
     S.attempt++;
-    // Check: must match to 2 decimal places exactly
     const isCorrect = val.toFixed(2) === correctStr;
 
     if(isCorrect){
@@ -314,7 +415,7 @@
     }
   }
 
-  function finishGame(){
+  async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent = S.score;
     if(S.score >= 120){
@@ -330,12 +431,38 @@
       els.endTitle.textContent = 'Round complete';
       els.endMsg.textContent = 'Keep practicing to improve your score.';
     }
+
+    // Save score to Firebase
+    if(player.loggedIn && !player.demo && !player.teacher){
+      const timeSec = Math.round((Date.now() - S.startTime) / 1000);
+      await saveRun({
+        name: player.name,
+        nameKey: player.nameKey,
+        period: String(player.period),
+        score: S.score,
+        timeSec,
+        ts: Date.now()
+      });
+      // Show post-game leaderboard
+      const runs = await loadRuns(player.period);
+      const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+      if(rows.length){
+        renderLbTable(rows, els.endLeaderboard, player.period);
+        els.endLeaderboard.style.display = 'block';
+      }
+    }
   }
 
-  // PostMessage login
+  // ---------- PostMessage login from game hub ----------
   window.addEventListener('message', e => {
     if(e.data && e.data.type === 'rb-login'){
-      // Ready to go — no bench variants needed
+      const d = e.data;
+      player.name = d.name || '';
+      player.nameKey = Shared.normalizeName(d.name || '');
+      player.period = String(d.period || '');
+      player.demo = !!d.demo;
+      player.teacher = !!d.teacher;
+      player.loggedIn = true;
     }
   });
 

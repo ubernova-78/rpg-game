@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Elapsed Time Workbench</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
 <style>
   :root{
     --bench:#1a1a2e;
@@ -175,6 +178,25 @@
     display:flex;gap:10px;align-items:center;justify-content:center;margin-top:14px;
   }
 
+  /* Leaderboard */
+  .leaderboard{
+    text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;
+    border-radius:10px;padding:12px 16px;
+  }
+  .leaderboard h3{margin:0 0 4px;color:var(--ink);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .leaderboard .tm{text-align:right;font-family:monospace;color:var(--dim);}
+  .lb-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .lb-tabs button{
+    flex:1;padding:8px 12px;border:2px solid #ddd;border-radius:8px;
+    background:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;color:var(--ink);
+  }
+  .lb-tabs button.active{background:var(--bench3);color:#fff;border-color:var(--bench3);}
 </style>
 </head>
 <body>
@@ -192,6 +214,7 @@
       12 rounds, 120 points possible.
     </p>
     <button class="primary" id="btn-start">Start Practice</button>
+    <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
 
   <!-- ===== GAME SCREEN ===== -->
@@ -217,7 +240,19 @@
     <div class="end-score" id="end-score">0</div>
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
+  </div>
+
+  <!-- ===== LEADERBOARD SCREEN ===== -->
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3>Top scores</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="lb-tabs" id="lb-tabs"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:#555;margin-top:16px;">Back</button>
   </div>
 </div>
 
@@ -226,14 +261,19 @@
   // ========== STATE ==========
   const GOAL = 120;
   const TOTAL_ROUNDS = 12;
-  let state = { round:0, score:0, locked:false, modeSeq:[] };
+  const PERIODS = ['2','6','7'];
+  let state = { round:0, score:0, locked:false, modeSeq:[], startTime:0 };
+  let player = { name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
 
   const els = {
     start: document.getElementById('screen-start'),
     game: document.getElementById('screen-game'),
     end: document.getElementById('screen-end'),
+    lb: document.getElementById('screen-leaderboard'),
     btnStart: document.getElementById('btn-start'),
     btnAgain: document.getElementById('btn-again'),
+    btnViewLb: document.getElementById('btn-view-lb'),
+    btnBackFromLb: document.getElementById('btn-back-from-lb'),
     hudRound: document.getElementById('hud-round'),
     hudMode: document.getElementById('hud-mode'),
     hudScore: document.getElementById('hud-score'),
@@ -244,10 +284,14 @@
     endTitle: document.getElementById('end-title'),
     endScore: document.getElementById('end-score'),
     endMsg: document.getElementById('end-msg'),
+    endLeaderboard: document.getElementById('end-leaderboard'),
+    lbTabs: document.getElementById('lb-tabs'),
+    lbBody: document.getElementById('lb-body'),
   };
+  const allScreens = [els.start, els.game, els.end, els.lb];
 
   function showScreen(s){
-    [els.start, els.game, els.end].forEach(x=>x.classList.add('hidden'));
+    allScreens.forEach(x=>x.classList.add('hidden'));
     s.classList.remove('hidden');
   }
 
@@ -279,6 +323,67 @@
     return isNaN(n) ? NaN : n;
   }
 
+  // ========== Firebase score helpers ==========
+  const DB_PATH = 'elapsed_scores';
+  const esc = t => String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtClock = sec => { sec=Math.max(0,Math.round(sec)); return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'); };
+
+  async function saveRun(rec){
+    if(!Shared.DB_OK) return;
+    try{ await Shared.DB.ref(DB_PATH).push(rec); }catch(e){ console.warn('save failed',e); }
+  }
+  async function loadRuns(period){
+    if(!Shared.DB_OK) return [];
+    try{
+      const results = [];
+      const s1 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s1.forEach(c=> results.push(c.val()));
+      const n = Number(period);
+      if(!isNaN(n)){
+        const s2 = await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(n).once('value');
+        s2.forEach(c=> results.push(c.val()));
+      }
+      return results;
+    }catch(e){ console.warn('load failed',e); return []; }
+  }
+  function bestBy(runs){
+    const m = {};
+    runs.forEach(r => {
+      const k = r.nameKey || String(r.name||'').toLowerCase();
+      const cur = m[k];
+      if(!cur || r.score > cur.score || (r.score === cur.score && r.timeSec < cur.timeSec)) m[k] = r;
+    });
+    return Object.values(m);
+  }
+  function renderLbTable(rows, container, periodLabel){
+    if(!rows.length){ container.innerHTML = '<p>No runs yet for this period.</p>'; return; }
+    let html = '';
+    if(periodLabel) html += `<h3>Period ${periodLabel} leaders</h3>`;
+    html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i) => {
+      const me = player.nameKey && (r.nameKey||'') === player.nameKey;
+      html += `<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td>`+
+              `<td class="sc">${r.score}</td><td class="tm">${r.timeSec!=null?fmtClock(r.timeSec):'—'}</td></tr>`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+  }
+  async function showLeaderboard(period){
+    els.lbBody.innerHTML = '<p>Loading…</p>';
+    els.lbTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.per === String(period)));
+    const runs = await loadRuns(period);
+    const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+    renderLbTable(rows, els.lbBody);
+  }
+  PERIODS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent = 'P'+p; btn.dataset.per = p;
+    btn.addEventListener('click', ()=> showLeaderboard(p));
+    els.lbTabs.appendChild(btn);
+  });
+  els.btnViewLb.addEventListener('click', ()=>{ showScreen(els.lb); showLeaderboard(player.period || PERIODS[0]); });
+  els.btnBackFromLb.addEventListener('click', ()=> showScreen(els.start));
+
   // ========== GAME FLOW ==========
   // bench='simple' -> all 12 rounds are 'elapsed' (digital subtraction)
   // bench='startstop' -> all 12 rounds are 'scrub' (monster scrubber)
@@ -299,8 +404,10 @@
   els.btnStart.addEventListener('click', ()=>{
     state.round = 0;
     state.score = 0;
+    state.startTime = Date.now();
     state.modeSeq = buildModeSequence();
     els.hudScore.textContent = `0 of ${GOAL} points`;
+    els.endLeaderboard.style.display = 'none';
     showScreen(els.game);
     nextRound();
   });
@@ -337,7 +444,7 @@
     setTimeout(nextRound, 1800);
   }
 
-  function finishGame(){
+  async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent = state.score;
     if(state.score >= 120){
@@ -352,6 +459,20 @@
     } else {
       els.endTitle.textContent = 'Round complete';
       els.endMsg.textContent = 'Keep practicing \u2014 hundredths of a second take time to master.';
+    }
+    // Save score to Firebase
+    if(player.loggedIn && !player.demo && !player.teacher){
+      const timeSec = Math.round((Date.now() - state.startTime) / 1000);
+      await saveRun({
+        name: player.name, nameKey: player.nameKey,
+        period: String(player.period), bench, score: state.score, timeSec, ts: Date.now()
+      });
+      const runs = await loadRuns(player.period);
+      const rows = bestBy(runs).sort((a,b)=> b.score-a.score || a.timeSec-b.timeSec).slice(0,10);
+      if(rows.length){
+        renderLbTable(rows, els.endLeaderboard, player.period);
+        els.endLeaderboard.style.display = 'block';
+      }
     }
   }
 
@@ -928,7 +1049,15 @@
   // ========== POST-MESSAGE LOGIN ==========
   window.addEventListener('message', e => {
     if(e.data && e.data.type === 'etb-login'){
-      bench = e.data.bench || 'simple';
+      const d = e.data;
+      bench = d.bench || 'simple';
+      player.name = d.name || '';
+      player.nameKey = Shared.normalizeName(d.name || '');
+      player.period = String(d.period || '');
+      player.demo = !!d.demo;
+      player.teacher = !!d.teacher;
+      player.loggedIn = true;
+
       if(bench === 'simple'){
         document.getElementById('titlebar-text').textContent = 'Simple Elapsed Time';
         document.getElementById('titlebar-badge').textContent = 'SIMPLE';
