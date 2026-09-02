@@ -361,8 +361,8 @@ const INTERIOR_OBJECTS = {
     { id: 'mmBench', kind: 'workbench', img: workbenchImg, col: 5, row: 2, label: 'Measure to the Millimeter Work Bench', shortLabel: 'Millimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
     { id: 'cmBench', kind: 'workbench', img: workbenchImg, col: 8, row: 2, label: 'Measure to the Centimeter Work Bench', shortLabel: 'Centimeter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'cm' },
     { id: 'mBench', kind: 'workbench', img: workbenchImg, col: 11, row: 2, label: 'Measure to the Meter Work Bench', shortLabel: 'Meter', src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
-    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 1, row: 5, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed', triggerC: 2, triggerR: 5 },
-    { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 13, row: 4, label: 'Rounding to Hundredths Work Bench', shortLabel: 'Rounding', src: 'rounding-bench.html', messageType: 'rb-login', triggerC: 12, triggerR: 4 },
+    { id: 'mixedBench', kind: 'workbench', img: workbenchImg, col: 1, row: 7, label: 'Mixed Practice Work Bench', shortLabel: 'Mixed Practice', src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed', triggerC: 2, triggerR: 7 },
+    { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 1, row: 5, label: 'Rounding to Hundredths Work Bench', shortLabel: 'Rounding', src: 'rounding-bench.html', messageType: 'rb-login', triggerC: 2, triggerR: 5 },
     { id: 'averageBench', kind: 'workbench', img: workbenchImg, col: 13, row: 6, label: 'Averaging Work Bench', shortLabel: 'Averaging', src: 'average-bench.html', messageType: 'ab-login', triggerC: 12, triggerR: 6 },
   ],
   blue: [
