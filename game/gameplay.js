@@ -163,8 +163,24 @@ function drawInterior() {
   mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
   const interior = interiorFor(scene.buildingId);
   const floor = INTERIOR_FLOORS[scene.buildingId] || floorImg;
-  const ox = (mapCanvas.width - interior.cols * TILE) / 2;
-  const oy = (mapCanvas.height - interior.rows * TILE) / 2;
+  const roomW = interior.cols * TILE, roomH = interior.rows * TILE;
+  // If the room fits in the viewport, center it (original behavior).
+  // If it's bigger, scroll with the player like the overworld camera.
+  let ox, oy;
+  if (roomW <= mapCanvas.width) {
+    ox = (mapCanvas.width - roomW) / 2;
+  } else {
+    const spriteSize = FRAME * SCALE;
+    const camX = player.x + spriteSize / 2 - mapCanvas.width / 2;
+    ox = -Math.max(0, Math.min(roomW - mapCanvas.width, camX));
+  }
+  if (roomH <= mapCanvas.height) {
+    oy = (mapCanvas.height - roomH) / 2;
+  } else {
+    const spriteSize = FRAME * SCALE;
+    const camY = player.y + spriteSize / 2 - mapCanvas.height / 2;
+    oy = -Math.max(0, Math.min(roomH - mapCanvas.height, camY));
+  }
   interiorOrigin = { x: ox, y: oy };
   mapCtx.save();
   mapCtx.translate(ox, oy);
@@ -232,7 +248,11 @@ function drawInterior() {
   mapCtx.fillText(b ? b.name + ' — interior' : 'Interior', mapCanvas.width / 2, 22);
   mapCtx.fillStyle = '#9aa7b8';
   mapCtx.font = '11px Trebuchet MS, sans-serif';
-  mapCtx.fillText('Walk to the glowing tile to leave', mapCanvas.width / 2, oy + interior.rows * TILE + 18);
+  const hintY = oy + interior.rows * TILE + 18;
+  // Only show the hint if the exit area is currently on screen
+  if (hintY > 0 && hintY < mapCanvas.height) {
+    mapCtx.fillText('Walk to the glowing tile to leave', mapCanvas.width / 2, hintY);
+  }
 }
 
 function drawMap() {
