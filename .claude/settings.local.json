@@ -18,7 +18,13 @@
       "Bash(node -c game/gameplay.js)",
       "Bash(node -c game/world.js)",
       "Bash(node -c game/npcs.js)",
-      "WebFetch(domain:place-value-bench-default-rtdb.firebaseio.com)"
+      "WebFetch(domain:place-value-bench-default-rtdb.firebaseio.com)",
+      "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPhone 17' build)",
+      "Read(//Users/nicholaswright/Downloads/**)",
+      "Bash(sips -g pixelWidth -g pixelHeight IMG_5691.PNG IMG_5689.PNG IMG_5688.PNG IMG_5687.PNG)",
+      "Bash(sips *)",
+      "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPad Air 11-inch \\(M4\\)' build)"
     ]
   }
 }
