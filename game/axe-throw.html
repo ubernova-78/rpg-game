@@ -21,7 +21,7 @@
   body{margin:0;font-family:'Segoe UI',Verdana,sans-serif;background:var(--bg);color:var(--paper);
     min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
   .app{width:100%;max-width:780px;background:var(--paper);color:var(--ink);
-    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;border:3px solid var(--bg3);}
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow-y:auto;border:3px solid var(--bg3);}
   .titlebar{background:linear-gradient(135deg,var(--bg2),var(--bg3));padding:14px 20px;
     display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--accent);}
   .titlebar h1{margin:0;font-size:1.3rem;color:var(--paper);letter-spacing:0.5px;}
@@ -390,7 +390,7 @@
 
     // Oscillation
     let pos=Math.random()<0.5?-0.8:0.8,dir=pos<0?1:-1;
-    let speed=0.02+Math.random()*0.025,phase='h',lockedX=0,animId=null;
+    let speed=0.04+Math.random()*0.03,phase='h',lockedX=0,animId=null;
 
     function animate(){
       pos+=speed*dir;if(pos>=1){pos=1;dir=-1;}if(pos<=-1){pos=-1;dir=1;}
@@ -407,7 +407,7 @@
         hWrap.style.display='none';hLabel.style.display='none';
         vWrap.style.display='';vLabel.style.display='';
         prompt.textContent='Press SPACE to set up/down aim';
-        pos=Math.random()<0.5?-0.7:0.7;dir=pos<0?1:-1;speed=0.02+Math.random()*0.025;
+        pos=Math.random()<0.5?-0.7:0.7;dir=pos<0?1:-1;speed=0.04+Math.random()*0.03;
       } else {
         const lockedY=pos;cancelAnimationFrame(animId);document.removeEventListener('keydown',handleKey);
         // Calculate landing
