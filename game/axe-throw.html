@@ -438,8 +438,9 @@
     const t=state.throws[idx];
     els.measurePrompt.textContent=`Throw #${idx+1} landed! Measure the distance from the center.`;
 
-    // Log with highlight
+    // Log with highlight — smaller on measure screen so ruler fits
     const canvas=document.createElement('canvas');canvas.className='log-canvas';
+    canvas.style.width='140px';canvas.style.height='140px';
     drawLog(canvas,state.throws,idx);
     els.measureBody.appendChild(canvas);
 
@@ -465,26 +466,35 @@
     row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
     els.measureBody.appendChild(row);
 
+    // Scroll ruler into view
+    requestAnimationFrame(()=>rulerContainer.scrollIntoView({behavior:'smooth',block:'center'}));
+
+    let locked=false;
     function submit(){
+      if(locked)return;
       const raw=inp.value.trim();if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
       const val=parseFloat(raw);if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
-      state.measurements.push(val);
       // Check measurement (±0.05 cm = half a mm)
       const ok=Math.abs(val-t.distCm)<=0.05;
       if(ok){
+        locked=true;
+        sub.disabled=true;sub.style.opacity='0.5';
+        state.measurements.push(val);
         state.roundEXP+=MEASURE_EXP;state.roundCoins+=coinFromExp(MEASURE_EXP);
         els.measureFeedback.textContent=`Correct! ${t.distCm.toFixed(1)} cm. +${MEASURE_EXP} EXP`;
         els.measureFeedback.className='feedback show good';
+        state.currentThrow++;
+        setTimeout(()=>{
+          if(state.currentThrow<state.numThrows) showAimPhase();
+          else if(REQUIRE_AVERAGE) showAveragePhase();
+          else finishRound(false);
+        },1600);
       } else {
-        els.measureFeedback.textContent=`Not quite — the distance was ${t.distCm.toFixed(1)} cm.`;
+        els.measureFeedback.textContent='Not quite — try again!';
         els.measureFeedback.className='feedback show bad';
+        inp.value='';
+        inp.focus();
       }
-      state.currentThrow++;
-      setTimeout(()=>{
-        if(state.currentThrow<state.numThrows) showAimPhase();
-        else if(REQUIRE_AVERAGE) showAveragePhase();
-        else finishRound(false);
-      },1600);
     }
     sub.addEventListener('click',submit);
     inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
