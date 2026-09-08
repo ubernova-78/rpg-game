@@ -297,9 +297,20 @@ window.addEventListener('message', e => {
     const openSlot = inventory.findIndex(x => x === null);
     if (openSlot !== -1) {
       inventory[openSlot] = item;
-      renderInventory();
-      saveSession();
+    } else if (item.equipType && !equipped[item.equipType]) {
+      // No inventory space but the equip slot is free — equip directly
+      equipped[item.equipType] = item;
+      if (item.manifestKey != null) {
+        loadout[item.manifestKey] = item.manifestIndex;
+        variantIndex[item.manifestKey] = item.variantIndex || 0;
+      }
+      recomposite();
+    } else {
+      // No room at all — skip silently for now
+      return;
     }
+    renderInventory();
+    saveSession();
   }
 });
 
