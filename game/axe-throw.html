@@ -60,20 +60,20 @@
   .aim-prompt{font-weight:800;font-size:1rem;color:var(--gold);margin:10px 0;text-align:center;}
   .throw-count{font-weight:700;font-size:0.95rem;color:var(--dim);margin:8px 0;text-align:center;}
 
-  /* Ruler */
+  /* Ruler — matches measure-bench layout so measure-shared.js renders correctly */
   .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
-  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
-    border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
+  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#fff;border:2px solid #333;
+    border-radius:8px;height:150px;cursor:grab;margin-bottom:14px;}
   .tape-wrap:active{cursor:grabbing;}
-  .tape-inner{position:relative;height:100%;}
+  .tape-inner{position:relative;height:100%;display:flex;align-items:flex-end;}
   .measure-bar{position:absolute;top:65px;height:20px;background:rgba(52,120,180,0.2);border:2px solid #3478b4;border-radius:2px;}
-  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;color:var(--bg3);z-index:2;}
-  .mm-bg{position:absolute;top:8px;left:0;height:16px;}
-  .tick{position:absolute;top:8px;width:1px;background:#999;}
+  .unit-badge{position:absolute;top:12px;left:14px;font-size:1.4rem;font-weight:900;color:#333;
+    background:rgba(255,255,255,0.85);padding:2px 12px;border-radius:6px;border:2px solid #333;z-index:5;pointer-events:none;}
+  .mm-bg{position:absolute;bottom:0;left:0;height:16px;}
+  .tick{position:absolute;bottom:0;width:2px;background:#333;}
+  .tick.cm{width:1px;height:18px;}
   .tick.half-cm{width:1.5px;}
-  .tick.cm{background:#333;width:1.5px;height:30px;}
-  .tick-label{position:absolute;top:38px;font-size:11px;font-weight:700;color:#333;transform:translateX(-50%);}
-  .tick-label.cm{top:38px;}
+  .tick-label{position:absolute;font-size:0.72rem;font-weight:700;color:#333;transform:translateX(-50%);white-space:nowrap;bottom:20px;}
 
   .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
   .measure-input{width:120px;padding:8px;font-size:1.1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:'Courier New',monospace;}
