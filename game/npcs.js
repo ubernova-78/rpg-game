@@ -131,11 +131,11 @@ const NPC_DEFS = [
     range: 2,
     spec: {
       head: 'head6', hair: 'hair2', top: 'top5', bottom: 'bottom5',
-      weapon: 'pickaxe1', skinTone: 2,
-      variantIndex: { top: 2 }, // earthy brown
+      hat: 'hat2', weapon: 'pickaxe1', skinTone: 2,
+      variantIndex: { top: 2, hat: 1 }, // earthy brown top, brown leather hat
     },
-    message: "Think you've got a steady arm? Try your hand at axe throwing! Hit the center of the log and measure your accuracy. Land a bullseye and nail the average to earn a Woodsman's Axe.",
-    game: { src: 'axe-throw.html', messageType: 'axe-login', label: 'Axe Throwing' },
+    message: "Think you've got a steady arm? Try your hand at axe throwing! Measure where each axe lands — get all 4 throws within 1.5 cm and you'll earn a Woodsman's Axe. It hits twice as hard in battle!",
+    game: { src: 'axe-throw.html', messageType: 'axe-login', label: 'Axe Throwing', buttonLabel: 'Train at Axe Throwing' },
   },
 ];
 for (const npc of NPC_DEFS) {
@@ -214,7 +214,7 @@ function openNpcDialogue(npc) {
   msg.style.margin = '0 0 8px';
   wbBody.appendChild(msg);
   if (npc.game) {
-    wbBody.appendChild(gateButton('Train at the ' + npc.game.label, () => {
+    wbBody.appendChild(gateButton((npc.game.buttonLabel || 'Train at the ' + npc.game.label), () => {
       closeWorkbench();
       openGameOverlay(npc.game);
     }));

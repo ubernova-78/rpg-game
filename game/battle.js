@@ -361,7 +361,7 @@ function runBattle({ monsterDef, onEnd }) {
     const roundKey = pickRoundKey();
     battleModeTag.textContent = QUESTION_MODULES[roundKey].name.replace('Place Value — ', '');
     QUESTION_MODULES[roundKey].render(qHost, {
-      onCorrect: () => playAttack('player', () => { state.monsterHp -= 1; afterAnswer(true); }),
+      onCorrect: () => { const dmg = (equipped.weapon && equipped.weapon.name === "Woodsman's Axe") ? 2 : 1; playAttack('player', () => { state.monsterHp -= dmg; afterAnswer(true); }); },
       onWrong: () => playAttack('monster', () => { playerStats.hp -= 1; afterAnswer(false); }),
       onHintReady: (fn) => { lastHintFn = fn; },
     });
@@ -372,10 +372,11 @@ function runBattle({ monsterDef, onEnd }) {
     if (playerStats.hp <= 0) { renderDefeat(); return; }
     battleModeTag.textContent = '';
     battleBody.innerHTML = '';
-    battleBody.appendChild(statusHeading(correct ? 'Hit!' : 'Ouch!'));
+    const hasAxe = equipped.weapon && equipped.weapon.name === "Woodsman's Axe";
+    battleBody.appendChild(statusHeading(correct ? (hasAxe ? 'Double Hit!' : 'Hit!') : 'Ouch!'));
     const msg = document.createElement('div');
     msg.className = 'wb-modal-body';
-    msg.textContent = correct ? 'Direct hit \u2014 nice work!' : 'That one got past your guard.';
+    msg.textContent = correct ? (hasAxe ? 'The axe strikes twice \u2014 2 damage!' : 'Direct hit \u2014 nice work!') : 'That one got past your guard.';
     battleBody.appendChild(msg);
     updateHpBars(state.monsterHp, monsterDef.maxHp);
     battleBody.appendChild(gateButton('Continue', renderQuestion));

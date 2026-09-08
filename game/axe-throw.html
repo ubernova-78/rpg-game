@@ -68,7 +68,9 @@
   .tape-inner{position:relative;height:100%;}
   .measure-bar{position:absolute;top:65px;height:20px;background:rgba(52,120,180,0.2);border:2px solid #3478b4;border-radius:2px;}
   .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;color:var(--bg3);z-index:2;}
+  .mm-bg{position:absolute;bottom:0;left:0;height:16px;}
   .tick{position:absolute;top:8px;width:1px;background:#999;}
+  .tick.half-cm{width:1.5px;}
   .tick.cm{background:#333;width:1.5px;height:30px;}
   .tick-label{position:absolute;top:38px;font-size:11px;font-weight:700;color:#333;transform:translateX(-50%);}
   .tick-label.cm{top:38px;}
@@ -136,8 +138,8 @@
   <!-- START -->
   <div class="screen" id="screen-start">
     <div class="start-title">Axe Throwing Challenge</div>
-    <div class="start-sub">Throw axes at the log target! After each throw, measure how far from the center your axe landed. Then calculate the average distance of all your throws. Land a bullseye and get the average right to earn a Woodsman's Axe!</div>
-    <p style="font-size:0.9rem;color:var(--dim);">3–4 throws per round. Measure in cm, average to the hundredth.</p>
+    <div class="start-sub">Throw axes at the log target! After each throw, measure how far from the center your axe landed. Measure all 4 throws within 1.5 cm to earn a Woodsman's Axe!</div>
+    <p style="font-size:0.9rem;color:var(--dim);">4 throws per round. Measure each distance in cm.</p>
     <button class="primary" id="btn-start">Start Throwing</button>
     <button class="primary" id="btn-view-lb" style="background:var(--steel);margin-top:10px;">View leaderboard</button>
   </div>
@@ -209,7 +211,10 @@
   const AXE_COLORS=['#c1443a','#f6c90e','#1a936f','#4488ff'];
   const LOG_SIZE=220, LOG_R=LOG_SIZE/2-10, LOG_CX=LOG_SIZE/2, LOG_CY=LOG_SIZE/2;
   const MAX_DIST_CM=8, PX_PER_CM=LOG_R/MAX_DIST_CM;
+  const NUM_THROWS=4;
   const MEASURE_EXP=12, BULLSEYE_BONUS=40, HIT_BONUS=20;
+  const MEASURE_TOLERANCE=1.5; // cm — all measurements must be within this to win the axe
+  const REQUIRE_AVERAGE=false; // flip to true once students learn averages
   function coinFromExp(e){return Math.floor(e/2);}
 
   const $=id=>document.getElementById(id);
@@ -265,6 +270,34 @@
   els.btnViewLb.addEventListener('click',()=>{showScreen(els.lb);showLb(state.period||PERIODS[0]);});
   els.btnBackFromLb.addEventListener('click',()=>showScreen(els.start));
 
+  // ---------- Mini axe icon ----------
+  function drawMiniAxe(ctx,x,y,scale,color){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.scale(scale,scale);
+    // Handle (wooden stick)
+    ctx.fillStyle='#6b4226';
+    ctx.fillRect(-1,-10,2,20);
+    // Handle outline
+    ctx.strokeStyle='#3d2010';ctx.lineWidth=0.6;
+    ctx.strokeRect(-1,-10,2,20);
+    // Blade (wedge shape)
+    ctx.beginPath();
+    ctx.moveTo(-1,-6);
+    ctx.lineTo(-9,-10);
+    ctx.quadraticCurveTo(-11,-4,-9,2);
+    ctx.lineTo(-1,0);
+    ctx.closePath();
+    ctx.fillStyle=color;ctx.fill();
+    ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.stroke();
+    // Blade edge highlight
+    ctx.beginPath();
+    ctx.moveTo(-8,-8);
+    ctx.quadraticCurveTo(-10,-4,-8,1);
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=0.8;ctx.stroke();
+    ctx.restore();
+  }
+
   // ---------- Draw log round ----------
   function drawLog(canvas,throws,highlightIdx){
     canvas.width=LOG_SIZE;canvas.height=LOG_SIZE;
@@ -294,12 +327,11 @@
       // Line from center
       ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(dx,dy);
       ctx.strokeStyle=AXE_COLORS[i];ctx.lineWidth=isHi?2:1;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
-      // Axe marker
-      ctx.beginPath();ctx.arc(dx,dy,isHi?8:6,0,Math.PI*2);
-      ctx.fillStyle=AXE_COLORS[i];ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=isHi?2:1;ctx.stroke();
+      // Axe marker (small axe icon)
+      drawMiniAxe(ctx,dx,dy,isHi?1.3:1,AXE_COLORS[i]);
       // Label
-      ctx.fillStyle='#fff';ctx.font=`bold ${isHi?12:10}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(String(i+1),dx,dy);
+      ctx.fillStyle='#fff';ctx.font=`bold ${isHi?11:9}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(i+1),dx,dy+1);
     }
   }
 
@@ -310,7 +342,7 @@
 
   function startNewRound(){
     els.itemPopup.classList.add('hidden');
-    state.numThrows=randInt(3,4);
+    state.numThrows=NUM_THROWS;
     state.throws=[];state.measurements=[];state.bestMiss=Infinity;
     state.currentThrow=0;state.roundEXP=0;state.roundCoins=0;
     els.endLeaderboard.style.display='none';
@@ -449,7 +481,8 @@
       state.currentThrow++;
       setTimeout(()=>{
         if(state.currentThrow<state.numThrows) showAimPhase();
-        else showAveragePhase();
+        else if(REQUIRE_AVERAGE) showAveragePhase();
+        else finishRound(false);
       },1600);
     }
     sub.addEventListener('click',submit);
@@ -554,8 +587,9 @@
     els.endExp.textContent=state.roundEXP;
     els.endCoins.textContent=state.roundCoins;
 
-    // Axe reward: bullseye AND correct average
-    const earnedAxe=best<=1&&avgCorrect;
+    // Axe reward: all measurements within tolerance (and avg correct if required)
+    const allMeasClose=state.measurements.every((m,i)=>Math.abs(m-state.throws[i].distCm)<=MEASURE_TOLERANCE);
+    const earnedAxe=REQUIRE_AVERAGE?(allMeasClose&&avgCorrect):allMeasClose;
     if(earnedAxe){
       els.endMsg.textContent='You earned the Woodsman\'s Axe!';
       setTimeout(()=>els.itemPopup.classList.remove('hidden'),800);
@@ -566,10 +600,26 @@
           manifestIndex:4,variantIndex:0 // pickaxe1_c2 index
         }},'*');
       }
-    } else if(best<=1){
-      els.endMsg.textContent='Bullseye! Get the average right too to earn the axe.';
+    } else if(!allMeasClose){
+      els.endMsg.textContent='Measure all throws within 1.5 cm to earn the axe!';
     } else {
       els.endMsg.textContent='Train your aim and measurement skills!';
+    }
+
+    // Show measurement summary when average phase is skipped
+    if(!REQUIRE_AVERAGE){
+      const actualDists=state.throws.map(t=>t.distCm);
+      const table=document.createElement('table');table.className='summary-table';
+      table.innerHTML='<thead><tr><th>#</th><th>Your Measurement</th><th>Actual</th><th></th></tr></thead>';
+      const tbody=document.createElement('tbody');
+      for(let i=0;i<state.numThrows;i++){
+        const ok=Math.abs(state.measurements[i]-actualDists[i])<=MEASURE_TOLERANCE;
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i+1}</td><td>${state.measurements[i]} cm</td><td>${actualDists[i].toFixed(1)} cm</td><td class="${ok?'correct':'wrong'}">${ok?'✓':'✗'}</td>`;
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      els.resultBanner.insertAdjacentElement('afterend',table);
     }
 
     // Save to Firebase
