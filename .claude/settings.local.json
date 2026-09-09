@@ -24,7 +24,9 @@
       "Read(//Users/nicholaswright/Downloads/**)",
       "Bash(sips -g pixelWidth -g pixelHeight IMG_5691.PNG IMG_5689.PNG IMG_5688.PNG IMG_5687.PNG)",
       "Bash(sips *)",
-      "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPad Air 11-inch \\(M4\\)' build)"
+      "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPad Air 11-inch \\(M4\\)' build)",
+      "Bash(md5 *)",
+      "Bash(git push *)"
     ]
   }
 }
