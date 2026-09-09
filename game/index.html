@@ -578,15 +578,15 @@
       </div>
 
       <div id="storageChestModal" class="wb-modal hidden">
-        <div class="creator-inner" style="max-width:480px;">
+        <div class="creator-inner" style="max-width:680px;max-height:90vh;overflow-y:auto;">
           <div class="creator-title">Storage Chest</div>
           <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Tap an item in your inventory to store it. Tap a stored item to take it back.</p>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
-            <div>
+          <div style="display:flex;gap:16px;justify-content:center;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
               <h3 style="font-size:12px;margin:0 0 6px;">Your Inventory</h3>
               <div class="inv-grid" id="storageInvGrid"></div>
             </div>
-            <div>
+            <div style="flex:1;min-width:0;">
               <h3 style="font-size:12px;margin:0 0 6px;">Chest Storage</h3>
               <div class="inv-grid" id="storageChestGrid"></div>
             </div>

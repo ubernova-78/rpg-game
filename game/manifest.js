@@ -740,6 +740,12 @@ const MANIFEST = {
    "variants": [
     "sword1_c3.png"
    ]
+  },
+  {
+   "id": "axe1",
+   "variants": [
+    "axe1.png"
+   ]
   }
  ]
 };

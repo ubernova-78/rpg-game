@@ -59,9 +59,23 @@ function loadSessionIntoGame() {
 
   inventory.fill(null);
   if (Array.isArray(rec.inventory)) {
-    rec.inventory.forEach((item, i) => { if (i < inventory.length) inventory[i] = item; });
+    rec.inventory.forEach((item, i) => {
+      if (i >= inventory.length) return;
+      // Drop corrupt items that have no valid manifest entry
+      if (item && item.kind !== 'consumable') {
+        const entry = MANIFEST[item.manifestKey] && MANIFEST[item.manifestKey][item.manifestIndex];
+        if (!entry) return; // skip bad item
+      }
+      inventory[i] = item;
+    });
   }
-  Object.assign(equipped, { helmet: null, weapon: null, cape: null, armor: null }, rec.equipped || {});
+  // Reset to known slots only, then restore saved values for those slots
+  Object.keys(equipped).forEach(k => delete equipped[k]);
+  Object.assign(equipped, { helmet: null, weapon: null, cape: null, armor: null });
+  const saved = rec.equipped || {};
+  for (const k of ['helmet', 'weapon', 'cape', 'armor']) {
+    if (saved[k]) equipped[k] = saved[k];
+  }
   // re-apply equipped gear's visual effect on top of the base look above
   for (const item of Object.values(equipped)) {
     if (item) { loadout[item.manifestKey] = item.manifestIndex; variantIndex[item.manifestKey] = item.variantIndex || 0; }
@@ -294,20 +308,27 @@ window.addEventListener('message', e => {
     const alreadyOwned = inventory.some(x => x && x.name === item.name) ||
       Object.values(equipped).some(x => x && x.name === item.name);
     if (alreadyOwned) return;
+    if (!hasBackpack) {
+      // Show popup telling them to get the backpack first
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200;';
+      const box = document.createElement('div');
+      box.style.cssText = 'background:#f0ece2;color:#1a1a2e;padding:28px;border-radius:14px;text-align:center;max-width:340px;border:3px solid #f6c90e;box-shadow:0 10px 40px rgba(0,0,0,0.5);';
+      box.innerHTML = `<div style="font-size:2.5rem;margin-bottom:8px;">🪓</div><h3 style="margin:0 0 8px;">You earned a ${item.name}!</h3><p style="color:#7a7a8e;margin:0 0 16px;">But you don't have a backpack to carry it. Go to your house and find one — the axe will be waiting for you when you come back!</p>`;
+      const btn = document.createElement('button');
+      btn.textContent = 'OK';
+      btn.style.cssText = 'padding:10px 28px;border:none;border-radius:8px;background:#1a936f;color:#fff;font-weight:700;font-size:1rem;cursor:pointer;';
+      btn.addEventListener('click', () => overlay.remove());
+      box.appendChild(btn);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      return;
+    }
     const openSlot = inventory.findIndex(x => x === null);
     if (openSlot !== -1) {
       inventory[openSlot] = item;
-    } else if (item.equipType && !equipped[item.equipType]) {
-      // No inventory space but the equip slot is free — equip directly
-      equipped[item.equipType] = item;
-      if (item.manifestKey != null) {
-        loadout[item.manifestKey] = item.manifestIndex;
-        variantIndex[item.manifestKey] = item.variantIndex || 0;
-      }
-      recomposite();
     } else {
-      // No room at all — skip silently for now
-      return;
+      return; // backpack full
     }
     renderInventory();
     saveSession();

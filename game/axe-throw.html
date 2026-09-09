@@ -139,8 +139,8 @@
   <!-- START -->
   <div class="screen" id="screen-start">
     <div class="start-title">Axe Throwing Challenge</div>
-    <div class="start-sub">Throw axes at the log target! After each throw, measure how far from the center your axe landed. Measure all 4 throws within 1.5 cm to earn a Woodsman's Axe!</div>
-    <p style="font-size:0.9rem;color:var(--dim);">4 throws per round. Measure each distance in cm.</p>
+    <div class="start-sub">Throw axes at the log target! Land all 4 throws within 1.5 cm of center AND measure every distance correctly on the first try to earn a Woodsman's Axe!</div>
+    <p style="font-size:0.9rem;color:var(--dim);">4 throws per round. Measure each distance in cm. No second chances on measurements!</p>
     <button class="primary" id="btn-start">Start Throwing</button>
     <button class="primary" id="btn-view-lb" style="background:var(--steel);margin-top:10px;">View leaderboard</button>
   </div>
@@ -345,7 +345,7 @@
     els.itemPopup.classList.add('hidden');
     state.numThrows=NUM_THROWS;
     state.throws=[];state.measurements=[];state.bestMiss=Infinity;
-    state.currentThrow=0;state.roundEXP=0;state.roundCoins=0;
+    state.currentThrow=0;state.roundEXP=0;state.roundCoins=0;state.allFirstTry=true;state.firstTry=[];
     els.endLeaderboard.style.display='none';
     showAimPhase();
   }
@@ -452,10 +452,15 @@
       els.measureBody.appendChild(log);
     }
 
-    // Ruler
+    // Ruler (or bullseye notice if distance is 0)
     const rulerContainer=document.createElement('div');
-    MeasureShared.buildRulerDOM(rulerContainer,t.distCm*10,{pxPerMM:6,padMM:20,badge:'cm',
-      scaleLabel:'Scale: small ticks = mm \u00b7 numbered ticks = cm'});
+    if(t.distCm===0){
+      rulerContainer.style.cssText='text-align:center;padding:16px;font-size:1.2rem;font-weight:800;color:#1a936f;';
+      rulerContainer.textContent='🎯 Bullseye! The axe hit dead center — distance is 0.0 cm!';
+    } else {
+      MeasureShared.buildRulerDOM(rulerContainer,t.distCm*10,{pxPerMM:6,padMM:20,badge:'cm',
+        scaleLabel:'Scale: small ticks = mm \u00b7 numbered ticks = cm'});
+    }
     els.measureBody.appendChild(rulerContainer);
 
     // Input
@@ -469,7 +474,7 @@
     // Scroll ruler into view
     requestAnimationFrame(()=>rulerContainer.scrollIntoView({behavior:'smooth',block:'center'}));
 
-    let locked=false;
+    let locked=false,thisFirstTry=true;
     function submit(){
       if(locked)return;
       const raw=inp.value.trim();if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
@@ -480,6 +485,7 @@
         locked=true;
         sub.disabled=true;sub.style.opacity='0.5';
         state.measurements.push(val);
+        state.firstTry.push(thisFirstTry);
         state.roundEXP+=MEASURE_EXP;state.roundCoins+=coinFromExp(MEASURE_EXP);
         els.measureFeedback.textContent=`Correct! ${t.distCm.toFixed(1)} cm. +${MEASURE_EXP} EXP`;
         els.measureFeedback.className='feedback show good';
@@ -490,6 +496,8 @@
           else finishRound(false);
         },1600);
       } else {
+        thisFirstTry=false;
+        state.allFirstTry=false;
         els.measureFeedback.textContent='Not quite — try again!';
         els.measureFeedback.className='feedback show bad';
         inp.value='';
@@ -598,10 +606,17 @@
     els.endExp.textContent=state.roundEXP;
     els.endCoins.textContent=state.roundCoins;
 
-    // Axe reward: all measurements within tolerance (and avg correct if required)
-    const allMeasClose=state.measurements.every((m,i)=>Math.abs(m-state.throws[i].distCm)<=MEASURE_TOLERANCE);
-    const earnedAxe=REQUIRE_AVERAGE?(allMeasClose&&avgCorrect):allMeasClose;
-    if(earnedAxe){
+    // Check if student already owns the axe
+    const rec=state.record||{};
+    const inv=Array.isArray(rec.inventory)?rec.inventory:[];
+    const eq=rec.equipped||{};
+    const alreadyHasAxe=inv.some(x=>x&&x.name==="Woodsman's Axe")||
+      Object.values(eq).some(x=>x&&x.name==="Woodsman's Axe");
+
+    // Axe reward: all throws within 1.5cm of center AND all measurements correct on first try
+    const allThrowsClose=state.throws.every(t=>t.distCm<=MEASURE_TOLERANCE);
+    const earnedAxe=allThrowsClose&&state.allFirstTry&&(!REQUIRE_AVERAGE||avgCorrect);
+    if(earnedAxe&&!alreadyHasAxe){
       els.endMsg.textContent='You earned the Woodsman\'s Axe!';
       setTimeout(()=>els.itemPopup.classList.remove('hidden'),800);
       // Tell the parent hub to grant the item
@@ -611,22 +626,29 @@
           manifestIndex:4,variantIndex:0 // pickaxe1_c2 index
         }},'*');
       }
-    } else if(!allMeasClose){
-      els.endMsg.textContent='Measure all throws within 1.5 cm to earn the axe!';
+    } else if(earnedAxe&&alreadyHasAxe){
+      els.endMsg.textContent='Great accuracy! You already own the Woodsman\'s Axe.';
+    } else if(!allThrowsClose&&!state.allFirstTry){
+      els.endMsg.textContent='Land all throws within 1.5 cm and measure every distance right on the first try!';
+    } else if(!allThrowsClose){
+      els.endMsg.textContent='Land all throws within 1.5 cm of center to earn the axe!';
+    } else if(!state.allFirstTry){
+      els.endMsg.textContent='Great aim! Now measure every distance right on the first try to earn the axe!';
     } else {
       els.endMsg.textContent='Train your aim and measurement skills!';
     }
 
-    // Show measurement summary when average phase is skipped
+    // Show measurement summary
     if(!REQUIRE_AVERAGE){
-      const actualDists=state.throws.map(t=>t.distCm);
       const table=document.createElement('table');table.className='summary-table';
-      table.innerHTML='<thead><tr><th>#</th><th>Your Measurement</th><th>Actual</th><th></th></tr></thead>';
+      table.innerHTML='<thead><tr><th>#</th><th>Distance</th><th>Within 1.5 cm</th><th>First Try</th></tr></thead>';
       const tbody=document.createElement('tbody');
       for(let i=0;i<state.numThrows;i++){
-        const ok=Math.abs(state.measurements[i]-actualDists[i])<=MEASURE_TOLERANCE;
+        const dist=state.throws[i].distCm;
+        const closeEnough=dist<=MEASURE_TOLERANCE;
+        const first=state.firstTry[i];
         const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${i+1}</td><td>${state.measurements[i]} cm</td><td>${actualDists[i].toFixed(1)} cm</td><td class="${ok?'correct':'wrong'}">${ok?'✓':'✗'}</td>`;
+        tr.innerHTML=`<td>${i+1}</td><td>${dist.toFixed(1)} cm</td><td class="${closeEnough?'correct':'wrong'}">${closeEnough?'✓':'✗'}</td><td class="${first?'correct':'wrong'}">${first?'✓':'✗'}</td>`;
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);

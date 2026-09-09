@@ -343,9 +343,12 @@ function renderInventory() {
       slot.style.position = 'relative';
       slot.title = `${item.name} x${item.count} — used during battles`;
     } else if (item) {
-      const path = `assets/${item.manifestKey}/${MANIFEST[item.manifestKey][item.manifestIndex].variants[item.variantIndex || 0]}`;
-      slot.appendChild(makeThumb(path, 44));
-      slot.title = item.name;
+      const entry = MANIFEST[item.manifestKey] && MANIFEST[item.manifestKey][item.manifestIndex];
+      if (entry) {
+        const path = `assets/${item.manifestKey}/${entry.variants[item.variantIndex || 0]}`;
+        slot.appendChild(makeThumb(path, 44));
+      }
+      slot.title = item.name || 'Unknown';
       slot.addEventListener('click', () => equipItem(idx));
     } else {
       slot.innerHTML = '<span class="inv-empty">empty</span>';
@@ -411,9 +414,12 @@ function renderStorageChest() {
       slot.title = `${item.name} x${item.count}`;
       slot.addEventListener('click', () => { moveToChest(idx); });
     } else if (item) {
-      const path = `assets/${item.manifestKey}/${MANIFEST[item.manifestKey][item.manifestIndex].variants[item.variantIndex || 0]}`;
-      slot.appendChild(makeThumb(path, 44));
-      slot.title = item.name + ' (tap to store)';
+      const entry = MANIFEST[item.manifestKey] && MANIFEST[item.manifestKey][item.manifestIndex];
+      if (entry) {
+        const path = `assets/${item.manifestKey}/${entry.variants[item.variantIndex || 0]}`;
+        slot.appendChild(makeThumb(path, 44));
+      }
+      slot.title = (item.name || 'Unknown') + ' (tap to store)';
       slot.addEventListener('click', () => { moveToChest(idx); });
     } else {
       slot.innerHTML = '<span class="inv-empty">empty</span>';

@@ -131,10 +131,10 @@ const NPC_DEFS = [
     range: 2,
     spec: {
       head: 'head6', hair: 'hair2', top: 'top5', bottom: 'bottom5',
-      hat: 'hat2', weapon: 'pickaxe1', skinTone: 2,
+      hat: 'hat2', weapon: 'axe1', skinTone: 2,
       variantIndex: { top: 2, hat: 1 }, // earthy brown top, brown leather hat
     },
-    message: "Think you've got a steady arm? Try your hand at axe throwing! Measure where each axe lands — get all 4 throws within 1.5 cm and you'll earn a Woodsman's Axe. It hits twice as hard in battle!",
+    message: "Think you've got a steady arm? Try your hand at axe throwing! Land all 4 throws within 1.5 cm of center and measure every distance right on the first try to earn a Woodsman's Axe. It hits twice as hard in battle!",
     game: { src: 'axe-throw.html', messageType: 'axe-login', label: 'Axe Throwing', buttonLabel: 'Train at Axe Throwing' },
   },
 ];
