@@ -741,7 +741,8 @@
   // At power=100, angle=45: range = k * 1 * sin(90) = k * 1 = k => k = 65
   const K = 65;
   const WALL_FRAC = 0.30;   // wall at 30% of target distance
-  const MONSTER_H = 2;      // monster (and wall) height in meters
+  const MONSTER_H = 2;      // monster height in meters
+  const WALL_H = MONSTER_H * 2;  // wall is twice the monster's height — 4 m
 
   function computeRange(power, angleDeg){
     const p = power / 100;
@@ -927,9 +928,24 @@
   });
 
   // ========== ROUND MANAGEMENT ==========
-  function startNewRound(){
-    state.targetDist = Math.floor(Math.random() * 41) + 20; // 20-60
+  // The marauder repositions before every arrow, so a student can't just reuse
+  // the power/angle that worked last shot. Each move is at least MIN_MONSTER_MOVE
+  // meters so it always reads as a real change on screen.
+  const MIN_MONSTER_MOVE = 8;
+  function placeMonster(){
+    const prev = state.targetDist;
+    let d;
+    do {
+      d = Math.floor(Math.random() * 41) + 20; // 20-60
+    } while(prev && Math.abs(d - prev) < MIN_MONSTER_MOVE);
+    state.targetDist = d;
     state.wallDist = Math.round(state.targetDist * WALL_FRAC);
+    return prev && d !== prev ? (d > prev ? 'back' : 'closer') : null;
+  }
+
+  function startNewRound(){
+    state.targetDist = 0;
+    placeMonster();
     state.shotNum = 0;
     state.shots = [];
     state.bestMiss = Infinity;
@@ -947,13 +963,18 @@
 
   function startAimPhase(){
     showScreen(els.aim);
+    // Shot 1's position is set by startNewRound; every later shot moves the monster.
+    const moved = state.shotNum > 0 ? placeMonster() : null;
     els.hudTarget.textContent = `Target: ${state.targetDist} m`;
     els.hudScore.textContent = `EXP: ${state.roundEXP} · 🪙 ${state.roundCoins}`;
     state.power = 0;
     state.charging = false;
     state.fired = false;
     state.arrowAnimating = false;
-    els.aimInstructions.innerHTML = 'Hold <kbd>Space</kbd> to charge power, release to fire. <kbd>↑</kbd>/<kbd>↓</kbd> to adjust angle.';
+    const controlsHint = 'Hold <kbd>Space</kbd> to charge power, release to fire. <kbd>↑</kbd>/<kbd>↓</kbd> to adjust angle.';
+    els.aimInstructions.innerHTML = moved
+      ? `<strong>The marauder moved ${moved === 'back' ? 'further away' : 'closer'} — now ${state.targetDist} m!</strong><br>${controlsHint}`
+      : controlsHint;
     updatePowerUI();
     updateAngleUI();
     paintShotPips();
@@ -1151,9 +1172,9 @@
   }
 
   function drawWall(x, gy){
-    // The wall is the same visual height as the monster (~36px on canvas).
-    // Stone grey rectangle with crenellations on top.
-    const wallH = 36; // same pixel height as monster body
+    // Stone grey rectangle with crenellations on top, drawn at WALL_H meters
+    // (twice the monster's height) using the shared metre-to-pixel scale.
+    const wallH = WALL_H * M_TO_PX;
     const wallW = 16;
     // Main wall body
     ctx.fillStyle = '#8a8a7a';
@@ -1161,7 +1182,8 @@
     // Stone lines
     ctx.strokeStyle = '#6e6e60';
     ctx.lineWidth = 1;
-    for(let row = 0; row < 4; row++){
+    const stoneRows = Math.floor(wallH / 9) - 1;
+    for(let row = 0; row < stoneRows; row++){
       const ry = gy - wallH + row * 9 + 9;
       ctx.beginPath();
       ctx.moveTo(x - wallW/2, ry);
@@ -1187,10 +1209,10 @@
     const wallD = state.wallDist;
     const targetD = state.targetDist;
 
-    // Check wall collision: arrow must reach the wall, and its height there must be < MONSTER_H
+    // Check wall collision: arrow must reach the wall, and its height there must be < WALL_H
     if(range >= wallD){
       const hAtWall = computeHeightAtDist(power, angleDeg, wallD);
-      if(hAtWall < MONSTER_H){
+      if(hAtWall < WALL_H){
         return { type:'wall', landDist: wallD, range };
       }
     } else {
@@ -1249,7 +1271,7 @@
           ctx.fillStyle = '#c1443a';
           ctx.font = 'bold 12px Segoe UI, sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('THUD!', wx, GROUND_Y - 50);
+          ctx.fillText('THUD!', wx, GROUND_Y - WALL_H * M_TO_PX - 16);
         } else if(shot.type === 'direct-hit'){
           drawScene(null);
           const mx = distToX(state.targetDist);
