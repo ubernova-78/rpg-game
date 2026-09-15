@@ -590,7 +590,7 @@
   <div class="screen hidden" id="screen-leaderboard">
     <div class="leaderboard">
       <h3>Top shots</h3>
-      <p style="margin:0 0 8px;font-size:0.85rem;color:#8a8272;">Closest shot to the target wins. Best attempt per student.</p>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:#8a8272;">Closest average shot over 4 arrows wins. Best game per student.</p>
       <div class="lb-tabs" id="lb-tabs"></div>
       <div id="lb-body"></div>
     </div>
@@ -684,10 +684,11 @@
     // Round state
     targetDist:0,       // meters, whole number 10-60
     wallDist:0,         // meters, wall position
-    shotNum:0,          // 0-based, max 3 shots per round
-    maxShots:3,
+    shotNum:0,          // 0-based, max 4 shots per round
+    maxShots:4,
     shots:[],           // [{power, angle, range, miss}]
     bestMiss:Infinity,
+    avgMiss:Infinity,   // mean miss across all shots — the leaderboard score
     // Aiming
     power:0,            // 0-100
     angle:45,           // degrees
@@ -914,6 +915,7 @@
     state.shotNum = 0;
     state.shots = [];
     state.bestMiss = Infinity;
+    state.avgMiss = Infinity;
     state.roundEXP = 0;
     state.roundCoins = 0;
     state.power = 0;
@@ -1672,6 +1674,10 @@
     showScreen(els.end);
 
     const best = state.bestMiss;
+    const avg = state.shots.length
+      ? state.shots.reduce((a,s)=> a + s.miss, 0) / state.shots.length
+      : Infinity;
+    state.avgMiss = avg;
     let resultClass, resultText, bonusEXP = 0;
 
     if(best <= 1){
@@ -1709,13 +1715,16 @@
       els.levelUpBanner.classList.remove('show');
     }
 
+    let advice;
     if(best <= 1){
-      els.endMessage.textContent = 'Amazing precision! Your aim is legendary.';
+      advice = 'Amazing precision! Your aim is legendary.';
     } else if(best <= 5){
-      els.endMessage.textContent = 'Solid shooting — keep training for a bullseye!';
+      advice = 'Solid shooting — keep training for a bullseye!';
     } else {
-      els.endMessage.textContent = 'Use the measured distance to adjust your aim next time.';
+      advice = 'Use the measured distance to adjust your aim next time.';
     }
+    els.endMessage.innerHTML = `<strong>Average miss across ${state.shots.length} shots: `+
+      `${avg.toFixed(2)} m</strong> — that's your leaderboard score.<br>${advice}`;
 
     // Save to shared record
     state.record.totalEXP = newTotalEXP;
@@ -1733,6 +1742,8 @@
           nameKey: state.nameKey,
           period: String(state.period),
           bestMiss: roundToCm(best),
+          avgMiss: roundToCm(avg),
+          shotCount: state.shots.length,
           expEarned: state.roundEXP,
           timestamp: Date.now()
         });
@@ -1783,26 +1794,43 @@
     }catch(e){ return []; }
   }
 
-  function bestByMiss(runs){
+  // A perfect shot is 0, which is falsy — never use `||Infinity` to default these.
+  function missVal(v){
+    const n = Number(v);
+    return (v == null || isNaN(n)) ? Infinity : n;
+  }
+
+  // Best run per student, ranked by average miss. Runs saved before the
+  // 4-shot/average change have no avgMiss and aren't comparable, so they drop out.
+  function bestByAvg(runs){
     const m = {};
     runs.forEach(r => {
+      if(r.avgMiss == null) return;
       const k = r.nameKey || String(r.name||'').toLowerCase();
       const cur = m[k];
-      if(!cur || (r.bestMiss != null && r.bestMiss < (cur.bestMiss||Infinity))) m[k] = r;
+      if(!cur || missVal(r.avgMiss) < missVal(cur.avgMiss)) m[k] = r;
     });
     return Object.values(m);
+  }
+
+  function rankByAvg(runs){
+    return bestByAvg(runs)
+      .sort((a,b)=> missVal(a.avgMiss) - missVal(b.avgMiss))
+      .slice(0,10);
   }
 
   function renderArcheryLbTable(rows, container, periodLabel){
     if(!rows.length){ container.innerHTML = '<p>No shots yet for this period.</p>'; return; }
     let html = '';
     if(periodLabel) html += `<h3>Period ${periodLabel} leaders</h3>`;
-    html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Best Shot</th><th style="text-align:right">EXP</th></tr>';
+    html += '<table><tr><th></th><th>Name</th><th style="text-align:right">Avg Miss</th>'+
+            '<th style="text-align:right">Best Shot</th><th style="text-align:right">EXP</th></tr>';
     rows.forEach((r,i) => {
       const me = state.nameKey && (r.nameKey||'') === state.nameKey;
-      const miss = r.bestMiss != null ? r.bestMiss.toFixed(2) + ' m' : '—';
+      const avg = r.avgMiss != null ? Number(r.avgMiss).toFixed(2) + ' m' : '—';
+      const miss = r.bestMiss != null ? Number(r.bestMiss).toFixed(2) + ' m' : '—';
       html += `<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${escHtml(r.name)}</td>`+
-              `<td class="sc">${miss}</td><td class="sc">${r.expEarned||0}</td></tr>`;
+              `<td class="sc">${avg}</td><td class="sc">${miss}</td><td class="sc">${r.expEarned||0}</td></tr>`;
     });
     html += '</table>';
     container.innerHTML = html;
@@ -1812,7 +1840,7 @@
     lbBody.innerHTML = '<p>Loading…</p>';
     lbTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.per === String(period)));
     const runs = await loadArcheryRuns(period);
-    const rows = bestByMiss(runs).sort((a,b)=> (a.bestMiss||Infinity)-(b.bestMiss||Infinity)).slice(0,10);
+    const rows = rankByAvg(runs);
     renderArcheryLbTable(rows, lbBody);
   }
 
@@ -1820,7 +1848,7 @@
     if(!endLeaderboard || !Shared.DB_OK) return;
     try{
       const runs = await loadArcheryRuns(period);
-      const rows = bestByMiss(runs).sort((a,b)=> (a.bestMiss||Infinity)-(b.bestMiss||Infinity)).slice(0,10);
+      const rows = rankByAvg(runs);
       if(rows.length){
         renderArcheryLbTable(rows, endLeaderboard, period);
         endLeaderboard.style.display = 'block';

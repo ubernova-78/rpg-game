@@ -252,21 +252,24 @@
       return r;
     }catch(e){return[];}
   }
+  // A dead-center throw is 0, which is falsy — never use `||Infinity` to default these.
+  function missVal(v){const n=Number(v);return(v==null||isNaN(n))?Infinity:n;}
   function bestByAvg(runs){
     const m={};runs.forEach(r=>{const k=r.nameKey||String(r.name||'').toLowerCase();const c=m[k];
-      if(!c||(r.avgMiss!=null&&r.avgMiss<(c.avgMiss||Infinity)))m[k]=r;});
+      if(!c||missVal(r.avgMiss)<missVal(c.avgMiss))m[k]=r;});
     return Object.values(m);
   }
+  function rankByAvg(runs){return bestByAvg(runs).sort((a,b)=>missVal(a.avgMiss)-missVal(b.avgMiss)).slice(0,10);}
   function renderLb(rows,container,label){
     if(!rows.length){container.innerHTML='<p>No throws yet for this period.</p>';return;}
     let h='';if(label)h+=`<h3>Period ${label} leaders</h3>`;
     h+='<table><tr><th></th><th>Name</th><th style="text-align:right">Avg Miss</th><th style="text-align:right">EXP</th></tr>';
     rows.forEach((r,i)=>{const me=state.nameKey&&(r.nameKey||'')===state.nameKey;
-      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="sc">${r.avgMiss!=null?r.avgMiss.toFixed(2)+' cm':'—'}</td><td class="sc">${r.expEarned||0}</td></tr>`;});
+      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="sc">${r.avgMiss!=null?Number(r.avgMiss).toFixed(2)+' cm':'—'}</td><td class="sc">${r.expEarned||0}</td></tr>`;});
     h+='</table>';container.innerHTML=h;
   }
   async function showLb(p){els.lbBody.innerHTML='<p>Loading…</p>';els.lbTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.per===String(p)));
-    const runs=await loadScores(p);renderLb(bestByAvg(runs).sort((a,b)=>(a.avgMiss||Infinity)-(b.avgMiss||Infinity)).slice(0,10),els.lbBody);}
+    const runs=await loadScores(p);renderLb(rankByAvg(runs),els.lbBody);}
   PERIODS.forEach(p=>{const b=document.createElement('button');b.textContent='P'+p;b.dataset.per=p;b.addEventListener('click',()=>showLb(p));els.lbTabs.appendChild(b);});
   els.btnViewLb.addEventListener('click',()=>{showScreen(els.lb);showLb(state.period||PERIODS[0]);});
   els.btnBackFromLb.addEventListener('click',()=>showScreen(els.start));
@@ -671,7 +674,7 @@
       }
       // Show leaderboard
       const runs=await loadScores(state.period);
-      const rows=bestByAvg(runs).sort((a,b)=>(a.avgMiss||Infinity)-(b.avgMiss||Infinity)).slice(0,10);
+      const rows=rankByAvg(runs);
       if(rows.length){renderLb(rows,els.endLeaderboard,state.period);els.endLeaderboard.style.display='block';}
     }
   }
