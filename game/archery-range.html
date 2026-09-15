@@ -172,6 +172,18 @@
   .reward-row span.exp-val{color:var(--steel);}
   .reward-row span.coin-val{color:#b8860b;}
 
+  .measure-tally{
+    background:#fff;
+    border:2px solid var(--line);
+    border-radius:10px;
+    padding:10px 14px;
+    margin:14px 0;
+    font-weight:700;
+    color:var(--charcoal);
+  }
+  .measure-tally .tally-count{font-size:1.2rem; color:var(--teal);}
+  .measure-tally.none .tally-count{color:var(--miss);}
+
   .level-up-banner{
     background:linear-gradient(90deg, var(--tape-yellow), #ffe08a);
     border:2px solid var(--charcoal);
@@ -648,6 +660,9 @@
     <div class="end-screen">
       <h2 id="end-title">Round complete!</h2>
       <div class="result-banner" id="result-banner"></div>
+      <div class="measure-tally" id="measure-tally">
+        Measurements correct: <span class="tally-count" id="end-measure-tally">0 out of 4</span>
+      </div>
       <div class="reward-row">
         <span>EXP earned: <span class="exp-val" id="end-exp-earned">0</span></span>
         <span>Coins earned: <span class="coin-val" id="end-coins-earned">0</span></span>
@@ -698,7 +713,8 @@
     arrowAnimating:false,
     // Rewards
     roundEXP:0,
-    roundCoins:0
+    roundCoins:0,
+    measureCorrect:0    // measurements answered correctly this round
   };
 
   // ========== SPRITE LOADING ==========
@@ -787,6 +803,8 @@
     endLevelBadge: document.getElementById('end-level-badge'),
     endExpFill: document.getElementById('end-exp-fill'),
     endMessage: document.getElementById('end-message'),
+    measureTally: document.getElementById('measure-tally'),
+    endMeasureTally: document.getElementById('end-measure-tally'),
     btnPlayAgain: document.getElementById('btn-play-again'),
     itemPopupOverlay: document.getElementById('item-popup-overlay'),
     btnDismissItem: document.getElementById('btn-dismiss-item')
@@ -918,6 +936,7 @@
     state.avgMiss = Infinity;
     state.roundEXP = 0;
     state.roundCoins = 0;
+    state.measureCorrect = 0;
     state.power = 0;
     state.angle = 45;
     state.charging = false;
@@ -1639,6 +1658,7 @@
       const coins = coinFromExp(exp);
       state.roundEXP += exp;
       state.roundCoins += coins;
+      state.measureCorrect++;
       els.measureFeedback.textContent = `Correct! The distance was ${correct} m. +${exp} EXP, +${coins} 🪙`;
       els.measureFeedback.className = 'feedback show good';
     } else {
@@ -1699,6 +1719,8 @@
 
     els.resultBanner.className = `result-banner ${resultClass}`;
     els.resultBanner.textContent = resultText;
+    els.endMeasureTally.textContent = `${state.measureCorrect} out of ${state.maxShots}`;
+    els.measureTally.className = state.measureCorrect ? 'measure-tally' : 'measure-tally none';
     els.endExpEarned.textContent = state.roundEXP;
     els.endCoinsEarned.textContent = state.roundCoins;
 
