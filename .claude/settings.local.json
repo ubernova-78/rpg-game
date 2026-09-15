@@ -26,7 +26,20 @@
       "Bash(sips *)",
       "Bash(xcodebuild -project PhysicsTimer.xcodeproj -scheme PhysicsTimer -destination 'platform=iOS Simulator,name=iPad Air 11-inch \\(M4\\)' build)",
       "Bash(md5 *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(xcodebuild -version)",
+      "Bash(brew install *)",
+      "Bash(curl -sL https://github.com/yonaskolb/XcodeGen/releases/latest/download/xcodegen.zip -o xcodegen.zip)",
+      "Bash(unzip -o xcodegen.zip)",
+      "Bash(/tmp/xcodegen/bin/xcodegen generate *)",
+      "Bash(/usr/libexec/PlistBuddy *)",
+      "Bash(qlmanage *)",
+      "Bash(ls *)",
+      "Bash(git init *)",
+      "Bash(git rm *)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(git remote *)"
     ]
   }
 }
