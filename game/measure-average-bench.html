@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
 <script src="measure-shared.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
@@ -140,6 +141,7 @@
     <div class="end-score" id="end-score">0</div>
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="review-list"></div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
@@ -168,7 +170,7 @@
     hudRound:$('hud-round'), hudUnit:$('hud-unit'), hudScore:$('hud-score'),
     progressfill:$('progressfill'), qtext:$('qtext'), body:$('question-body'),
     feedback:$('feedback'),
-    endTitle:$('end-title'), endScore:$('end-score'), endMsg:$('end-msg'),
+    endTitle:$('end-title'), endScore:$('end-score'), endMsg:$('end-msg'), reviewList:$('review-list'),
     endLeaderboard:$('end-leaderboard'), lbTabs:$('lb-tabs'), lbBody:$('lb-body'),
   };
   const allScreens=[els.start,els.game,els.end,els.lb];
@@ -257,6 +259,7 @@
 
   els.btnStart.addEventListener('click',()=>{
     S.round=0;S.score=0;S.startTime=Date.now();
+    Review.reset();
     S.modeSeq=buildModeSequence();
     els.hudScore.textContent=`0 of ${GOAL} points`;
     els.progressfill.style.width='0%';
@@ -444,28 +447,37 @@
 
     // Determine result
     const isCorrect=allMeasOK&&avgMatchesActual;
-    if(isCorrect){
-      S.score=Math.min(GOAL,S.score+10);
-      els.feedback.textContent='Correct! +10 points';
-      els.feedback.className='feedback show good';
-    } else if(!allMeasOK&&avgMatchesTheirs&&!avgMatchesActual){
-      els.feedback.textContent=`Your average math was right, but some measurements were off. Answer: ${actualAvg.toFixed(2)} ${unit}`;
-      els.feedback.className='feedback show bad';
-    } else if(allMeasOK&&!avgMatchesActual){
-      els.feedback.textContent=`Measurements were correct, but the average was wrong. Answer: ${actualAvg.toFixed(2)} ${unit}`;
-      els.feedback.className='feedback show bad';
-    } else {
-      els.feedback.textContent=`Not quite — the average was ${actualAvg.toFixed(2)} ${unit}`;
-      els.feedback.className='feedback show bad';
-    }
+    if(isCorrect) S.score=Math.min(GOAL,S.score+10);
     els.hudScore.textContent=`${S.score} of ${GOAL} points`;
-    setTimeout(nextRound,2400);
+
+    // Which part went wrong decides the teaching line. The comparison table
+    // built just above stays on screen while they read it — a miss no longer
+    // wipes it after 2.4 seconds.
+    let note;
+    if(!allMeasOK&&avgMatchesTheirs&&!avgMatchesActual){
+      note='Your averaging was right — it was the measurements that were off. Check the table above, then press Next.';
+    } else if(allMeasOK&&!avgMatchesActual){
+      note='Your measurements were all correct — it was the average. Add them again and divide by how many there are.';
+    } else {
+      note='Compare your measurements with the actual values in the table, then press Next.';
+    }
+    Review.show(els.feedback, {
+      ok: isCorrect,
+      yours: `${val} ${unit}`,
+      correct: `${actualAvg.toFixed(2)} ${unit}`,
+      headline: isCorrect ? 'Correct! +10 points' : 'Not quite.',
+      note: note,
+      label: `Actual: ${values.join(', ')} ${unit}`,
+      autoMs: 2400,
+      onNext: nextRound,
+    });
   }
 
   // ---------- End game ----------
   async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent=S.score;
+    Review.renderList(els.reviewList);
     if(S.score>=120){els.endTitle.textContent='Perfect score!';els.endMsg.textContent='Measuring and averaging master!';}
     else if(S.score>=90){els.endTitle.textContent='Great job!';els.endMsg.textContent='Strong skills! Try again for a perfect score.';}
     else if(S.score>=60){els.endTitle.textContent='Getting there!';els.endMsg.textContent='Keep practicing your measurements and averages!';}

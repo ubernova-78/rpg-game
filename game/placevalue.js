@@ -102,6 +102,28 @@ function generatePVDigits(bound) {
   return { active, digits };
 }
 
+// Render an answer the way the boxes on screen read it, so a caller can show a
+// student what they put next to what was right (the Workbench's end-of-round
+// review). Six places with the point fixed between ones and tenths; a blank box
+// shows as '_' rather than silently becoming a zero.
+function pvBoxesText(vals) {
+  const cell = v => (v === '' || v == null) ? '_' : String(v);
+  // Leading/trailing blanks are just "this place wasn't part of the number", so
+  // they're dropped — a student reads 0.47, not ___.47_. A blank INSIDE the
+  // number stays as '_', because there it means a place they left empty.
+  const whole = vals.slice(0, 3).map(cell).join('').replace(/^_+/, '');
+  const frac = vals.slice(3, 6).map(cell).join('').replace(/_+$/, '');
+  return (whole || '0') + (frac ? '.' + frac : '');
+}
+// Place the Point shows only the places in this round's window, so its answer is
+// those digits with the point dropped into the chosen gap.
+function pvPointText(digits, active, gap) {
+  const ds = active.map(i => String(digits[i]));
+  if (gap <= 0) return '.' + ds.join('');
+  if (gap >= ds.length) return ds.join('') + '.';
+  return ds.slice(0, gap).join('') + '.' + ds.slice(gap).join('');
+}
+
 // Generic styled button used by every round below (and by the gate/chest/shop/dojo flows
 // elsewhere, which is why it's a plain global rather than something private to this file).
 function gateButton(label, onClick) {
@@ -230,7 +252,13 @@ const QUESTION_MODULES = {
           if (pile.active.includes(i)) return +v === pile.digits[i];
           return v === '' || +v === 0; // outside the number's scope — blank or 0 both count
         });
-        if (correct) onCorrect(); else { checkBtn.disabled = false; onWrong(); }
+        // Callers that want it get the answer as typed vs. the answer as it should
+        // have been; everyone else just ignores the extra argument.
+        const answer = {
+          yours: pvBoxesText(ALL_PLACES.map(i => boxes[i].value)),
+          correct: pvBoxesText(ALL_PLACES.map(i => pile.active.includes(i) ? String(pile.digits[i]) : '')),
+        };
+        if (correct) onCorrect(answer); else { checkBtn.disabled = false; onWrong(answer); }
       });
       container.appendChild(checkBtn);
 
@@ -303,7 +331,16 @@ const QUESTION_MODULES = {
         if (checkBtn.disabled) return; // see the Read It checkBtn's comment above for why
         checkBtn.disabled = true;
         const correct = ALL_PLACES.every(i => counts[i] === pile.digits[i]);
-        if (correct) onCorrect(); else { checkBtn.disabled = false; onWrong(); }
+        // A place outside this number's window that was left at 0 isn't part of
+        // the answer, so it reads as blank; a counter they actually moved out
+        // there still shows, because that's the mistake.
+        const answer = {
+          yours: pvBoxesText(ALL_PLACES.map(i =>
+            (pile.active.includes(i) || counts[i] !== 0) ? String(counts[i]) : '')),
+          correct: pvBoxesText(ALL_PLACES.map(i =>
+            pile.active.includes(i) ? String(pile.digits[i]) : '')),
+        };
+        if (correct) onCorrect(answer); else { checkBtn.disabled = false; onWrong(answer); }
       });
       container.appendChild(checkBtn);
     },
@@ -377,7 +414,11 @@ const QUESTION_MODULES = {
         }
         checkBtn.disabled = true;
         const correct = pointAt === correctGap;
-        if (correct) onCorrect(); else { checkBtn.disabled = false; onWrong(); }
+        const answer = {
+          yours: pvPointText(pile.digits, pile.active, pointAt),
+          correct: pvPointText(pile.digits, pile.active, correctGap),
+        };
+        if (correct) onCorrect(answer); else { checkBtn.disabled = false; onWrong(answer); }
       });
       container.appendChild(checkBtn);
     },

@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
 <script src="measure-shared.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --charcoal:#262b31;
@@ -628,6 +629,7 @@
         <div class="exp-bar-wrap" style="width:140px;"><div class="exp-bar-fill" id="end-exp-fill"></div></div>
       </div>
       <p id="end-message"></p>
+      <div id="review-list"></div>
       <div id="end-leaderboard" class="leaderboard" style="margin-top:16px;display:none;"></div>
       <button class="primary" id="btn-play-again">Play again</button>
     </div>
@@ -693,6 +695,7 @@
     endLevelBadge: document.getElementById('end-level-badge'),
     endExpFill: document.getElementById('end-exp-fill'),
     endMessage: document.getElementById('end-message'),
+    reviewList: document.getElementById('review-list'),
     btnPlayAgain: document.getElementById('btn-play-again'),
     btnLeaderboard: document.getElementById('btn-leaderboard'),
     btnBackFromLb: document.getElementById('btn-back-from-lb'),
@@ -857,6 +860,7 @@
 
     state.round = 0;
     state.score = 0;
+    Review.reset();
     state.roundEXP = 0;
     state.roundCoins = 0;
     state.roundStart = Date.now();
@@ -993,13 +997,14 @@
         document.querySelectorAll('#unit-options .optbtn').forEach(b=>b.disabled=true);
         if(u === correct.unit){
           btn.classList.add('correct');
-          grade(true, correct.unit, benchParams('unit').exp);
+          grade(true, correct.unit, benchParams('unit').exp, u);
         } else {
           btn.classList.add('wrong');
           document.querySelectorAll('#unit-options .optbtn').forEach(b=>{
             if(b.textContent === correct.unit) b.classList.add('correct');
           });
-          grade(false, correct.unit, benchParams('unit').exp);
+          grade(false, correct.unit, benchParams('unit').exp, u,
+            `Picture ${correct.name} — ${correct.unit} is the unit that fits it without a huge or tiny number.`);
         }
       });
       els.unitOptions.appendChild(btn);
@@ -1185,7 +1190,8 @@
     const givenMM = toMM(raw, q.scale);
     const diff = Math.abs(givenMM - q.valueMM);
     const tolMM = q.scale === 'mm' ? 0.5 : q.scale === 'cm' ? 0.5 : 5; // sub-smallest-tick rounding slack
-    grade(diff <= tolMM, formatMM(q.valueMM, q.scale), q.exp);
+    grade(diff <= tolMM, formatMM(q.valueMM, q.scale), q.exp, `${raw} ${q.scale}`,
+      'Find the last numbered mark before the end of the bar, then count the small ticks past it.');
   });
 
   // --- CALIPER MODE (the Millimeter bench's other half) ---
@@ -1221,7 +1227,8 @@
     els.submitCaliper.disabled = true;
     const q = state.currentQ;
     const diff = Math.abs(raw - q.valueMM);
-    grade(diff <= 0.5, formatMM(q.valueMM, 'mm'), q.exp);
+    grade(diff <= 0.5, formatMM(q.valueMM, 'mm'), q.exp, `${raw} mm`,
+      'Read the arrow on the sliding jaw against the scale above it — every tick is 1 mm.');
   });
 
   function formatMM(mm, unit){
@@ -1247,31 +1254,38 @@
     setTimeout(()=>{ el.style.borderColor=''; }, 500);
   }
 
-  function grade(isCorrect, correctText, exp){
+  function grade(isCorrect, correctText, exp, yoursText, note){
     if(isCorrect){
       const pts = 10;
       state.score = Math.min(GOAL, state.score + pts);
       const coins = Math.floor(exp/2);
       state.roundEXP += exp;
       state.roundCoins += coins;
-      els.feedback.textContent = `Correct! +${pts} points (${correctText})`;
-      els.feedback.className = 'feedback show good';
-    } else {
-      els.feedback.textContent = `Not quite — the answer was ${correctText}.`;
-      els.feedback.className = 'feedback show bad';
     }
     // live-preview totals in the titlebar (not yet saved until round ends)
     const previewEXP = state.record.totalEXP + state.roundEXP;
     const previewCoins = state.record.coins + state.roundCoins;
     paintLevelUI(previewEXP, previewCoins, els.levelBadge, els.expFill, els.coinBadge);
     els.hudScore.textContent = `${state.score} of ${GOAL} points`;
-    setTimeout(nextRound, 1400);
+    // The ruler/caliper and the number they typed both stay put on a miss —
+    // they can re-read the scale against their own answer before moving on.
+    Review.show(els.feedback, {
+      ok: isCorrect,
+      yours: yoursText,
+      correct: correctText,
+      headline: isCorrect ? `Correct! +10 points (${correctText})` : 'Not quite.',
+      note: note,
+      label: els.qtext.textContent,
+      autoMs: 1400,
+      onNext: nextRound,
+    });
   }
 
   // ---------- End of game ----------
   async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent = state.score;
+    Review.renderList(els.reviewList);
     els.endExpEarned.textContent = state.roundEXP;
     els.endCoinsEarned.textContent = state.roundCoins;
 

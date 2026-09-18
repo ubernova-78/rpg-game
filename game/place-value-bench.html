@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="shared-student.js"></script>
 <script src="placevalue.js"></script>
+<script src="answer-review.js"></script>
 <link rel="stylesheet" href="placevalue.css">
 
 <style>
@@ -534,6 +535,8 @@ const rnd=n=>Math.floor(Math.random()*n);
 // actually got.
 const active=()=>S.active||[];
 
+const MODE_LABELS = { read:'Read it', build:'Build it', pull:'Pull it out', point:'Place the point' };
+
 function newProblem(){
   const L=LEVELS[S.level];
   const pile=generatePVDigits({lo:L.lo,hi:L.hi});
@@ -542,6 +545,7 @@ function newProblem(){
   S.counts=[0,0,0,0,0,0];
   S.attempt=1;
   S.solved=false;
+  S.firstWrong=null;
   S.mode = ['read','build','pull','point'][(S.round-1)%4];
   render();
 }
@@ -735,10 +739,13 @@ function render(){
     QUESTION_MODULES[key].render(host, {
       presetPile, bound,
       onCorrect: award,
-      onWrong: () => {
+      onWrong: (ans) => {
+        if(!S.firstWrong && ans) S.firstWrong = ans.yours;
         S.attempt=2; // any miss after the first drops the point value for this round, same as before
         const fb=$('feedback');
-        fb.textContent='Not quite — check your answer and try again.';
+        fb.textContent = ans
+          ? `You put ${ans.yours} — not quite. Your answer is still there; check it and try again.`
+          : 'Not quite — check your answer and try again.';
         fb.className='feedback no';
       },
     });
@@ -748,13 +755,24 @@ function render(){
 }
 
 /* ============ checking ============ */
-function award(){
+function award(ans){
   const pts=S.attempt===1?10:5;
   S.score=Math.min(GOAL,S.score+pts);
   S.solved=true;
   const fb=$('feedback');
   fb.textContent = S.attempt===1 ? `Correct. +${pts} points.` : `Correct on the second try. +${pts} points.`;
   fb.className='feedback ok';
+  // One entry per round for the end-of-round review. A round that took two
+  // tries is logged as a miss showing what they put the FIRST time — that is
+  // the thing worth looking back at, and it matches the 10-vs-5 points.
+  if(ans){
+    Review.record({
+      ok: S.attempt===1,
+      yours: S.attempt===1 ? ans.yours : S.firstWrong,
+      correct: ans.correct,
+      label: MODE_LABELS[S.mode] + (S.attempt===1 ? '' : ' — second try'),
+    });
+  }
   bumpScore(); renderActions();
 }
 
@@ -766,19 +784,34 @@ function check(){
   const fb=$('feedback');
   const wrong=a.filter(i=>S.counts[i]!==S.digits[i]);
 
-  if(!wrong.length){ award(); return; }
+  // Same rule as the shared engine: a place outside this number's window that
+  // was left empty reads as blank, but money they actually pulled out there
+  // still shows — that's the mistake worth seeing.
+  const pullAnswer = {
+    yours: pvBoxesText(S.counts.map((c,i) => (a.includes(i) || c !== 0) ? String(c) : '')),
+    correct: pvBoxesText(S.digits.map((d,i) => a.includes(i) ? String(d) : '')),
+  };
+
+  if(!wrong.length){ award(pullAnswer); return; }
 
   if(S.attempt===1){
     S.attempt=2;
+    if(!S.firstWrong) S.firstWrong = pullAnswer.yours;
     const names=wrong.map(i=>PLACES[i].label.toLowerCase());
-    fb.textContent=`Not yet. Recount the ${names.join(' and ')}.`;
+    fb.textContent=`You made ${pullAnswer.yours}. Not yet — recount the ${names.join(' and ')}.`;
     fb.className='feedback no';
   }else{
     S.solved=true;
     fb.className='feedback info';
+    Review.record({
+      ok: false,
+      yours: S.firstWrong || pullAnswer.yours,
+      correct: pullAnswer.correct,
+      label: MODE_LABELS[S.mode],
+    });
+    fb.textContent=`You made ${pullAnswer.yours}; it should be ${pullAnswer.correct}. Here is the correct pile — compare it with yours, then go on.`;
     a.forEach(i=>{S.counts[i]=S.digits[i];});
     paintDrop();
-    fb.textContent='Here is the correct pile. Look at it, then go again.';
     renderActions();
   }
 }
@@ -808,7 +841,8 @@ function renderShelf(){
 /* ============ overlays ============ */
 function start(){
   S={score:0,round:1,mode:'read',level:'full',digits:[],counts:[],attempt:1,
-     solved:false,name:S.name||'',period:S.period||'',t0:0,demo:false,teacher:false};
+     solved:false,firstWrong:null,name:S.name||'',period:S.period||'',t0:0,demo:false,teacher:false};
+  Review.reset();
   $('score').textContent=0; $('fill').style.width='0%';
   [1,2,3,4].forEach(v=>$('n'+v).classList.remove('lit'));
   $('overlay').style.display='flex';
@@ -1004,7 +1038,9 @@ function showResults(rec,candy,saved,expInfo){
     ${(isDemo || isTeacherRun) ? '' : `<div class="lb" id="lbwrap"><h3>Period ${rec.period} &mdash; Full range leaders</h3>
       <div class="none">Loading&hellip;</div></div>
       ${saved?'':'<div class="warn">This score was not saved to the class list.</div>'}`}
+    <div id="review-list"></div>
     <button class="btn brass" id="again">${isDemo?'Play for real':'Play again'}</button>`;
+  Review.renderList($('review-list'));
   $('again').onclick=start;
   if(!isDemo && !isTeacherRun) renderLeaderboard(rec);
 }

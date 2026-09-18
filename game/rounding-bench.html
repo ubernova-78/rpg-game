@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --bench:#1a1a2e;
@@ -172,6 +173,7 @@
     <div class="end-score" id="end-score">0</div>
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="review-list"></div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
@@ -206,6 +208,7 @@
     qtext: $('qtext'), body: $('question-body'),
     feedback: $('feedback'),
     endTitle: $('end-title'), endScore: $('end-score'), endMsg: $('end-msg'),
+    reviewList: $('review-list'),
     endLeaderboard: $('end-leaderboard'),
     lbTabs: $('lb-tabs'), lbBody: $('lb-body'),
   };
@@ -323,6 +326,7 @@
   els.btnStart.addEventListener('click', ()=>{
     S.round = 0; S.score = 0;
     S.startTime = Date.now();
+    Review.reset();
     els.hudScore.textContent = `0 of ${GOAL} points`;
     els.progressfill.style.width = '0%';
     els.endLeaderboard.style.display = 'none';
@@ -335,6 +339,7 @@
     if(S.round >= TOTAL_ROUNDS){ finishGame(); return; }
     S.locked = false;
     S.attempt = 0;
+    S.firstWrong = null;
     S.round++;
     els.hudRound.textContent = `Round ${S.round} / ${TOTAL_ROUNDS}`;
     els.progressfill.style.width = `${(S.round/TOTAL_ROUNDS)*100}%`;
@@ -379,12 +384,12 @@
     row.appendChild(inp); row.appendChild(sub);
     els.body.appendChild(row);
 
-    sub.addEventListener('click', ()=> checkAnswer(inp, correct, correctStr));
-    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAnswer(inp, correct, correctStr); });
+    sub.addEventListener('click', ()=> checkAnswer(inp, correct, correctStr, displayStr));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAnswer(inp, correct, correctStr, displayStr); });
     setTimeout(()=> inp.focus(), 50);
   }
 
-  function checkAnswer(inp, correct, correctStr){
+  function checkAnswer(inp, correct, correctStr, displayStr){
     if(S.locked) return;
     const raw = inp.value.trim();
     if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
@@ -397,27 +402,48 @@
     if(isCorrect){
       const pts = S.attempt === 1 ? 10 : 5;
       S.score = Math.min(GOAL, S.score + pts);
-      els.feedback.textContent = S.attempt === 1 ? 'Correct! +10 points' : 'Correct! +5 points';
-      els.feedback.className = 'feedback show good';
       S.locked = true;
       els.hudScore.textContent = `${S.score} of ${GOAL} points`;
-      setTimeout(nextRound, 1600);
+      Review.record({
+        ok: S.attempt === 1,
+        yours: S.attempt === 1 ? raw : S.firstWrong,
+        correct: correctStr,
+        label: `Round ${displayStr} to hundredths` + (S.attempt === 1 ? '' : ' — second try'),
+      });
+      Review.show(els.feedback, {
+        ok: true,
+        log: false,
+        yours: raw,
+        correct: correctStr,
+        headline: S.attempt === 1 ? 'Correct! +10 points' : 'Correct! +5 points',
+        autoMs: 1600,
+        onNext: nextRound,
+      });
     } else if(S.attempt >= 2){
-      els.feedback.textContent = `The answer is ${correctStr}`;
-      els.feedback.className = 'feedback show bad';
       S.locked = true;
       els.hudScore.textContent = `${S.score} of ${GOAL} points`;
-      setTimeout(nextRound, 2200);
+      // Second miss: the number stays on screen with both answers until
+      // they choose to move on.
+      Review.show(els.feedback, {
+        ok: false,
+        yours: S.firstWrong || raw,
+        correct: correctStr,
+        note: `Look at ${displayStr} again — the digit after the hundredths place decides which way it rounds.`,
+        label: `Round ${displayStr} to hundredths`,
+        onNext: nextRound,
+      });
     } else {
-      els.feedback.textContent = 'Not quite \u2014 try once more!';
+      // First miss: not logged yet, they still get to fix it themselves.
+      S.firstWrong = raw;
+      els.feedback.textContent = `You put ${raw} \u2014 not quite. Try once more.`;
       els.feedback.className = 'feedback show bad';
-      setTimeout(()=> els.feedback.classList.remove('show'), 1200);
     }
   }
 
   async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent = S.score;
+    Review.renderList(els.reviewList);
     if(S.score >= 120){
       els.endTitle.textContent = 'Perfect score!';
       els.endMsg.textContent = 'Rounding master! Every one nailed.';

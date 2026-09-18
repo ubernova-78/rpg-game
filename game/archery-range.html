@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --charcoal:#262b31;
@@ -673,6 +674,7 @@
         <div class="exp-bar-wrap" style="width:140px;"><div class="exp-bar-fill" id="end-exp-fill"></div></div>
       </div>
       <p id="end-message"></p>
+      <div id="review-list"></div>
       <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
       <button class="primary" id="btn-play-again">Play again</button>
     </div>
@@ -797,6 +799,7 @@
     btnSubmitMeasure: document.getElementById('btn-submit-measure'),
     measureFeedback: document.getElementById('measure-feedback'),
     endTitle: document.getElementById('end-title'),
+    reviewList: document.getElementById('review-list'),
     resultBanner: document.getElementById('result-banner'),
     endExpEarned: document.getElementById('end-exp-earned'),
     endCoinsEarned: document.getElementById('end-coins-earned'),
@@ -944,6 +947,7 @@
   }
 
   function startNewRound(){
+    Review.reset();
     state.targetDist = 0;
     placeMonster();
     state.shotNum = 0;
@@ -1650,6 +1654,9 @@
     state.roundCoins += coins;
     els.measureFeedback.textContent = `Direct hit! +${exp} EXP, +${coins} 🪙`;
     els.measureFeedback.className = 'feedback show good';
+    // Nothing logged for the review list here on purpose: a direct hit asks no
+    // measuring question (state.currentMeasureAnswer isn't even set yet at this
+    // point), so there's no answer of theirs to look back at.
     els.measureAnswer.disabled = true;
     els.btnSubmitMeasure.disabled = true;
     updateHudScores();
@@ -1675,23 +1682,35 @@
     const answerCm = Math.round(answer * 100);
     const correctCm = Math.round(correct * 100);
 
-    if(answerCm === correctCm){
+    const ok = answerCm === correctCm;
+    if(ok){
       const exp = MEASURE_EXP;
       const coins = coinFromExp(exp);
       state.roundEXP += exp;
       state.roundCoins += coins;
       state.measureCorrect++;
-      els.measureFeedback.textContent = `Correct! The distance was ${correct} m. +${exp} EXP, +${coins} 🪙`;
-      els.measureFeedback.className = 'feedback show good';
-    } else {
-      els.measureFeedback.textContent = `Not quite — the distance was ${correct} m.`;
-      els.measureFeedback.className = 'feedback show bad';
     }
 
     els.measureAnswer.disabled = true;
     els.btnSubmitMeasure.disabled = true;
     updateHudScores();
-    setTimeout(afterMeasure, 1800);
+
+    // A wrong measurement keeps the tape, the arrow and their own number on
+    // screen until they press Next — the tape is the whole point of the
+    // question, and it used to vanish 1.8 seconds later.
+    Review.show(els.measureFeedback, {
+      ok: ok,
+      yours: `${raw} m`,
+      correct: `${correct} m`,
+      headline: ok
+        ? `Correct! The distance was ${correct} m. +${MEASURE_EXP} EXP, +${coinFromExp(MEASURE_EXP)} 🪙`
+        : 'Not quite.',
+      note: 'Find the last numbered mark before the arrow on the tape, then count the small ticks past it.',
+      nextLabel: state.shotNum < state.maxShots ? 'Next shot →' : 'See your results →',
+      label: `Shot ${state.shotNum}`,
+      autoMs: 1800,
+      onNext: afterMeasure,
+    });
   }
 
   function updateHudScores(){
@@ -1714,6 +1733,7 @@
   // ========== END OF ROUND ==========
   async function finishRound(){
     showScreen(els.end);
+    Review.renderList(els.reviewList);
 
     const best = state.bestMiss;
     const avg = state.shots.length

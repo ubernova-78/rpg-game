@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --bench:#1a1a2e;
@@ -241,6 +242,7 @@
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
+    <div id="review-list"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
 
@@ -285,6 +287,7 @@
     endTitle: document.getElementById('end-title'),
     endScore: document.getElementById('end-score'),
     endMsg: document.getElementById('end-msg'),
+    reviewList: document.getElementById('review-list'),
     endLeaderboard: document.getElementById('end-leaderboard'),
     lbTabs: document.getElementById('lb-tabs'),
     lbBody: document.getElementById('lb-body'),
@@ -430,6 +433,7 @@
     state.round = 0;
     state.score = 0;
     state.startTime = Date.now();
+    Review.reset();
     state.modeSeq = buildModeSequence();
     els.hudScore.textContent = `0 of ${GOAL} points`;
     els.endLeaderboard.style.display = 'none';
@@ -454,24 +458,29 @@
     else if(mode === 'elapsed') setupElapsed();
   }
 
-  function grade(isCorrect, correctText){
+  function grade(isCorrect, correctText, yoursText){
     if(state.locked) return;
     state.locked = true;
     if(isCorrect){
       state.score = Math.min(GOAL, state.score + 10);
-      els.feedback.textContent = `Correct! +10 points`;
-      els.feedback.className = 'feedback show good';
-    } else {
-      els.feedback.textContent = `Not quite \u2014 the answer was ${correctText}.`;
-      els.feedback.className = 'feedback show bad';
     }
     els.hudScore.textContent = `${state.score} of ${GOAL} points`;
-    setTimeout(nextRound, 1800);
+    // A miss holds the screen (timeline, markers and their own answer all
+    // still there) until they press Next; a correct answer flows on.
+    Review.show(els.feedback, {
+      ok: isCorrect,
+      yours: yoursText,
+      correct: correctText,
+      headline: isCorrect ? 'Correct! +10 points' : 'Not quite.',
+      autoMs: 1800,
+      onNext: nextRound,
+    });
   }
 
   async function finishGame(){
     showScreen(els.end);
     els.endScore.textContent = state.score;
+    Review.renderList(els.reviewList);
     if(state.score >= 120){
       els.endTitle.textContent = 'Perfect score!';
       els.endMsg.textContent = 'Amazing precision! You nailed every single one.';
@@ -987,7 +996,8 @@
       if(playing){ playing=false; clearInterval(playInterval); }
 
       grade(allCorrect,
-        `Start: ${fmtTime(startTime)}, End: ${fmtTime(endTime)}, Elapsed: ${correctElapsed.toFixed(2)}s (rounded to hundredths)`);
+        `Start: ${fmtTime(startTime)}, End: ${fmtTime(endTime)}, Elapsed: ${correctElapsed.toFixed(2)}s (rounded to hundredths)`,
+        `Start: ${fmtTime(markedStart/1000)}, End: ${fmtTime(markedEnd/1000)}, Elapsed: ${raw.toFixed(2)}s`);
     });
 
     // Initial frame
@@ -1070,7 +1080,7 @@
       const raw = parseFloat(inp.value);
       if(isNaN(raw)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
       const diff = Math.abs(raw - elapsedSec);
-      grade(diff <= 0.01, `${elapsedSec.toFixed(2)} seconds`);
+      grade(diff <= 0.01, `${elapsedSec.toFixed(2)} seconds`, `${raw} seconds`);
     });
 
     setTimeout(()=> inp.focus(), 50);

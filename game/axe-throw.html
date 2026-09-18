@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
 <script src="measure-shared.js"></script>
+<script src="answer-review.js"></script>
 <style>
   :root{
     --bg:#1a2e1a; --bg2:#16301e; --bg3:#0f3a1f;
@@ -490,7 +491,7 @@
         state.measurements.push(val);
         state.firstTry.push(thisFirstTry);
         state.roundEXP+=MEASURE_EXP;state.roundCoins+=coinFromExp(MEASURE_EXP);
-        els.measureFeedback.textContent=`Correct! ${t.distCm.toFixed(1)} cm. +${MEASURE_EXP} EXP`;
+        els.measureFeedback.textContent=`Correct! You measured ${val} cm — the throw was ${t.distCm.toFixed(1)} cm. +${MEASURE_EXP} EXP`;
         els.measureFeedback.className='feedback show good';
         state.currentThrow++;
         setTimeout(()=>{
@@ -501,10 +502,12 @@
       } else {
         thisFirstTry=false;
         state.allFirstTry=false;
-        els.measureFeedback.textContent='Not quite — try again!';
+        // Leave their number in the box. Clearing it took away the one thing
+        // they needed to compare against the ruler.
+        els.measureFeedback.textContent=`You put ${val} cm — not quite. Look at where the axe sits on the ruler and try again.`;
         els.measureFeedback.className='feedback show bad';
-        inp.value='';
         inp.focus();
+        inp.select();
       }
     }
     sub.addEventListener('click',submit);
