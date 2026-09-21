@@ -353,9 +353,21 @@ function interiorFor(buildingId) {
 //   'chest'     -> the place-value quest chest (see openChest)
 //   'decor'     -> solid, but nothing happens when you approach it
 const INTERIOR_OBJECTS = {
-  // Seven stations in a wide 25×10 scrolling room. The camera follows the player
-  // like the overworld when the room is wider than the viewport. All benches along
-  // the top wall with 4 tiles between each — plenty of space, no crowding.
+  // Eight stations in a wide 25×10 scrolling room. The camera follows the player
+  // like the overworld when the room is wider than the viewport.
+  //
+  // Six benches along the top wall, 4 tiles apart. The last two sit against the RIGHT
+  // wall instead, stacked with a row between them. They used to be at (18,6) and
+  // (22,6), directly under Mixed Practice and Rounding, and a bench is 3 tiles wide
+  // in collision (the 2-tile sprite is centred on a tile centre, so it straddles) —
+  // which left only two 1-tile gaps, at col 20 and col 24, to get from the lower half
+  // of the room up to the Rounding bench. Passable, since the player's feet box is
+  // 17px inside a 48px tile, but you had to thread it. Against the right wall there is
+  // one clear 22-tile aisle in every row band instead.
+  //
+  // They are still approached from below like every other bench here — one rule for all
+  // eight — even though the wall means walking up to them from the left is just as
+  // natural. Set `triggerC: 21` on both to make it a left-side approach instead.
   red: [
     { id: 'unitBench',     kind: 'workbench', img: workbenchImg, col: 2,  row: 2, label: 'Choose the Right Unit Work Bench',       shortLabel: 'Choose the Unit', src: 'measure-bench.html', messageType: 'mb-login', bench: 'unit' },
     { id: 'mmBench',       kind: 'workbench', img: workbenchImg, col: 6,  row: 2, label: 'Measure to the Millimeter Work Bench',   shortLabel: 'Millimeter',      src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
@@ -363,8 +375,11 @@ const INTERIOR_OBJECTS = {
     { id: 'mBench',        kind: 'workbench', img: workbenchImg, col: 14, row: 2, label: 'Measure to the Meter Work Bench',        shortLabel: 'Meter',           src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
     { id: 'mixedBench',    kind: 'workbench', img: workbenchImg, col: 18, row: 2, label: 'Mixed Practice Work Bench',              shortLabel: 'Mixed Practice',  src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
     { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 22, row: 2, label: 'Rounding to Hundredths Work Bench',      shortLabel: 'Rounding',        src: 'rounding-bench.html', messageType: 'rb-login' },
-    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 18, row: 6, label: 'Average Distance Work Bench',              shortLabel: 'Avg Distance',    src: 'average-bench.html', messageType: 'ab-login' },
-    { id: 'measAvgBench',  kind: 'workbench', img: workbenchImg, col: 22, row: 6, label: 'Measure & Average Distance Work Bench',    shortLabel: 'Measure & Avg',   src: 'measure-average-bench.html', messageType: 'mab-login' },
+    // Against the right wall. Rows 4-5 and 7-8, so the row between them (6) is the
+    // upper bench's approach tile and the lower one's is row 9 — any closer together
+    // and one bench's footprint would swallow the other's trigger tile.
+    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 23, row: 5, label: 'Average Distance Work Bench',              shortLabel: 'Avg Distance',    src: 'average-bench.html', messageType: 'ab-login' },
+    { id: 'measAvgBench',  kind: 'workbench', img: workbenchImg, col: 23, row: 8, label: 'Measure & Average Distance Work Bench',    shortLabel: 'Measure & Avg',   src: 'measure-average-bench.html', messageType: 'mab-login' },
   ],
   blue: [
     { id: 'placevalue', kind: 'workbench', img: workbenchImg, col: INTERIORS.blue.exitCol, row: 1, label: 'Place Value Work Bench', shortLabel: 'Place Value', src: 'place-value-bench.html', messageType: 'pvb-login' },
