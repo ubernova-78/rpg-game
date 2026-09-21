@@ -145,14 +145,15 @@
     <div class="start-sub">Measure items using calipers (mm), rulers (cm), or tape measures (m), then calculate the average of the set.
       <br><strong>Read the calipers to the whole millimetre, the ruler to the tenth of a centimetre, and the tape to the hundredth of a metre.</strong>
       Round every average to the nearest hundredth.</div>
-    <p style="font-size:0.9rem;color:var(--dim);">12 rounds across mm, cm, and m. 120 points possible.</p>
+    <p style="font-size:0.9rem;color:var(--dim);">Three sets — millimetres, then centimetres, then metres — 12 measurements between them.
+      Each set is worth 10 points per measurement in it, awarded only if every measurement <em>and</em> the average are right. 120 points possible.</p>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
 
   <div class="screen hidden" id="screen-game">
     <div class="hud">
-      <div class="pill" id="hud-round">Round 1 / 12</div>
+      <div class="pill" id="hud-round">Set 1 / 3</div>
       <div class="pill" id="hud-unit">mm</div>
       <div class="pill" id="hud-score">0 of 120 points</div>
     </div>
@@ -185,8 +186,13 @@
 
 <script>
 (function(){
-  const GOAL = 120, TOTAL_ROUNDS = 12, PERIODS = ['2','6','7'];
-  let S = { round:0, score:0, locked:false, startTime:0, modeSeq:[] };
+  // Three sets, always millimetres then centimetres then metres, so every
+  // student practises all three tools every time.  The 12 measurements are
+  // split between them (each set gets 3-6), and a set is worth 10 points per
+  // measurement in it — so the split varies but the total is always 120.
+  const GOAL = 120, TOTAL_MEASUREMENTS = 12, POINTS_PER_MEASUREMENT = 10;
+  const SET_MIN = 3, SET_MAX = 6, PERIODS = ['2','6','7'];
+  let S = { setIdx:0, score:0, locked:false, startTime:0, setSizes:[], stepsDone:0 };
   let player = { name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
 
   const $ = id => document.getElementById(id);
@@ -256,13 +262,21 @@
   const CALIPER_MAX_MM=80; // same scale as every other caliper in the game
   const UNIT_LABELS={mm:'Millimeters (mm)',cm:'Centimeters (cm)',m:'Meters (m)'};
 
-  function buildModeSequence(){
-    const counts={mm:2,cm:2,m:2};let rem=6;
-    while(rem>0){counts[UNITS[randInt(0,2)]]++;rem--;}
-    const order=[...UNITS];for(let i=order.length-1;i>0;i--){const j=randInt(0,i);[order[i],order[j]]=[order[j],order[i]];}
-    const seq=[];for(const u of order)for(let i=0;i<counts[u];i++)seq.push(u);
-    return seq;
-  }
+  // Split the 12 measurements across the three sets, each set getting
+  // SET_MIN..SET_MAX of them.  Picked from the full list of valid splits so
+  // every combination is equally likely — e.g. 3/4/5, 4/4/4, 6/3/3.
+  const SET_SPLITS=(function(){
+    const out=[];
+    for(let a=SET_MIN;a<=SET_MAX;a++)
+      for(let b=SET_MIN;b<=SET_MAX;b++){
+        const c=TOTAL_MEASUREMENTS-a-b;
+        if(c>=SET_MIN&&c<=SET_MAX) out.push([a,b,c]);
+      }
+    return out;
+  })();
+  function buildSetSizes(){ return SET_SPLITS[randInt(0,SET_SPLITS.length-1)].slice(); }
+  // Total steps a run takes: every measurement, plus one average per set.
+  const TOTAL_STEPS = TOTAL_MEASUREMENTS + UNITS.length;
 
   // ---------- Value generators ----------
   // How precisely each tool is read — the classroom rule, and it decides
@@ -296,9 +310,9 @@
   let R=null; // round state
 
   els.btnStart.addEventListener('click',()=>{
-    S.round=0;S.score=0;S.startTime=Date.now();
+    S.setIdx=0;S.score=0;S.stepsDone=0;S.startTime=Date.now();
     Review.reset();
-    S.modeSeq=buildModeSequence();
+    S.setSizes=buildSetSizes();
     els.hudScore.textContent=`0 of ${GOAL} points`;
     els.progressfill.style.width='0%';
     els.endLeaderboard.style.display='none';
@@ -306,19 +320,24 @@
   });
   els.btnAgain.addEventListener('click',()=>showScreen(els.start));
 
-  function nextRound(){
-    if(S.round>=TOTAL_ROUNDS){finishGame();return;}
-    S.locked=false;S.round++;
-    const unit=S.modeSeq[S.round-1];
-    els.hudRound.textContent=`Round ${S.round} / ${TOTAL_ROUNDS}`;
-    els.hudUnit.textContent=unit;
+  function updateHud(){
     els.hudScore.textContent=`${S.score} of ${GOAL} points`;
-    els.progressfill.style.width=`${(S.round/TOTAL_ROUNDS)*100}%`;
+    els.progressfill.style.width=`${(S.stepsDone/TOTAL_STEPS)*100}%`;
+  }
+
+  function nextRound(){
+    if(S.setIdx>=UNITS.length){finishGame();return;}
+    S.locked=false;
+    const unit=UNITS[S.setIdx];
+    const count=S.setSizes[S.setIdx];
+    S.setIdx++;
+    els.hudRound.textContent=`Set ${S.setIdx} / ${UNITS.length}`;
+    els.hudUnit.textContent=unit;
+    updateHud();
     els.feedback.classList.remove('show','good','bad');
     els.body.innerHTML='';
-    const count=randInt(3,4);
-    const values=genValues(unit,count);
-    R={unit,count,values,measurements:[],currentItem:0};
+    R={unit,count,values:genValues(unit,count),measurements:[],currentItem:0,
+       points:count*POINTS_PER_MEASUREMENT};
     showMeasureItem();
   }
 
@@ -400,6 +419,8 @@
     if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
     R.measurements.push(val);
     R.currentItem++;
+    S.stepsDone++;
+    updateHud();
     if(R.currentItem<R.count) showMeasureItem();
     else showAverageUI();
   }
@@ -411,7 +432,8 @@
     const {unit,count,values,measurements}=R;
     const ctx=unitContext(unit);
 
-    els.qtext.innerHTML=`${ctx.icon} All ${count} items measured! Calculate the average. Round to the nearest hundredth.`;
+    els.qtext.innerHTML=`${ctx.icon} All ${count} ${unit} measurements done \u2014 this set is worth ${R.points} points. `
+      + `Calculate the average, rounded to the nearest hundredth.`;
 
     // Show all measurements
     const log=document.createElement('div');log.className='meas-log';
@@ -489,9 +511,13 @@
     els.body.appendChild(table);
 
     // Determine result
+    // All or nothing for the set: every measurement right AND the average
+    // right, or it scores zero.  Worth 10 points per measurement in the set,
+    // so the three sets always add up to 120 however the 12 were split.
     const isCorrect=allMeasOK&&avgMatchesActual;
-    if(isCorrect) S.score=Math.min(GOAL,S.score+10);
-    els.hudScore.textContent=`${S.score} of ${GOAL} points`;
+    if(isCorrect) S.score=Math.min(GOAL,S.score+R.points);
+    S.stepsDone++;
+    updateHud();
 
     // Which part went wrong decides the teaching line. The comparison table
     // built just above stays on screen while they read it — a miss no longer
@@ -502,13 +528,14 @@
     } else if(allMeasOK&&!avgMatchesActual){
       note='Your measurements were all correct — it was the average. Add them again and divide by how many there are.';
     } else {
-      note='Compare your measurements with the actual values in the table, then press Next.';
+      note='Every measurement in a set has to be right as well as the average. Compare yours with the actual values in the table, then press Next.';
     }
     Review.show(els.feedback, {
       ok: isCorrect,
       yours: `${val} ${unit}`,
       correct: `${actualAvg.toFixed(2)} ${unit}`,
-      headline: isCorrect ? 'Correct! +10 points' : 'Not quite.',
+      headline: isCorrect ? `Correct! +${R.points} points`
+                          : `Not quite \u2014 this set was worth ${R.points} points.`,
       note: note,
       label: `Actual: ${values.map(v=>fmtVal(v,unit)).join(', ')} ${unit}`,
       autoMs: 2400,
