@@ -356,18 +356,28 @@ const INTERIOR_OBJECTS = {
   // Eight stations in a wide 25×10 scrolling room. The camera follows the player
   // like the overworld when the room is wider than the viewport.
   //
-  // Six benches along the top wall, 4 tiles apart. The last two sit against the RIGHT
-  // wall instead, stacked with a row between them. They used to be at (18,6) and
-  // (22,6), directly under Mixed Practice and Rounding, and a bench is 3 tiles wide
-  // in collision (the 2-tile sprite is centred on a tile centre, so it straddles) —
-  // which left only two 1-tile gaps, at col 20 and col 24, to get from the lower half
-  // of the room up to the Rounding bench. Passable, since the player's feet box is
-  // 17px inside a 48px tile, but you had to thread it. Against the right wall there is
-  // one clear 22-tile aisle in every row band instead.
+  // Six benches along the top wall, 4 tiles apart, and two on a second row below.
   //
-  // They are still approached from below like every other bench here — one rule for all
-  // eight — even though the wall means walking up to them from the left is just as
-  // natural. Set `triggerC: 21` on both to make it a left-side approach instead.
+  // Two rules govern where the lower two can go, and between them they leave exactly
+  // one workable row:
+  //
+  //  1. A bench is 3 tiles wide in collision, not 2 — the 32px sprite is centred on a
+  //     tile centre, so it straddles and covers col-1..col+1. The gaps between the top
+  //     benches are therefore single tiles (cols 0, 4, 8, 12, 16, 20, 24).
+  //  2. A top bench sits in rows 1-2 and is approached from row 3, and the player's
+  //     y-clamp means they cannot stand above row ~2. So row 3 is the ONLY row you can
+  //     walk along to reach any top bench.
+  //
+  // Together: any bench whose footprint reaches row 4 squeezes row 3 under some top
+  // bench into a one-row-tall corridor with furniture above and below — you end up
+  // aiming rather than walking, and bump the bench you were heading for. A bench
+  // anchored at row 7 or lower puts its own approach tile at row 8+, which is fine,
+  // but stacking two on the right wall was tried and gave the Rounding bench exactly
+  // that squeezed row-3 approach. So both lower benches sit at row 6 (footprint rows
+  // 5-6, approach row 7), spread wide and kept clear of cols 19-24 so the last bench
+  // on the top row has the whole right-hand floor open below it.
+  //
+  // All eight are approached from below — one rule for the room.
   red: [
     { id: 'unitBench',     kind: 'workbench', img: workbenchImg, col: 2,  row: 2, label: 'Choose the Right Unit Work Bench',       shortLabel: 'Choose the Unit', src: 'measure-bench.html', messageType: 'mb-login', bench: 'unit' },
     { id: 'mmBench',       kind: 'workbench', img: workbenchImg, col: 6,  row: 2, label: 'Measure to the Millimeter Work Bench',   shortLabel: 'Millimeter',      src: 'measure-bench.html', messageType: 'mb-login', bench: 'mm' },
@@ -375,11 +385,11 @@ const INTERIOR_OBJECTS = {
     { id: 'mBench',        kind: 'workbench', img: workbenchImg, col: 14, row: 2, label: 'Measure to the Meter Work Bench',        shortLabel: 'Meter',           src: 'measure-bench.html', messageType: 'mb-login', bench: 'm' },
     { id: 'mixedBench',    kind: 'workbench', img: workbenchImg, col: 18, row: 2, label: 'Mixed Practice Work Bench',              shortLabel: 'Mixed Practice',  src: 'measure-bench.html', messageType: 'mb-login', bench: 'mixed' },
     { id: 'roundingBench', kind: 'workbench', img: workbenchImg, col: 22, row: 2, label: 'Rounding to Hundredths Work Bench',      shortLabel: 'Rounding',        src: 'rounding-bench.html', messageType: 'rb-login' },
-    // Against the right wall. Rows 4-5 and 7-8, so the row between them (6) is the
-    // upper bench's approach tile and the lower one's is row 9 — any closer together
-    // and one bench's footprint would swallow the other's trigger tile.
-    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 23, row: 5, label: 'Average Distance Work Bench',              shortLabel: 'Avg Distance',    src: 'average-bench.html', messageType: 'ab-login' },
-    { id: 'measAvgBench',  kind: 'workbench', img: workbenchImg, col: 23, row: 8, label: 'Measure & Average Distance Work Bench',    shortLabel: 'Measure & Avg',   src: 'measure-average-bench.html', messageType: 'mab-login' },
+    // Second row, on the left. Anchored at cols 4 and 10 so the gaps either side are
+    // 3 tiles, col 12 stays clear (the player spawns at (12,7) and walks straight up),
+    // and cols 12-24 are left completely open below the Rounding bench.
+    { id: 'averageBench',  kind: 'workbench', img: workbenchImg, col: 4,  row: 6, label: 'Average Distance Work Bench',              shortLabel: 'Avg Distance',    src: 'average-bench.html', messageType: 'ab-login' },
+    { id: 'measAvgBench',  kind: 'workbench', img: workbenchImg, col: 10, row: 6, label: 'Measure & Average Distance Work Bench',    shortLabel: 'Measure & Avg',   src: 'measure-average-bench.html', messageType: 'mab-login' },
   ],
   blue: [
     { id: 'placevalue', kind: 'workbench', img: workbenchImg, col: INTERIORS.blue.exitCol, row: 1, label: 'Place Value Work Bench', shortLabel: 'Place Value', src: 'place-value-bench.html', messageType: 'pvb-login' },
