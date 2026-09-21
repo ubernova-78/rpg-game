@@ -53,20 +53,36 @@
   .caliper-wrap{overflow-x:auto;margin:12px 0;text-align:center;}
   .caliper-wrap svg{max-width:100%;height:auto;}
 
-  /* Ruler/tape — reuse measure-shared.js styles */
+  /* Ruler/tape — these class names and their geometry are the contract
+     MeasureShared.buildRulerDOM renders against: ticks and the mm-sub-tick
+     background grow UP from the bottom of the tape, labels sit above them.
+     Keep in step with the same block in measure-bench.html — an earlier
+     top-anchored copy of this block put every cm number on top of its own
+     tick and hid the mm sub-ticks completely. */
   .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
   .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
     border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
   .tape-wrap:active{cursor:grabbing;}
   .tape-inner{position:relative;height:100%;}
-  .measure-bar{position:absolute;top:65px;height:20px;background:rgba(52,120,180,0.2);border:2px solid #3478b4;border-radius:2px;}
-  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1rem;color:var(--bench3);z-index:2;}
-  .tick{position:absolute;top:8px;width:1px;background:#999;}
-  .tick.cm{background:#333;width:1.5px;height:30px;}
-  .tick.cm5{height:20px;} .tick.cm10{height:28px;background:#555;width:1.2px;}
-  .tick.meter{background:var(--accent);width:2px;height:56px;}
-  .tick-label{position:absolute;font-size:11px;font-weight:700;color:#333;transform:translateX(-50%);}
-  .tick-label.cm{top:38px;} .tick-label.cm10{top:38px;color:#333;} .tick-label.meter{top:66px;color:var(--accent);font-size:12px;}
+  .measure-bar{position:absolute;bottom:26px;height:26px;background:rgba(52,120,180,0.25);
+    border:2px solid #3478b4;border-radius:3px 0 0 3px;}
+  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1.2rem;color:var(--bench3);
+    background:rgba(255,255,255,0.85);border:2px solid var(--bench3);border-radius:6px;padding:1px 10px;
+    z-index:5;pointer-events:none;}
+  .tick{position:absolute;bottom:0;width:2px;background:#333;}
+  .tick.cm{width:1px;height:18px;}
+  .tick.half-cm{width:1.5px;}
+  .tick.cm5{width:1.5px;height:28px;}
+  .tick.cm10{width:2px;height:40px;}
+  .tick.meter{width:3px;height:56px;background:var(--accent);}
+  .mm-bg{position:absolute;bottom:0;left:0;height:16px;}
+  /* All label rows clear the top of the measured bar (bottom:26px + 26px tall),
+     so no number is printed across the shape being measured. */
+  .tick-label{position:absolute;bottom:56px;font-size:0.78rem;font-weight:700;color:#333;
+    transform:translateX(-50%);white-space:nowrap;}
+  .tick-label.cm5{bottom:55px;font-size:0.72rem;font-weight:700;color:var(--dim);}
+  .tick-label.cm10{bottom:56px;font-size:0.9rem;font-weight:800;}
+  .tick-label.meter{bottom:78px;font-size:1.1rem;font-weight:900;color:var(--accent);}
 
   /* Measurement input */
   .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
@@ -227,6 +243,7 @@
 
   // ---------- Round sequence ----------
   const UNITS=['mm','cm','m'];
+  const CALIPER_MAX_MM=80; // same scale as every other caliper in the game
   const UNIT_LABELS={mm:'Millimeters (mm)',cm:'Centimeters (cm)',m:'Meters (m)'};
 
   function buildModeSequence(){
@@ -238,12 +255,16 @@
   }
 
   // ---------- Value generators ----------
+  // Every value has to land exactly on a tick the student can see, or the
+  // reading is a guess.  The caliper's finest tick is 1 mm (it has no vernier
+  // scale), the cm ruler's is 1 mm = 0.1 cm, and the meter tape's numbered
+  // marks are every 10 cm = 0.1 m.
   function genValues(unit,count){
     const vals=[];
     for(let i=0;i<count;i++){
-      if(unit==='mm') vals.push(randInt(80,550)/10);       // 8.0-55.0 mm (bug lengths)
-      else if(unit==='cm') vals.push(randInt(10,120)/10);   // 1.0-12.0 cm (axe throws)
-      else vals.push(randInt(50,600)/10);                   // 5.0-60.0 m (archery)
+      if(unit==='mm') vals.push(randInt(8,55));             // 8-55 mm, whole mm (bug lengths)
+      else if(unit==='cm') vals.push(randInt(10,120)/10);   // 1.0-12.0 cm, whole mm (axe throws)
+      else vals.push(randInt(50,600)/10);                   // 5.0-60.0 m, whole 10 cm (archery)
     }
     return vals;
   }
@@ -314,23 +335,26 @@
       // Calipers with bug specimen
       const wrap=document.createElement('div');
       wrap.className='caliper-wrap';
-      wrap.innerHTML=MeasureShared.buildCaliperSVG(val,Math.ceil(val)+randInt(10,20),{
+      wrap.innerHTML=MeasureShared.buildCaliperSVG(val,CALIPER_MAX_MM,{
         specimenSVG:bugSpecimenSVG,extraH:16
       });
       els.body.appendChild(wrap);
     } else {
-      // Ruler/tape
+      // Ruler/tape.  The container goes into the page BEFORE the ruler is built:
+      // buildRulerDOM scrolls the bar's end into view, and setting scrollLeft on
+      // a detached element is silently ignored — which left the 12 m tape parked
+      // at zero with the bar's end 10,000 px off to the right.
       const container=document.createElement('div');
+      els.body.appendChild(container);
       const rulerOpts={
-        pxPerMM: unit==='m'?0.9:6,
-        padMM: unit==='m'?100:20,
+        scale: unit,
         badge: unit==='cm'?'cm':'m',
+        tapeHeight: unit==='m'?'150px':'120px',
         scaleLabel: unit==='cm'
           ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
           : 'Scale: small ticks = cm \u00b7 numbered ticks = 10 cm \u00b7 red ticks = each meter'
       };
       MeasureShared.buildRulerDOM(container,valMM,rulerOpts);
-      els.body.appendChild(container);
     }
 
     // Input row
@@ -338,7 +362,7 @@
     const lbl=document.createElement('span');lbl.style.fontWeight='700';
     lbl.textContent=`Item ${currentItem+1} (${unit}):`;
     const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
-    inp.placeholder=unit==='mm'?'0.0':'0.00';inp.inputMode='decimal';
+    inp.placeholder=unit==='mm'?'0':'0.00';inp.inputMode='decimal';
     const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
     row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
     els.body.appendChild(row);
@@ -399,8 +423,6 @@
     S.locked=true;
 
     const {unit,count,values,measurements}=R;
-    // Tolerance per unit
-    const measTol=unit==='m'?0.05:0.5; // 0.5mm for mm/cm, 5cm (0.05m) for m
 
     // Check each measurement
     let allMeasOK=true;

@@ -7,8 +7,9 @@
 
    Consumed by:
      • index.html  (battle / PvP via measure.js)
-     • measure-bench.html  (practice workbench)
-     • potion-quest.html   (potion gathering mini-game)
+     • measure-bench.html          (practice workbench)
+     • measure-average-bench.html  (measure & average workshop)
+     • potion-quest.html           (potion gathering mini-game)
    ================================================================ */
 
 // eslint-disable-next-line no-unused-vars
@@ -40,6 +41,79 @@ const MeasureShared = (function () {
     }, { passive: true });
   }
 
+  // ── Meter-tape tick builder ───────────────────────────────────
+  // Draws the tick marks for a meter tape into an existing `.tape-inner`
+  // element.  Shared by the meter bench and the measure-and-average
+  // workshop so the two tapes cannot drift apart.
+  //
+  // The scale is coarse (0.9 px per mm = 90 px per 10 cm), so labels are
+  // deliberately sparse: every metre (red), every 10 cm, and a "5" at the
+  // half-decimetre.  Labelling every single cm was tried and reverted —
+  // at 9 px apart the digits collide into an unreadable smear.
+  //
+  //   opts.cssPrefix – class-name prefix (default '')
+  //   opts.pxPerMM   – pixel scale (default 0.9)
+  //   opts.padLeft   – px before the zero mark (default 60)
+  //   opts.totalMM   – full length of tape to draw (default valueMM + 1000)
+  //
+  function buildMeterTicks(inner, valueMM, opts) {
+    opts = opts || {};
+    const p     = opts.cssPrefix || '';
+    const pxMM  = opts.pxPerMM != null ? opts.pxPerMM : 0.9;
+    const padL  = opts.padLeft != null ? opts.padLeft : RULER_PAD_LEFT;
+    const totalMM = opts.totalMM != null ? opts.totalMM : valueMM + 1000;
+
+    function addTick(x, cls) {
+      const el = document.createElement('div');
+      el.className = p + 'tick ' + p + cls;
+      el.style.left = x + 'px';
+      inner.appendChild(el);
+    }
+    function addLabel(x, cls, text) {
+      const el = document.createElement('div');
+      el.className = p + 'tick-label ' + p + cls;
+      el.style.left = x + 'px';
+      el.textContent = text;
+      inner.appendChild(el);
+    }
+
+    const PX_PER_M    = pxMM * 1000;
+    const totalMeters = Math.ceil(totalMM / 1000) + 1;
+    // Individual cm ticks only near the bar's end, where they get read.
+    const barMeter    = Math.floor(valueMM / 1000);
+    const detailStart = Math.max(0, barMeter - 1);
+    const detailEnd   = Math.min(totalMeters, barMeter + 2);
+
+    for (let m = 0; m <= totalMeters; m++) {
+      const mx = padL + m * PX_PER_M;
+      addTick(mx, 'meter');
+      addLabel(mx, 'meter', m + 'm');
+      if (m >= totalMeters) continue;
+
+      // 10 cm (decimetre) marks — numbered 10 … 90
+      for (let d = 1; d < 10; d++) {
+        const dx = padL + (m + d / 10) * PX_PER_M;
+        addTick(dx, 'cm10');
+        addLabel(dx, 'cm10', String(d * 10));
+      }
+
+      // Single cm ticks in the detail zone, with a "5" at each half-decimetre
+      // so leftover centimetres can be counted without squinting.
+      if (m >= detailStart && m < detailEnd) {
+        for (let c = 1; c < 100; c++) {
+          if (c % 10 === 0) continue;
+          const cx = padL + (m + c / 100) * PX_PER_M;
+          if (c % 5 === 0) {
+            addTick(cx, 'cm5');
+            addLabel(cx, 'cm5', '5');
+          } else {
+            addTick(cx, 'cm');
+          }
+        }
+      }
+    }
+  }
+
   // ── Ruler builder ─────────────────────────────────────────────
   // Builds a scrollable cm ruler with mm sub-ticks into `container`.
   //
@@ -50,13 +124,18 @@ const MeasureShared = (function () {
   //   opts.badge      – text for the unit badge (default 'cm')
   //   opts.scaleLabel – text above the ruler (default auto)
   //   opts.tapeHeight – CSS height of the tape wrapper (default '150px')
+  //   opts.scale      – 'mm' | 'cm' | 'm'.  'm' draws a metre tape
+  //                     (red metre marks + 10 cm marks) instead of a
+  //                     cm ruler with mm sub-ticks (default 'cm')
   //
   // Returns the tape-wrap element (already appended to container).
   function buildRulerDOM(container, valueMM, opts) {
     opts = opts || {};
     const p      = opts.cssPrefix || '';
-    const pxMM   = opts.pxPerMM   || PX_PER_MM;
-    const padMM  = opts.padMM     || 20;
+    const scale  = opts.scale     || 'cm';
+    const isM    = scale === 'm';
+    const pxMM   = opts.pxPerMM   || (isM ? 0.9 : PX_PER_MM);
+    const padMM  = opts.padMM     || (isM ? 100 : 20);
     const padL   = opts.padLeft   || RULER_PAD_LEFT;
     const badge  = opts.badge != null ? opts.badge : 'cm';
     const label  = opts.scaleLabel || 'Scale: small ticks = mm \u00b7 numbered ticks = cm';
@@ -70,21 +149,30 @@ const MeasureShared = (function () {
     scaleLabel.textContent = label;
     container.appendChild(scaleLabel);
 
-    // Tape wrapper (scrollable)
+    // Tape wrapper (scrollable), inside a positioned outer box.  The unit badge
+    // has to sit in the OUTER box, not the scroller: parked inside the scroller
+    // it slid off with the tape, so a 32 m reading lost the "m" telling the
+    // student which unit they were reading.  Same structure the meter bench uses.
+    const outer = document.createElement('div');
+    outer.className = p + 'tape-wrap-outer';
+    outer.style.position = 'relative';
+
     const tapeWrap = document.createElement('div');
     tapeWrap.className = p + 'tape-wrap';
-    if (opts.tapeHeight) tapeWrap.style.height = opts.tapeHeight;
+    const tapeHeight = opts.tapeHeight || (isM ? '180px' : '');
+    if (tapeHeight) tapeWrap.style.height = tapeHeight;
     const inner = document.createElement('div');
     inner.className = p + 'tape-inner';
     inner.style.width = totalWidth + 'px';
     tapeWrap.appendChild(inner);
-    container.appendChild(tapeWrap);
+    outer.appendChild(tapeWrap);
+    container.appendChild(outer);
 
     // Unit badge
     const badgeEl = document.createElement('div');
     badgeEl.className = p + 'unit-badge';
     badgeEl.textContent = badge;
-    tapeWrap.appendChild(badgeEl);
+    outer.appendChild(badgeEl);
 
     // Measured bar
     const bar = document.createElement('div');
@@ -93,12 +181,22 @@ const MeasureShared = (function () {
     bar.style.width = (valueMM * pxMM + 1) + 'px';
     inner.appendChild(bar);
 
+    if (isM) {
+      // Metre tape — red metre marks, numbered 10 cm marks, cm detail near
+      // the bar's end.  Shared with the meter bench (see buildMeterTicks).
+      buildMeterTicks(inner, valueMM, { cssPrefix: p, pxPerMM: pxMM, padLeft: padL, totalMM });
+      finishRuler();
+      return tapeWrap;
+    }
+
     // mm sub-ticks as repeating background
     const mmBg = document.createElement('div');
     mmBg.className = p + 'mm-bg';
     mmBg.style.left = padL + 'px';
     mmBg.style.width = (totalWidth - padL) + 'px';
-    const lineColor = p ? '#1e2530' : 'var(--charcoal)';
+    // Fallback matters: a page without --charcoal defined would make the whole
+    // repeating-linear-gradient invalid, and the mm sub-ticks would vanish.
+    const lineColor = p ? '#1e2530' : 'var(--charcoal, #262b31)';
     mmBg.style.backgroundImage =
       `repeating-linear-gradient(to right, ${lineColor} 0, ${lineColor} 1px, transparent 1px, transparent ${pxMM}px)`;
     inner.appendChild(mmBg);
@@ -132,17 +230,26 @@ const MeasureShared = (function () {
       }
     }
 
-    // Scroll to bar end
-    requestAnimationFrame(() => {
-      const wrapWidth = tapeWrap.clientWidth;
-      const barEndX = padL + valueMM * pxMM;
-      tapeWrap.scrollLeft = Math.max(0, barEndX - wrapWidth * 0.6);
-    });
-
-    // Drag-to-scroll
-    enableDragScroll(tapeWrap);
-
+    finishRuler();
     return tapeWrap;
+
+    // Scroll the bar's end into view, then make the tape draggable.
+    function finishRuler() {
+      requestAnimationFrame(() => {
+        const wrapWidth = tapeWrap.clientWidth;
+        const barEndX = padL + valueMM * pxMM;
+        let target = barEndX - wrapWidth * 0.6;
+        if (isM) {
+          // Don't let the metre mark the reading is based on land under the
+          // left edge: a half-clipped "32m" reads as "2m" and costs the
+          // student the answer on a tape they read correctly.
+          const lastMeterX = padL + Math.floor(valueMM / 1000) * 1000 * pxMM;
+          target = Math.min(target, lastMeterX - 48);
+        }
+        tapeWrap.scrollLeft = Math.max(0, target);
+      });
+      enableDragScroll(tapeWrap);
+    }
   }
 
   // ── Caliper SVG builder ───────────────────────────────────────
@@ -196,7 +303,10 @@ const MeasureShared = (function () {
     const handle   = `<rect x="${slideX - 9}" y="${beamY - 20}" width="18" height="16" rx="2" fill="#2c3138" stroke="#14171a" stroke-width="1.5"/>`;
     const slideLine = `<rect x="${slideX - 1.5}" y="${beamY - 4}" width="3" height="4" fill="#2c3138"/>`;
     const slideJaw = `<path d="M${slideX - jawW / 2} ${beamY + beamH} h${jawW} l-${jawW / 2 - 1} ${jawH} h-2 Z" fill="#2c3138"/>`;
-    const pointer  = `<polygon points="${slideX},${beamY + beamH + 2} ${slideX - 5},${beamY + beamH + 12} ${slideX + 5},${beamY + beamH + 12}" fill="#f2c230"/>`;
+    // Reading pointer.  Its apex sits exactly on `slideX` — the same x the
+    // tick marks are drawn at — so it lands on a tick, never between two.
+    // Outlined because it otherwise disappears into the dark slide jaw.
+    const pointer  = `<polygon points="${slideX},${beamY + beamH} ${slideX - 5},${beamY + beamH + 12} ${slideX + 5},${beamY + beamH + 12}" fill="#f2c230" stroke="#14171a" stroke-width="0.8" stroke-linejoin="round"/>`;
 
     return `<svg width="${railW}" height="${H}" viewBox="0 0 ${railW} ${H}" xmlns="http://www.w3.org/2000/svg">
       <rect x="${beamX - 14}" y="${beamY - 6}" width="${beamW + 28}" height="${beamH + 12}" rx="3" fill="#1a1d21"/>
@@ -216,6 +326,7 @@ const MeasureShared = (function () {
     RULER_PAD_LEFT,
     enableDragScroll,
     buildRulerDOM,
+    buildMeterTicks,
     buildCaliperSVG,
   };
 })();

@@ -345,9 +345,10 @@
     white-space:nowrap;
     bottom:38px;
   }
-  .tick-label.cm{
-    bottom:20px;
+  .tick-label.cm5{
+    bottom:30px;
     font-size:0.72rem;
+    color:var(--dim, #6b7280);
   }
   .tick-label.cm10{
     bottom:44px;
@@ -1040,20 +1041,6 @@
     els.readAnswer.value = '';
   }
 
-  function addTickEl(parent, x, cls){
-    const el = document.createElement('div');
-    el.className = 'tick ' + cls;
-    el.style.left = x + 'px';
-    parent.appendChild(el);
-  }
-  function addLabelEl(parent, x, cls, text){
-    const el = document.createElement('div');
-    el.className = 'tick-label ' + cls;
-    el.style.left = x + 'px';
-    el.textContent = text;
-    parent.appendChild(el);
-  }
-
   function buildRuler(scale, valueMM){
     const { pxPerMM } = RULER_SCALE[scale];
     const REC_START = 60;
@@ -1086,46 +1073,12 @@
     inner.appendChild(bar);
 
     if(scale === 'm'){
-      // Matches the archery range tape: meter marks (red), 10cm marks labeled,
-      // individual cm ticks in a detail zone around the bar end.
-      const PX_PER_M = pxPerMM * 1000; // 900px per meter
-      const totalMeters = Math.ceil(totalMM / 1000) + 1;
-      const barEndM = valueMM / 1000;
-      const barMeter = Math.floor(barEndM);
-      const detailStart = Math.max(0, barMeter - 1);
-      const detailEnd = Math.min(totalMeters, barMeter + 2);
-
-      for(let m = 0; m <= totalMeters; m++){
-        const mx = REC_START + m * PX_PER_M;
-        addTickEl(inner, mx, 'meter');
-        addLabelEl(inner, mx, 'meter', m + 'm');
-
-        if(m < totalMeters){
-          // 10cm (decimeter) ticks
-          for(let d = 1; d < 10; d++){
-            const dx = REC_START + (m + d/10) * PX_PER_M;
-            addTickEl(inner, dx, 'cm10');
-            addLabelEl(inner, dx, 'cm10', (d * 10).toString());
-          }
-
-          // cm ticks only in detail zone near bar end
-          if(m >= detailStart && m < detailEnd){
-            for(let c = 1; c < 100; c++){
-              if(c % 10 === 0) continue;
-              const cx = REC_START + (m + c/100) * PX_PER_M;
-              if(c % 5 === 0){
-                addTickEl(inner, cx, 'cm5');
-              } else {
-                addTickEl(inner, cx, 'cm');
-                const cmInDm = c % 10;
-                if(cmInDm !== 0 && cmInDm !== 5){
-                  addLabelEl(inner, cx, 'cm', cmInDm.toString());
-                }
-              }
-            }
-          }
-        }
-      }
+      // Meter marks (red), 10cm marks labeled, individual cm ticks in a detail
+      // zone around the bar end — drawn by the shared builder so this tape and
+      // the one in measure-average-bench.html cannot drift apart.
+      MeasureShared.buildMeterTicks(inner, valueMM, {
+        pxPerMM, padLeft: REC_START, totalMM,
+      });
     } else {
       // mm sub-ticks as a lightweight repeating background, cm ticks numbered
       const mmBg = document.createElement('div');
@@ -1169,7 +1122,15 @@
     requestAnimationFrame(()=>{
       const wrapWidth = els.tapeWrap.clientWidth;
       const barEndX = REC_START + valueMM*pxPerMM;
-      els.tapeWrap.scrollLeft = Math.max(0, barEndX - wrapWidth*0.6);
+      let target = barEndX - wrapWidth*0.6;
+      if(scale === 'm'){
+        // Keep the metre mark the reading is based on on screen — scrolled to
+        // the bar's end alone it can sit off the left edge, and a reading of
+        // 9.40 m then looks like 40 cm.
+        const lastMeterX = REC_START + Math.floor(valueMM/1000)*1000*pxPerMM;
+        target = Math.min(target, lastMeterX - 48);
+      }
+      els.tapeWrap.scrollLeft = Math.max(0, target);
     });
 
     // Zoom inset removed — cm scale now uses 6px/mm (same as mm scale) so
