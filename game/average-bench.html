@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
 <style>
   :root{
@@ -368,7 +369,11 @@
     const count = randInt(3, 5); // 3-5 distances to average
     const dists = generateDistances(unit, count);
     const ctx = distContext(unit);
-    const correctAvg = Math.round((dists.reduce((a,d)=>a+d, 0) / count) * 100) / 100;
+    // Summed in tenths (every distance is randInt()/10) and averaged as an exact
+    // fraction, so a mean landing on a half-hundredth rounds up the way it is
+    // taught. The old float form marked the correct 9.03 wrong for 36.1 / 4.
+    const distTenths = dists.reduce((a,d)=>a+Math.round(d*10), 0);
+    const correctH = BenchMath.hundredthsFromFraction(distTenths, 10*count);
 
     // Question text
     els.qtext.innerHTML = `${ctx.icon} Find the average of these ${count} ${ctx.items}. Round to the nearest hundredth.`;
@@ -415,20 +420,26 @@
     els.body.appendChild(row);
 
     const qLabel = `${dists.join(', ')} ${unit}`;
-    sub.addEventListener('click', ()=> checkAverage(inp, correctAvg, unit, qLabel));
-    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAverage(inp, correctAvg, unit, qLabel); });
+    sub.addEventListener('click', ()=> checkAverage(inp, correctH, unit, qLabel));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAverage(inp, correctH, unit, qLabel); });
     setTimeout(()=> inp.focus(), 50);
   }
 
-  function checkAverage(inp, correctAvg, unit, qLabel){
+  function checkAverage(inp, correctH, unit, qLabel){
     if(S.locked) return;
     const raw = inp.value.trim();
-    if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
-    const val = parseFloat(raw);
-    if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+    // `Math.abs(val - correctAvg) <= 0.01` used to be used here: it accepted the
+    // neighbouring hundredth about half the time, and accepted an unrounded
+    // answer every time, on a question that says "round to the nearest hundredth".
+    const parsed = BenchMath.parseHundredths(raw);
+    if(!parsed.ok){
+      BenchMath.nudge(inp, parsed.reason === 'tooManyDecimals'
+        ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
+      return;
+    }
 
     S.locked = true;
-    const isCorrect = Math.abs(val - correctAvg) <= 0.01;
+    const isCorrect = parsed.hundredths === correctH;
 
     if(isCorrect) S.score = Math.min(GOAL, S.score + 10);
     els.hudScore.textContent = `${S.score} of ${GOAL} points`;
@@ -437,7 +448,7 @@
     Review.show(els.feedback, {
       ok: isCorrect,
       yours: `${raw} ${unit}`,
-      correct: `${correctAvg.toFixed(2)} ${unit}`,
+      correct: `${BenchMath.fmt2(correctH)} ${unit}`,
       headline: isCorrect ? 'Correct! +10 points' : 'Not quite.',
       note: 'Add the values again and divide by how many there are — then press Next.',
       label: qLabel,

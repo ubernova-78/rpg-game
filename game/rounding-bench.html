@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
 <style>
   :root{
@@ -356,8 +357,12 @@
     const displayPlaces = Math.max(actualPlaces, 3);
     const displayStr = num.toFixed(displayPlaces);
 
-    const correct = Math.round(num * 100) / 100;
-    const correctStr = correct.toFixed(2);
+    // Rounded from the STRING the student can see, half-up, in integers.
+    // `Math.round(num * 100) / 100` used to be used here and disagreed with
+    // half-up for 5.7% of values ending in 5 — it told a student who
+    // correctly answered 0.57 for 0.565 that the answer was 0.56.
+    const correctH = BenchMath.hundredthsFromString(displayStr);
+    const correctStr = BenchMath.fmt2(correctH);
 
     els.qtext.textContent = 'Round this number to the nearest hundredths place.';
 
@@ -384,20 +389,27 @@
     row.appendChild(inp); row.appendChild(sub);
     els.body.appendChild(row);
 
-    sub.addEventListener('click', ()=> checkAnswer(inp, correct, correctStr, displayStr));
-    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAnswer(inp, correct, correctStr, displayStr); });
+    sub.addEventListener('click', ()=> checkAnswer(inp, correctH, correctStr, displayStr));
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') checkAnswer(inp, correctH, correctStr, displayStr); });
     setTimeout(()=> inp.focus(), 50);
   }
 
-  function checkAnswer(inp, correct, correctStr, displayStr){
+  function checkAnswer(inp, correctH, correctStr, displayStr){
     if(S.locked) return;
     const raw = inp.value.trim();
-    if(raw === ''){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
-    const val = parseFloat(raw);
-    if(isNaN(val)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
+    // An answer with three or more decimals has not been rounded yet, which on
+    // this bench is the entire task. It used to be ACCEPTED: `val.toFixed(2)`
+    // rounded it for the student, so typing the number back verbatim scored
+    // full marks. Now it's refused without costing an attempt.
+    const parsed = BenchMath.parseHundredths(raw);
+    if(!parsed.ok){
+      BenchMath.nudge(inp, parsed.reason === 'tooManyDecimals'
+        ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
+      return;
+    }
 
     S.attempt++;
-    const isCorrect = val.toFixed(2) === correctStr;
+    const isCorrect = parsed.hundredths === correctH;
 
     if(isCorrect){
       const pts = S.attempt === 1 ? 10 : 5;

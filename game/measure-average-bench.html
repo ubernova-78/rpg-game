@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
 <script src="measure-shared.js"></script>
+<script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
 <style>
   :root{
@@ -336,7 +337,7 @@
     updateHud();
     els.feedback.classList.remove('show','good','bad');
     els.body.innerHTML='';
-    R={unit,count,values:genValues(unit,count),measurements:[],currentItem:0,
+    R={unit,count,values:genValues(unit,count),measurements:[],measHundredths:[],currentItem:0,
        points:count*POINTS_PER_MEASUREMENT};
     showMeasureItem();
   }
@@ -414,9 +415,19 @@
 
   function submitMeasure(inp){
     const raw=inp.value.trim();
-    if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
-    const val=parseFloat(raw);
-    if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    // Kept as exact integer hundredths as well as a float: the float is only for
+    // display, every comparison below is done on the integer. Three or more
+    // decimals is more precision than any of these tools can be read to, so it
+    // is refused rather than silently rounded into the average.
+    const parsed=BenchMath.parseHundredths(raw);
+    if(!parsed.ok){
+      BenchMath.nudge(inp, parsed.reason==='tooManyDecimals'
+        ? `This tool reads to ${['whole units','one decimal place','two decimal places'][DECIMALS[R.unit]]}.`
+        : 'Type a number.');
+      return;
+    }
+    const val=parsed.hundredths/100;
+    R.measHundredths.push(parsed.hundredths);
     R.measurements.push(val);
     R.currentItem++;
     S.stepsDone++;
@@ -461,11 +472,16 @@
     if(S.locked)return;
     const raw=inp.value.trim();
     if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
-    const val=parseFloat(raw);
-    if(isNaN(val)){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
+    const parsedAvg=BenchMath.parseHundredths(raw);
+    if(!parsedAvg.ok){
+      BenchMath.nudge(inp, parsedAvg.reason==='tooManyDecimals'
+        ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
+      return;
+    }
+    const val=parsedAvg.hundredths/100;
     S.locked=true;
 
-    const {unit,count,values,measurements}=R;
+    const {unit,count,values,measurements,measHundredths}=R;
 
     // Check each measurement
     let allMeasOK=true;
@@ -478,13 +494,17 @@
       if(!ok)allMeasOK=false;
     }
 
-    // Correct average from actual values
-    const actualAvg=Math.round((values.reduce((a,v)=>a+v,0)/count)*100)/100;
-    // Student's average from their measurements
-    const studentMeasAvg=Math.round((measurements.reduce((a,v)=>a+v,0)/count)*100)/100;
+    // Both averages as exact integer hundredths, half-up. The old float form
+    // (`Math.round(sum/count*100)/100` compared with `<=0.01`) marked a
+    // correctly-rounded average wrong whenever the true mean landed on a
+    // half-hundredth, and cost the whole set its points for a right answer.
+    const actualH=BenchMath.hundredthsFromFraction(
+      values.reduce((a,v)=>a+Math.round(v*100),0), 100*count);
+    const theirsH=BenchMath.hundredthsFromFraction(
+      measHundredths.reduce((a,h)=>a+h,0), 100*count);
 
-    const avgMatchesActual=Math.abs(val-actualAvg)<=0.01;
-    const avgMatchesTheirs=Math.abs(val-studentMeasAvg)<=0.01;
+    const avgMatchesActual=parsedAvg.hundredths===actualH;
+    const avgMatchesTheirs=parsedAvg.hundredths===theirsH;
 
     // Build feedback table
     const table=document.createElement('table');table.className='summary-table';
@@ -502,7 +522,7 @@
     const avgTr=document.createElement('tr');
     avgTr.style.borderTop='2px solid #999';
     const avgOK=allMeasOK&&avgMatchesActual;
-    avgTr.innerHTML=`<td><strong>Avg</strong></td><td><strong>${val} ${unit}</strong></td><td><strong>${actualAvg.toFixed(2)} ${unit}</strong></td>
+    avgTr.innerHTML=`<td><strong>Avg</strong></td><td><strong>${val} ${unit}</strong></td><td><strong>${BenchMath.fmt2(actualH)} ${unit}</strong></td>
       <td class="${avgOK?'correct':'wrong'}"><strong>${avgOK?'✓':'✗'}</strong></td>`;
     tbody.appendChild(avgTr);
     table.appendChild(tbody);
@@ -533,7 +553,7 @@
     Review.show(els.feedback, {
       ok: isCorrect,
       yours: `${val} ${unit}`,
-      correct: `${actualAvg.toFixed(2)} ${unit}`,
+      correct: `${BenchMath.fmt2(actualH)} ${unit}`,
       headline: isCorrect ? `Correct! +${R.points} points`
                           : `Not quite \u2014 this set was worth ${R.points} points.`,
       note: note,

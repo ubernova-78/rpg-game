@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="shared-student.js"></script>
+<script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
 <style>
   :root{
@@ -635,9 +636,11 @@
 
     const startFrame = Math.round(startTime * 1000);
     const endFrame = Math.round(endTime * 1000);
-    // The raw elapsed is in thousandths — student must round to hundredths
+    // The raw elapsed is in thousandths — student must round to hundredths.
+    // Rounded from the integer thousandths, half-up, so a reading that lands on
+    // a half-hundredth rounds the way it is taught.
     const rawElapsed = (endFrame - startFrame) / 1000;
-    const correctElapsed = Math.round(rawElapsed * 100) / 100;
+    const correctElapsedH = BenchMath.hundredthsFromFraction(endFrame - startFrame, 1000);
 
     function frameToTime(f){ return f / 1000; }
 
@@ -981,22 +984,26 @@
       const startOK = Math.abs(markedStart - startFrame) <= markerTolerance;
       const endOK = Math.abs(markedEnd - endFrame) <= markerTolerance;
 
-      // Check elapsed time answer
-      const raw = parseFloat(inp.value);
-      if(isNaN(raw)){
-        inp.style.borderColor = 'var(--miss)';
-        setTimeout(()=> inp.style.borderColor='', 500);
+      // Check elapsed time answer. The old `Math.abs(raw - correctElapsed) <= 0.01`
+      // compared against an ALREADY-rounded value, so both neighbouring
+      // hundredths passed — the rounding this question asks for was never
+      // actually tested.
+      const parsedEl = BenchMath.parseHundredths(inp.value);
+      if(!parsedEl.ok){
+        BenchMath.nudge(inp, parsedEl.reason === 'tooManyDecimals'
+          ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
         return;
       }
+      const raw = parsedEl.hundredths / 100;
 
-      const elapsedOK = Math.abs(raw - correctElapsed) <= 0.01;
+      const elapsedOK = parsedEl.hundredths === correctElapsedH;
       const allCorrect = startOK && endOK && elapsedOK;
 
       // Stop playback
       if(playing){ playing=false; clearInterval(playInterval); }
 
       grade(allCorrect,
-        `Start: ${fmtTime(startTime)}, End: ${fmtTime(endTime)}, Elapsed: ${correctElapsed.toFixed(2)}s (rounded to hundredths)`,
+        `Start: ${fmtTime(startTime)}, End: ${fmtTime(endTime)}, Elapsed: ${BenchMath.fmt2(correctElapsedH)}s (rounded to hundredths)`,
         `Start: ${fmtTime(markedStart/1000)}, End: ${fmtTime(markedEnd/1000)}, Elapsed: ${raw.toFixed(2)}s`);
     });
 
@@ -1026,7 +1033,8 @@
     const startSec = startThou / 1000;
     const endSec = endThou / 1000;
     const rawElapsedSec = elapsedThou / 1000;
-    const elapsedSec = Math.round(rawElapsedSec * 100) / 100; // rounded to hundredths
+    // Half-up from the integer thousandths (see the Start & Stop round above).
+    const elapsedSecH = BenchMath.hundredthsFromFraction(elapsedThou, 1000);
 
     const pair = document.createElement('div');
     pair.className = 'stopwatch-pair';
@@ -1077,10 +1085,14 @@
 
     sub.addEventListener('click', ()=>{
       if(state.locked) return;
-      const raw = parseFloat(inp.value);
-      if(isNaN(raw)){ inp.style.borderColor='var(--miss)'; setTimeout(()=>inp.style.borderColor='',500); return; }
-      const diff = Math.abs(raw - elapsedSec);
-      grade(diff <= 0.01, `${elapsedSec.toFixed(2)} seconds`, `${raw} seconds`);
+      const parsedEl = BenchMath.parseHundredths(inp.value);
+      if(!parsedEl.ok){
+        BenchMath.nudge(inp, parsedEl.reason === 'tooManyDecimals'
+          ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
+        return;
+      }
+      grade(parsedEl.hundredths === elapsedSecH,
+        `${BenchMath.fmt2(elapsedSecH)} seconds`, `${inp.value.trim()} seconds`);
     });
 
     setTimeout(()=> inp.focus(), 50);
