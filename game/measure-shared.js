@@ -134,14 +134,10 @@ const MeasureShared = (function () {
     const p      = opts.cssPrefix || '';
     const scale  = opts.scale     || 'cm';
     const isM    = scale === 'm';
-    const pxMM   = opts.pxPerMM   || (isM ? 0.9 : PX_PER_MM);
     const padMM  = opts.padMM     || (isM ? 100 : 20);
     const padL   = opts.padLeft   || RULER_PAD_LEFT;
     const badge  = opts.badge != null ? opts.badge : 'cm';
     const label  = opts.scaleLabel || 'Scale: small ticks = mm \u00b7 numbered ticks = cm';
-
-    const totalMM   = valueMM + padMM;
-    const totalWidth = padL + totalMM * pxMM + 40;
 
     // Scale label
     const scaleLabel = document.createElement('p');
@@ -167,10 +163,26 @@ const MeasureShared = (function () {
     // for the cm ruler, from CSS for the metre tape), so the two need
     // different offsets to hang from the same line.
     inner.className = p + 'tape-inner' + (isM ? ' ' + p + 'tape-inner-m' : '');
-    inner.style.width = totalWidth + 'px';
     tapeWrap.appendChild(inner);
     outer.appendChild(tapeWrap);
     container.appendChild(outer);
+
+    // The metre tape is read to the centimetre, which means the metre mark the
+    // reading is counted from and the bar's end BOTH have to be on screen at
+    // once.  At a fixed 0.9 px/mm a metre is 900px — wider than the tape's
+    // viewport — so a reading like 45.97 m could not show its own "45m".
+    // Fit a whole metre to the viewport instead, measured now that the tape
+    // is in the page.  Floored so the centimetre ticks never get denser than
+    // the millimetre ruler's proven 6px spacing allows.
+    let pxMM = opts.pxPerMM || (isM ? 0.9 : PX_PER_MM);
+    if (isM && !opts.pxPerMM) {
+      const vw = tapeWrap.clientWidth;
+      if (vw > 0) pxMM = Math.max(0.55, Math.min(0.9, (vw - 120) / 1000));
+    }
+
+    const totalMM    = valueMM + padMM;
+    const totalWidth = padL + totalMM * pxMM + 40;
+    inner.style.width = totalWidth + 'px';
 
     // Unit badge
     const badgeEl = document.createElement('div');
@@ -279,8 +291,13 @@ const MeasureShared = (function () {
       const x = beamX + mm * pxPerMM;
       const isCM     = mm % 10 === 0;
       const isHalfCM = !isCM && mm % 5 === 0;
-      const tickH = isCM ? 16 : isHalfCM ? 12 : 9;
-      const tickW = isCM ? 1.4 : isHalfCM ? 1.1 : 0.8;
+      // The half-centimetre tick is the one that makes a reading countable:
+      // labels are only every 10 mm, so "35, then one more" beats counting
+      // six identical ticks from the 30.  It used to be 3px taller than a mm
+      // tick, which is invisible at this size — it is now clearly a midpoint
+      // mark, and every mm tick is a little shorter to widen the gap.
+      const tickH = isCM ? 19 : isHalfCM ? 14 : 8;
+      const tickW = isCM ? 1.6 : isHalfCM ? 1.3 : 0.8;
       ticks += `<line x1="${x}" y1="${beamY + beamH}" x2="${x}" y2="${beamY + beamH - tickH}" stroke="#fff" stroke-width="${tickW}"/>`;
       if (isCM) {
         ticks += `<text x="${x}" y="${beamY + 10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${mm}</text>`;

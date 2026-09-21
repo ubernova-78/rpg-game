@@ -142,7 +142,9 @@
 
   <div class="screen" id="screen-start">
     <div class="start-title">Measure & Average</div>
-    <div class="start-sub">Measure items using calipers (mm), rulers (cm), or tape measures (m). After measuring all items in a set, calculate the average. Round to the nearest hundredth.</div>
+    <div class="start-sub">Measure items using calipers (mm), rulers (cm), or tape measures (m), then calculate the average of the set.
+      <br><strong>Read the calipers to the whole millimetre, the ruler to the tenth of a centimetre, and the tape to the hundredth of a metre.</strong>
+      Round every average to the nearest hundredth.</div>
     <p style="font-size:0.9rem;color:var(--dim);">12 rounds across mm, cm, and m. 120 points possible.</p>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
@@ -263,16 +265,23 @@
   }
 
   // ---------- Value generators ----------
-  // Every value has to land exactly on a tick the student can see, or the
-  // reading is a guess.  The caliper's finest tick is 1 mm (it has no vernier
-  // scale), the cm ruler's is 1 mm = 0.1 cm, and the meter tape's numbered
-  // marks are every 10 cm = 0.1 m.
+  // How precisely each tool is read — the classroom rule, and it decides
+  // what values may be generated.  A value has to land exactly on a tick
+  // the student can see, or the reading is a guess:
+  //   mm  whole millimetres      (the caliper has no vernier scale)
+  //   cm  tenths of a cm         (= whole mm, the ruler's finest tick)
+  //   m   hundredths of a m      (= whole cm, the tape's finest tick)
+  // The average is rounded to the nearest hundredth in every unit.
+  const DECIMALS={mm:0,cm:1,m:2};
+  // Show an actual value at the precision the tool is read to, so "32.5 m"
+  // never appears next to an instruction to read hundredths.
+  const fmtVal=(v,unit)=>Number(v).toFixed(DECIMALS[unit]);
   function genValues(unit,count){
     const vals=[];
     for(let i=0;i<count;i++){
       if(unit==='mm') vals.push(randInt(8,55));             // 8-55 mm, whole mm (bug lengths)
       else if(unit==='cm') vals.push(randInt(10,120)/10);   // 1.0-12.0 cm, whole mm (axe throws)
-      else vals.push(randInt(50,600)/10);                   // 5.0-60.0 m, whole 10 cm (archery)
+      else vals.push(randInt(500,6000)/100);                // 5.00-60.00 m, whole cm (archery)
     }
     return vals;
   }
@@ -322,7 +331,11 @@
     const val=values[currentItem];
     const valMM=toMM(val,unit);
 
-    els.qtext.innerHTML=`${ctx.icon} Measure item ${currentItem+1} of ${count} using the ${ctx.tool}. (${UNIT_LABELS[unit]})`;
+    const HOW_PRECISE={mm:'to the nearest whole millimetre',
+                       cm:'to the nearest tenth of a centimetre',
+                       m:'to the nearest hundredth of a metre'};
+    els.qtext.innerHTML=`${ctx.icon} Measure item ${currentItem+1} of ${count} using the ${ctx.tool}, `
+      + `${HOW_PRECISE[unit]}. (${UNIT_LABELS[unit]})`;
 
     // Show previous measurements log if any
     if(measurements.length>0){
@@ -370,7 +383,7 @@
     const lbl=document.createElement('span');lbl.style.fontWeight='700';
     lbl.textContent=`Item ${currentItem+1} (${unit}):`;
     const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
-    inp.placeholder=unit==='mm'?'0':'0.00';inp.inputMode='decimal';
+    inp.placeholder=['0','0.0','0.00'][DECIMALS[unit]];inp.inputMode='decimal';
     const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
     row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
     els.body.appendChild(row);
@@ -459,7 +472,7 @@
     const tbody=document.createElement('tbody');
     for(let i=0;i<count;i++){
       const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${i+1}</td><td>${measurements[i]} ${unit}</td><td>${values[i]} ${unit}</td>
+      tr.innerHTML=`<td>${i+1}</td><td>${measurements[i]} ${unit}</td><td>${fmtVal(values[i],unit)} ${unit}</td>
         <td class="${measOK[i]?'correct':'wrong'}">${measOK[i]?'✓':'✗'}</td>`;
       tbody.appendChild(tr);
     }
@@ -497,7 +510,7 @@
       correct: `${actualAvg.toFixed(2)} ${unit}`,
       headline: isCorrect ? 'Correct! +10 points' : 'Not quite.',
       note: note,
-      label: `Actual: ${values.join(', ')} ${unit}`,
+      label: `Actual: ${values.map(v=>fmtVal(v,unit)).join(', ')} ${unit}`,
       autoMs: 2400,
       onNext: nextRound,
     });

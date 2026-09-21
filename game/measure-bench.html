@@ -1049,7 +1049,15 @@
   }
 
   function buildRuler(scale, valueMM){
-    const { pxPerMM } = RULER_SCALE[scale];
+    let { pxPerMM } = RULER_SCALE[scale];
+    if(scale === 'm'){
+      // Fit a whole metre to the tape's viewport so the metre mark the reading
+      // is counted from stays on screen alongside the bar's end — at a fixed
+      // 0.9 px/mm a metre is 900px, wider than the tape, so a 9.97 m reading
+      // could not show its own "9m". Floored to keep the cm ticks legible.
+      const vw = els.tapeWrap.clientWidth;
+      if(vw > 0) pxPerMM = Math.max(0.55, Math.min(0.9, (vw - 120) / 1000));
+    }
     const REC_START = 60;
     els.tapeScaleLabel.textContent = scale === 'mm'
       ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
