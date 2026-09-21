@@ -365,19 +365,24 @@
     width: 2px;
     background: #1e2530;
   }
-  .mq-tick.mq-cm { width: 2px; }
-  .mq-tick.mq-half-cm { width: 1.5px; }
+  /* Ticks hang from the bar's bottom edge (26px above the tape floor) rather
+     than standing on the floor, so the end of the bar traces straight down
+     onto one tick. Each bottom is 26px minus that tick's own height. */
+  .mq-tick.mq-cm { width: 2px; }                /* height 26px, set inline */
+  .mq-tick.mq-half-cm { width: 1.5px; bottom: 5px; }  /* height 21px, inline */
   .mq-tick.mq-bold10 { width: 3px; background: #1e2530; }
   .mq-mm-bg {
     position: absolute;
-    bottom: 0;
+    bottom: 10px;
     left: 0;
     height: 16px;
   }
+  /* Above the bar's top edge (26+26), not printed across the bar itself. */
   .mq-tick-label {
     position: absolute;
-    bottom: 38px;
+    bottom: 56px;
     font-size: 0.78rem;
+    font-weight: 700;
     color: #1e2530;
     transform: translateX(-50%);
     white-space: nowrap;
@@ -385,7 +390,7 @@
   .mq-tick-label.mq-bold10 {
     font-size: 0.9rem;
     font-weight: 800;
-    bottom: 58px;
+    bottom: 76px;
   }
   .mq-caliper-wrap {
     position: relative;

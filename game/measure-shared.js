@@ -162,7 +162,11 @@ const MeasureShared = (function () {
     const tapeHeight = opts.tapeHeight || (isM ? '180px' : '');
     if (tapeHeight) tapeWrap.style.height = tapeHeight;
     const inner = document.createElement('div');
-    inner.className = p + 'tape-inner';
+    // The scale modifier lets a stylesheet position the metre tape's ticks
+    // separately: `.tick.cm` is drawn at two different heights (inline here
+    // for the cm ruler, from CSS for the metre tape), so the two need
+    // different offsets to hang from the same line.
+    inner.className = p + 'tape-inner' + (isM ? ' ' + p + 'tape-inner-m' : '');
     inner.style.width = totalWidth + 'px';
     tapeWrap.appendChild(inner);
     outer.appendChild(tapeWrap);

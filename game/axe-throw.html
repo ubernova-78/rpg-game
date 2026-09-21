@@ -71,11 +71,15 @@
   .measure-bar{position:absolute;bottom:26px;height:26px;background:#3f6b8a;border-radius:3px 0 0 3px;}
   .unit-badge{position:absolute;top:12px;left:14px;font-size:1.4rem;font-weight:900;color:#262b31;
     background:rgba(255,255,255,0.85);padding:2px 12px;border-radius:6px;border:2px solid #262b31;z-index:5;pointer-events:none;}
-  .mm-bg{position:absolute;bottom:0;left:0;height:16px;}
+  /* Ticks hang from the bar's bottom edge (26px above the tape floor) rather
+     than standing on it, so the bar's end traces down onto one tick and the
+     tenth is readable. Each bottom is 26px minus that tick's own height. */
+  .mm-bg{position:absolute;bottom:10px;left:0;height:16px;}
   .tick{position:absolute;bottom:0;width:2px;background:#262b31;}
-  .tick.cm{width:1px;height:18px;}
-  .tick.half-cm{width:1.5px;}
-  .tick-label{position:absolute;font-size:0.72rem;font-weight:700;color:#262b31;transform:translateX(-50%);white-space:nowrap;bottom:20px;}
+  .tick.cm{width:1px;height:26px;bottom:0;}
+  .tick.half-cm{width:1.5px;bottom:5px;}
+  /* Above the bar's top edge (26+26), not across the ticks. */
+  .tick-label{position:absolute;font-size:0.78rem;font-weight:700;color:#262b31;transform:translateX(-50%);white-space:nowrap;bottom:56px;}
 
   .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
   .measure-input{width:120px;padding:8px;font-size:1.1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:'Courier New',monospace;}

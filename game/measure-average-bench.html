@@ -69,13 +69,21 @@
   .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1.2rem;color:var(--bench3);
     background:rgba(255,255,255,0.85);border:2px solid var(--bench3);border-radius:6px;padding:1px 10px;
     z-index:5;pointer-events:none;}
-  .tick{position:absolute;bottom:0;width:2px;background:#333;}
-  .tick.cm{width:1px;height:18px;}
-  .tick.half-cm{width:1.5px;}
-  .tick.cm5{width:1.5px;height:28px;}
-  .tick.cm10{width:2px;height:40px;}
-  .tick.meter{width:3px;height:56px;background:var(--accent);}
-  .mm-bg{position:absolute;bottom:0;left:0;height:16px;}
+  /* Every tick HANGS FROM the bar's bottom edge (26px above the tape floor)
+     rather than standing on the floor, so the end of the bar can be traced
+     straight down onto one specific tick — that is what makes the tenth of a
+     centimetre readable.  Each `bottom` is 26px minus that tick's own height,
+     so the tops all line up; the ragged ends point away from the bar, the way
+     a real ruler reads.  Change a height here and its bottom moves with it. */
+  .tick{position:absolute;width:2px;background:#333;}
+  .tick.half-cm{width:1.5px;bottom:5px;}            /* height 21px, set inline */
+  .tick.cm{width:1px;height:26px;bottom:0;}
+  .mm-bg{position:absolute;left:0;height:16px;bottom:10px;}
+  /* Metre tape: same rule, different tick heights. */
+  .tape-inner-m .tick.cm{height:18px;bottom:8px;}
+  .tape-inner-m .tick.cm5{width:1.5px;height:26px;bottom:0;}
+  .tape-inner-m .tick.cm10{width:2px;height:40px;bottom:0;}
+  .tape-inner-m .tick.meter{width:3px;height:56px;bottom:0;background:var(--accent);}
   /* All label rows clear the top of the measured bar (bottom:26px + 26px tall),
      so no number is printed across the shape being measured. */
   .tick-label{position:absolute;bottom:56px;font-size:0.78rem;font-weight:700;color:#333;

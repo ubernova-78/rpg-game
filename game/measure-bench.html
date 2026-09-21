@@ -325,17 +325,24 @@
     width:2px;
     background:var(--charcoal);
   }
-  .tick.cm{ width:1px; height:18px; }
-  .tick.half-cm{ width:1.5px; }
-  .tick.cm5{ width:1.5px; height:28px; }
-  .tick.cm10{ width:2px; height:40px; }
-  .tick.meter{ width:3px; background:var(--miss); height:56px; }
+  /* Ticks HANG FROM the bar's bottom edge (26px above the tape floor) instead
+     of standing on the floor, so the end of the bar traces straight down onto
+     one tick and the tenth is readable.  Each `bottom` is 26px minus that
+     tick's own height — move a height, move its bottom with it. */
+  .tick.cm{ width:1px; height:26px; bottom:0; }
+  .tick.half-cm{ width:1.5px; bottom:5px; }         /* height 21px, set inline */
   .mm-bg{
     position:absolute;
-    bottom:0;
+    bottom:10px;
     left:0;
     height:16px;
   }
+  /* Metre tape: same rule, different tick heights. */
+  .tape-inner-m .tick.cm{ height:18px; bottom:8px; }
+  .tape-inner-m .tick.cm5{ width:1.5px; height:26px; bottom:0; }
+  .tape-inner-m .tick.cm10{ width:2px; height:40px; bottom:0; }
+  .tape-inner-m .tick.meter{ width:3px; height:56px; bottom:0; background:var(--miss); }
+  /* Above the bar's top edge (26+26), not printed across the bar itself. */
   .tick-label{
     position:absolute;
     font-size:0.78rem;
@@ -343,20 +350,20 @@
     color:var(--charcoal);
     transform:translateX(-50%);
     white-space:nowrap;
-    bottom:38px;
+    bottom:56px;
   }
   .tick-label.cm5{
-    bottom:30px;
+    bottom:55px;
     font-size:0.72rem;
     color:var(--dim, #6b7280);
   }
   .tick-label.cm10{
-    bottom:44px;
+    bottom:56px;
     font-size:0.9rem;
     font-weight:800;
   }
   .tick-label.meter{
-    bottom:60px;
+    bottom:78px;
     font-size:1.1rem;
     font-weight:900;
     color:var(--miss);
@@ -1057,6 +1064,9 @@
     const inner = els.tapeInner;
     inner.innerHTML = '';
     inner.style.width = totalWidth + 'px';
+    // Marks which scale is drawn, so the stylesheet can offset the metre
+    // tape's ticks separately (see the tick block up top).
+    inner.className = 'tape-inner' + (scale === 'm' ? ' tape-inner-m' : '');
 
     // Meter tape needs more vertical room for taller ticks + labels
     els.tapeWrap.style.height = scale === 'm' ? '180px' : '';
