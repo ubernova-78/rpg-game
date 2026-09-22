@@ -47,7 +47,13 @@ function updatePlayer(dt) {
       const footprints = objects.map(objFootprint);
 
       const maxX = interior.cols * TILE - spriteSize * 0.7;
-      const maxY = interior.rows * TILE - spriteSize * 0.55;
+      // 0.94 puts the BOTTOM OF THE FEET on the last row, not the sprite's
+      // middle. At 0.55 the feet cleared the floor entirely — in a 7-row room
+      // they reached rows 7-8 — so you could walk out under the bottom wall and
+      // stand on the page background. Worse, the exit tile is on the last row
+      // and does not trigger from below it, so the way out looked broken.
+      // (feet bottom = y + spriteSize*0.74 + spriteSize*0.2, see feetBox.)
+      const maxY = interior.rows * TILE - spriteSize * 0.94;
       nx = Math.max(-spriteSize * 0.3, Math.min(maxX, nx));
       ny = Math.max(TILE * 0.4, Math.min(maxY, ny));
       const interiorBlocked = (px, py) => boxTiles(feetBox(px, py)).some(

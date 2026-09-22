@@ -1296,7 +1296,10 @@
     paintLevelUI(newTotalEXP, newCoins, els.levelBadge, els.expFill, els.coinBadge);
 
     if(!state.demo){
-      try{ await saveRecord(state.nameKey, state.record); }
+      // Only the two fields this bench changed. Writing the whole record used
+      // to restore a hint potion the town had just spent, and could roll back
+      // the town's own edits with this copy taken at bench-login.
+      try{ await Shared.updateStudent(state.nameKey, { totalEXP: newTotalEXP, coins: newCoins }); }
       catch(e){ console.error('Could not save record', e); }
     }
 

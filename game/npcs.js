@@ -222,16 +222,67 @@ function openNpcDialogue(npc) {
   wbModal.classList.remove('hidden');
 }
 
+// ---------- Boot-time content check ----------
+// There is no test runner on the teacher's machine, so this is the substitute:
+// it catches the content mistakes that otherwise show up as a frozen game in
+// the middle of a lesson. Console only — students never see it.
+//
+// The specific trap: adding a building to BUILDING_DEFS without an
+// INTERIOR_SIZES entry throws inside enterBuilding the instant someone steps on
+// the door, and an exception anywhere in the frame loop stops every future
+// frame (see the try/catch below). This turns that into one line at page load.
+function validateContent() {
+  const problems = [];
+  const seenObjIds = new Set();
+
+  for (const b of BUILDING_DEFS) {
+    if (!INTERIOR_SIZES[b.id]) problems.push(`building "${b.id}" has no INTERIOR_SIZES entry — entering it would freeze the game`);
+  }
+  for (const [roomId, objs] of Object.entries(INTERIOR_OBJECTS)) {
+    if (!INTERIOR_SIZES[roomId]) problems.push(`INTERIOR_OBJECTS has a room "${roomId}" with no INTERIOR_SIZES entry`);
+    for (const o of objs) {
+      if (seenObjIds.has(o.id)) problems.push(`duplicate object id "${o.id}" — findInteriorObject returns the first match and claimedChests is keyed by id`);
+      seenObjIds.add(o.id);
+      if (o.kind === 'workbench' && (!o.src || !o.messageType)) {
+        problems.push(`workbench "${o.id}" is missing ${!o.src ? 'src' : 'messageType'} — it would open blank`);
+      }
+    }
+  }
+  for (const m of WORLD_MONSTER_DEFS) {
+    if (m.sprite && !MONSTER_IMG[m.sprite]) problems.push(`monster "${m.id}" uses sprite "${m.sprite}", which has no MONSTER_IMG entry — it would be invisible but still start battles`);
+  }
+  for (const [tier, keys] of Object.entries(BATTLE_QUESTION_POOL)) {
+    for (const k of (Array.isArray(keys) ? keys : [])) {
+      if (!QUESTION_MODULES[k]) problems.push(`BATTLE_QUESTION_POOL.${tier} refers to question module "${k}", which does not exist — the battle would stick open`);
+    }
+  }
+
+  if (problems.length) {
+    console.error('[Physics Quest] content problems found at boot:');
+    for (const p of problems) console.error('  • ' + p);
+  }
+  return problems;
+}
+try { validateContent(); } catch (e) { console.error('[Physics Quest] validateContent itself failed', e); }
+
 let lastT = performance.now();
+let loopErrorLogged = false;
 function loop(t) {
   const dt = Math.min(50, t - lastT);
   lastT = t;
-  updatePlayer(dt);
-  updateNPCs(dt);
-  updateMonsters(dt);
-  if (scene.mode === 'world') updateCamera();
-  drawMap();
-  drawPlayer();
+  // One thrown error used to end the game permanently: requestAnimationFrame
+  // was the last statement, so nothing rescheduled and the screen simply froze
+  // with only the console any the wiser. Keep drawing; log the first one.
+  try {
+    updatePlayer(dt);
+    updateNPCs(dt);
+    updateMonsters(dt);
+    if (scene.mode === 'world') updateCamera();
+    drawMap();
+    drawPlayer();
+  } catch (e) {
+    if (!loopErrorLogged) { loopErrorLogged = true; console.error('[Physics Quest] error in frame loop', e); }
+  }
   requestAnimationFrame(loop);
 }
 

@@ -1795,7 +1795,9 @@
     state.record.coins = newCoins;
     paintLevelUI(newTotalEXP, newCoins, els.levelBadge, els.expFill, els.coinBadge);
     if(!state.demo && state.nameKey){
-      try{ await Shared.saveStudent(state.nameKey, state.record); }catch(e){ /* ignore */ }
+      // Only what this page changed — see the note in shared-student.updateStudent.
+      try{ await Shared.updateStudent(state.nameKey, { totalEXP: newTotalEXP, coins: newCoins }); }
+      catch(e){ console.warn('Could not save EXP', e); }
     }
 
     // Save this game's own leaderboard entry

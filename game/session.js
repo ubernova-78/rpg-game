@@ -9,6 +9,21 @@ function pickDefaultVariety() {
 
 // Builds the save-able snapshot of everything the town can change and writes it onto
 // session.record, then persists it. No-ops for demo sessions or if not logged in yet.
+// Walks a slot list that Firebase may hand back as either an array (dense) or
+// an object keyed by index (sparse, because nulls are not stored). Skips holes.
+function forEachSlot(stored, fn) {
+  if (!stored) return;
+  if (Array.isArray(stored)) {
+    stored.forEach((item, i) => { if (item != null) fn(item, i); });
+    return;
+  }
+  if (typeof stored !== 'object') return;
+  for (const key of Object.keys(stored)) {
+    const i = Number(key);
+    if (Number.isInteger(i) && i >= 0 && stored[key] != null) fn(stored[key], i);
+  }
+}
+
 function saveSession() {
   if (suppressSave || !session || session.demo || !session.nameKey) return;
   session.record.cosmetics = {
@@ -23,7 +38,18 @@ function saveSession() {
   session.record.hasBackpack = hasBackpack;
   session.record.claimedChests = allChestIds().filter(id => findInteriorObject(id).claimed);
   session.record.hp = playerStats.hp;
-  Shared.saveStudent(session.nameKey, session.record);
+  // Patch, don't replace: totalEXP and coins belong to whichever bench is open,
+  // and this copy of them is stale from the moment the overlay opened. Writing
+  // the whole record here used to undo EXP the bench had just banked.
+  Shared.updateStudent(session.nameKey, {
+    cosmetics: session.record.cosmetics,
+    inventory: session.record.inventory,
+    equipped: session.record.equipped,
+    chestStorage: session.record.chestStorage,
+    hasBackpack: session.record.hasBackpack,
+    claimedChests: session.record.claimedChests,
+    hp: session.record.hp,
+  });
 }
 
 function allChestIds() {
@@ -58,17 +84,21 @@ function loadSessionIntoGame() {
   }
 
   inventory.fill(null);
-  if (Array.isArray(rec.inventory)) {
-    rec.inventory.forEach((item, i) => {
-      if (i >= inventory.length) return;
-      // Drop corrupt items that have no valid manifest entry
-      if (item && item.kind !== 'consumable') {
-        const entry = MANIFEST[item.manifestKey] && MANIFEST[item.manifestKey][item.manifestIndex];
-        if (!entry) return; // skip bad item
-      }
-      inventory[i] = item;
-    });
-  }
+  // Firebase drops nulls, so a backpack like [null, null, potion] is stored as
+  // {"2": potion} and comes back as an OBJECT, not an array — the SDK only
+  // rebuilds an array when the keys are dense enough. This used to be gated on
+  // Array.isArray alone, so the object was ignored and the slot silently wiped:
+  // store two of three items in the chest, come back the next day, the third
+  // is gone. Reading both shapes also repairs records already saved that way.
+  forEachSlot(rec.inventory, (item, i) => {
+    if (i >= inventory.length) return;
+    // Drop corrupt items that have no valid manifest entry
+    if (item && item.kind !== 'consumable') {
+      const entry = MANIFEST[item.manifestKey] && MANIFEST[item.manifestKey][item.manifestIndex];
+      if (!entry) return; // skip bad item
+    }
+    inventory[i] = item;
+  });
   // Reset to known slots only, then restore saved values for those slots
   Object.keys(equipped).forEach(k => delete equipped[k]);
   Object.assign(equipped, { helmet: null, weapon: null, cape: null, armor: null });
@@ -83,9 +113,7 @@ function loadSessionIntoGame() {
 
   // Restore chest storage
   chestStorage.fill(null);
-  if (Array.isArray(rec.chestStorage)) {
-    rec.chestStorage.forEach((item, i) => { if (i < chestStorage.length) chestStorage[i] = item; });
-  }
+  forEachSlot(rec.chestStorage, (item, i) => { if (i < chestStorage.length) chestStorage[i] = item; });
 
   hasBackpack = !!rec.hasBackpack;
   inventoryBtn.classList.toggle('hidden', !hasBackpack);

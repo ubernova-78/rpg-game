@@ -1251,7 +1251,8 @@ function handleMeasureSubmit(){
       state.record.totalEXP = (state.record.totalEXP||0) + 1;
       state.record.coins = (state.record.coins||0) + 1;
       paintLevelUI(state.record.totalEXP, state.record.coins);
-      saveStudent(state.nameKey, state.record);
+      Shared.updateStudent(state.nameKey,
+        { totalEXP: state.record.totalEXP, coins: state.record.coins });
       els.caliperFeedback.textContent = `Correct! This ${typeName(item.type).toLowerCase()} is ${item.sizeMM} mm. (+1 EXP, +1 coin)`;
     } else {
       els.caliperFeedback.textContent = `Correct! This ${typeName(item.type).toLowerCase()} is ${item.sizeMM} mm.`;
@@ -1441,9 +1442,16 @@ function showResultScreen(success, results, extraCount){
       els.levelUpBanner.classList.remove('show');
     }
 
-    // Save
+    // Save. Inventory is included only because this is the one page that adds
+    // an item to it; everything else the town owns is left alone. Two owners of
+    // inventory is still a last-write-wins race if the town saves at the same
+    // moment — narrow, but real.
     if(!state.demo){
-      saveStudent(state.nameKey, state.record);
+      Shared.updateStudent(state.nameKey, {
+        totalEXP: state.record.totalEXP,
+        coins: state.record.coins,
+        inventory: state.record.inventory,
+      });
     }
 
     els.btnResultAction.textContent = 'Play Again';

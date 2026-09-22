@@ -466,6 +466,12 @@ const keys = {};
 
 window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+// A keyup never arrives if focus left the window first — and every bench
+// auto-focuses an input inside its iframe, which blurs the parent. The key
+// stayed "down", so coming back to town the character walked off by itself
+// until you tapped that key again. Clearing on blur covers the iframe case
+// and alt-tab with one listener.
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 // player's collision footprint: a small box at their feet (bottom-center of the sprite)
 const FOOT_W_FACTOR = 0.18, FOOT_H_FACTOR = 0.2, FOOT_Y_MARGIN = 0.06;

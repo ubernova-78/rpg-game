@@ -677,7 +677,10 @@
       if(state.record&&state.nameKey){
         state.record.totalEXP=(state.record.totalEXP||0)+state.roundEXP;
         state.record.coins=(state.record.coins||0)+state.roundCoins;
-        try{await Shared.saveStudent(state.nameKey,state.record);}catch(e){}
+        // Only what this page changed — see shared-student.updateStudent.
+        try{await Shared.updateStudent(state.nameKey,
+          {totalEXP:state.record.totalEXP, coins:state.record.coins});}
+        catch(e){console.warn('Could not save EXP', e);}
       }
       // Show leaderboard
       const runs=await loadScores(state.period);

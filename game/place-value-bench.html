@@ -987,7 +987,9 @@ function endGame(){
     const after = getLevelInfo(S.studentRecord.totalEXP);
     expInfo.leveledUp = after.level > before.level;
     expInfo.newLevel = after.level;
-    saveStudent(S.studentKey, S.studentRecord).catch(()=>{});
+    // Only what this bench changed — see shared-student.updateStudent.
+    Shared.updateStudent(S.studentKey,
+      { totalEXP: S.studentRecord.totalEXP, coins: S.studentRecord.coins }).catch(()=>{});
   }
 
   if(S.demo){

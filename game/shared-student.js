@@ -112,6 +112,27 @@ window.Shared = (function(){
     catch(e){ console.warn('Student save failed', e); return false; }
   }
 
+  // Write only the fields a page actually owns.
+  //
+  // `saveStudent` replaces the WHOLE record, and two pages are live at once:
+  // the town holds its copy from when the overlay opened, and the bench iframe
+  // holds its own from bench-login. Whichever saved last used to win with its
+  // stale copy of everything else. Symptoms: a hint potion consumed in the town
+  // came back when the bench saved at the end of the round (free hints), and
+  // EXP banked by the bench could be wiped by the town's older totalEXP.
+  //
+  // So the town patches only what the town changes, and a bench patches only
+  // totalEXP/coins. Use `saveStudent` only where the whole record is genuinely
+  // being created.
+  async function updateStudent(nameKey, patch){
+    if(!DB_OK || !nameKey || !patch) return false;
+    const clean = {};
+    for(const k of Object.keys(patch)) if(patch[k] !== undefined) clean[k] = patch[k];
+    if(!Object.keys(clean).length) return true;
+    try{ await DB.ref('students/'+nameKey).update(clean); return true; }
+    catch(e){ console.warn('Student update failed', e); return false; }
+  }
+
   async function loadLeaderboardByPeriod(period){
     if(!DB_OK) return [];
     try{
@@ -302,7 +323,7 @@ window.Shared = (function(){
   return {
     DB, DB_OK,
     normalizeName, levelThreshold, getLevelInfo,
-    loginStudent, createStudent, loadOrCreateStudent, saveStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
+    loginStudent, createStudent, loadOrCreateStudent, saveStudent, updateStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
     generateMatchCode, createMatch, joinMatch, watchMatch, cancelMatch,
     reportBattleReady, startBattleRound, submitBattleAnswer, applyBattleResolution,
     watchBattle, resolveRoundOutcome, cleanupBattle
