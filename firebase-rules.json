@@ -1,0 +1,193 @@
+{
+  "rules": {
+    "scores": {
+      ".read": true,
+      ".indexOn": ["period", "level"],
+      "$id": {
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
+        ".validate": "!newData.exists() || newData.hasChildren(['name','period','level','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "level":    { ".validate": "newData.isString() && newData.val().matches(/^(warmup|standard|full)$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "students": {
+      ".read": true,
+      ".indexOn": ["lastPeriod"],
+      "$nameKey": {
+        ".write": "!data.exists() || (data.child('pin').val() === newData.child('pin').val())",
+        ".validate": "newData.hasChildren(['name','pin','totalEXP','coins'])",
+        "name":          { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "pin":           { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)" },
+        "totalEXP":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "coins":         { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "lastPeriod":    { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "inventory":     { ".validate": true },
+        "equipped":      { ".validate": true },
+        "chestStorage":  { ".validate": true },
+        "cosmetics":     { ".validate": true },
+        "hasBackpack":   { ".validate": "newData.isBoolean()" },
+        "claimedChests": { ".validate": true },
+        "hp":            { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "pvpWins":       { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "isTeacher":     { ".validate": "newData.isBoolean()" },
+        "runeCircle": {
+          ".validate": "newData.hasChildren(['done','score'])",
+          "done":    { ".validate": "newData.isBoolean()" },
+          "score":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 40" },
+          "ts":      { ".validate": "newData.isNumber()" },
+          "$other":  { ".validate": false }
+        },
+        "$other":        { ".validate": false }
+      }
+    },
+    "measure_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','bench','timeSec','ts'])",
+        "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":     { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "bench":      { ".validate": "newData.isString() && newData.val().matches(/^(unit|mm|cm|m|mixed)$/)" },
+        "score":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "expEarned":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "timeSec":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":         { ".validate": "newData.isNumber()" },
+        "$other":     { ".validate": false }
+      }
+    },
+    "rounding_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "average_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "measure_average_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "rune_circle_scores": {
+      ".read": true,
+      ".indexOn": ["period", "nameKey"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 40" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "readingsFirstTry": {
+          "$i": { ".validate": "newData.isBoolean()" }
+        },
+        "averageFirstTry": { ".validate": "newData.isBoolean()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "elapsed_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "bench":    { ".validate": "newData.isString() && newData.val().matches(/^(simple|startstop)$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
+    "archery_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','period','bestMiss','expEarned'])",
+        "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":     { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "bestMiss":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "expEarned":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "timestamp":  { ".validate": "newData.isNumber()" },
+        "$other":     { ".validate": false }
+      }
+    },
+    "axe_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','avgMiss'])",
+        "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":     { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "avgMiss":    { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "bestMiss":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "expEarned":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "timestamp":  { ".validate": "newData.isNumber()" },
+        "$other":     { ".validate": false }
+      }
+    },
+    "pvpMatches": {
+      ".read": true,
+      "$code": {
+        ".write": true,
+        ".validate": true
+      }
+    },
+    "pvpBattles": {
+      ".read": true,
+      "$code": {
+        ".write": true,
+        ".validate": true
+      }
+    },
+    "$rest": { ".read": false, ".write": false }
+  }
+}
