@@ -18,8 +18,11 @@ const RC_DB_PATH = 'rune_circle_scores';
 const runeModal = document.getElementById('runeModal');
 const runeTitle = document.getElementById('runeTitle');
 const runeBody = document.getElementById('runeBody');
+const runeUnhookBtn = document.getElementById('runeUnhookBtn');
 
-// phase: 'idle' -> 'measuring' -> 'average' -> 'done'
+// phase: 'idle' -> 'measuring' <-> 'paused' -> 'average' -> 'done'
+// 'paused' is the tape unhooked part-way: readings AND first-try results are kept,
+// so stopping can't be used to wipe a wrong first attempt.
 const rc = {
   phase: 'idle',
   readings: RUNE_CIRCLE.runes.map(() => null), // integer hundredths the student entered
@@ -108,17 +111,39 @@ function rcAtStake() {
     return;
   }
   if (rc.phase === 'idle') { rcShowIntro(); return; }
+  if (rc.phase === 'paused') { rcShowResume(); return; }
   if (rc.phase === 'average') { rcShowAverage(); return; }
   // Measuring: the tape is already hooked here, so walking over it says nothing.
 }
 
+function rcShowResume() {
+  openRuneModal('Rune Circle');
+  if (rc.readings.some(h => h !== null)) rcReadingsLog();
+  rcText(`Your tape is unhooked. Hook it back on to carry on — next is <strong>${rcList(rcTargets())}</strong>.`);
+  rcButton('Hook the tape on the stake', () => { rc.phase = 'measuring'; closeRuneModal(); });
+  rcButton('Not now', closeRuneModal);
+}
+
+// The Unhook button over the map: stop measuring and put the tape away.
+runeUnhookBtn.addEventListener('click', () => {
+  runeUnhookBtn.blur(); // or the next Space/Enter press re-clicks it
+  if (rc.phase !== 'measuring' || scene.modalOpen) return;
+  openRuneModal('Unhook the tape?');
+  rcText('Stop measuring for now? Your readings so far are kept. ' +
+    'Come back to the stake in the Rune Circle to hook the tape on again and carry on.');
+  rcButton('Unhook tape', () => { rc.phase = 'paused'; closeRuneModal(); });
+  rcButton('Keep measuring', closeRuneModal);
+});
+
 function rcAtRune(i) {
   const n = RUNE_CIRCLE.runes[i].n;
   if (rcAlreadyDone()) return;
-  if (rc.phase === 'idle') {
+  if (rc.phase === 'idle' || rc.phase === 'paused') {
     openRuneModal(`Rune ${n}`);
-    rcText(`An old standing stone, carved with a glowing <strong>${n}</strong>.<br>` +
-      'To measure how far it is, start at the <strong>stake in the middle of the circle</strong>.');
+    rcText(rc.phase === 'paused'
+      ? 'Your tape is unhooked. Hook it back on at the <strong>stake in the middle of the circle</strong> to measure this rune.'
+      : `An old standing stone, carved with a glowing <strong>${n}</strong>.<br>` +
+        'To measure how far it is, start at the <strong>stake in the middle of the circle</strong>.');
     rcButton('OK', closeRuneModal);
     return;
   }
@@ -174,7 +199,7 @@ function rcShowTape(i) {
     cssPrefix: 'rc-',
     scale: 'm',
     badge: 'm',
-    tapeHeight: '150px',
+    tapeHeight: '180px',
     scaleLabel: 'Scale: small ticks = cm · numbered ticks = 10 cm · red ticks = each meter',
   });
   const row = document.createElement('div');
@@ -333,6 +358,7 @@ function rcComplete() {
 
 // ---------- Drawing (called from drawWorld, under NPCs and the player) ----------
 function drawRuneCircle() {
+  runeUnhookBtn.classList.toggle('hidden', rc.phase !== 'measuring');
   const ctx = mapCtx;
   const toScreen = (c, r) => ({ x: c * TILE + TILE / 2 - camera.x, y: r * TILE + TILE / 2 - camera.y });
   const st = toScreen(RUNE_CIRCLE.stake.col, RUNE_CIRCLE.stake.row);

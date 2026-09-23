@@ -90,8 +90,8 @@
   .tick-label{position:absolute;bottom:56px;font-size:0.78rem;font-weight:700;color:#333;
     transform:translateX(-50%);white-space:nowrap;}
   .tick-label.cm5{bottom:55px;font-size:0.72rem;font-weight:700;color:var(--dim);}
-  .tick-label.cm10{bottom:56px;font-size:0.9rem;font-weight:800;}
-  .tick-label.meter{bottom:78px;font-size:1.1rem;font-weight:900;color:var(--accent);}
+  .tick-label.cm10{bottom:72px;font-size:0.9rem;font-weight:800;}
+  .tick-label.meter{bottom:94px;font-size:1.1rem;font-weight:900;color:var(--accent);}
 
   /* Measurement input */
   .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
@@ -390,7 +390,7 @@
       const rulerOpts={
         scale: unit,
         badge: unit==='cm'?'cm':'m',
-        tapeHeight: unit==='m'?'150px':'120px',
+        tapeHeight: unit==='m'?'180px':'120px',
         scaleLabel: unit==='cm'
           ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
           : 'Scale: small ticks = cm \u00b7 numbered ticks = 10 cm \u00b7 red ticks = each meter'

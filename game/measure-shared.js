@@ -19,6 +19,7 @@ const MeasureShared = (function () {
   // ── Constants ──────────────────────────────────────────────────
   const PX_PER_MM = 6;       // pixel width of 1 mm on mm/cm rulers & calipers
   const RULER_PAD_LEFT = 60; // px of blank space before the zero mark
+  const METRE_PX_PER_MM = 0.9; // metre tape: 9 px per cm, room for each cm's digit
 
   // ── Drag-to-scroll helper ─────────────────────────────────────
   function enableDragScroll(el) {
@@ -46,10 +47,14 @@ const MeasureShared = (function () {
   // element.  Shared by the meter bench and the measure-and-average
   // workshop so the two tapes cannot drift apart.
   //
-  // The scale is coarse (0.9 px per mm = 90 px per 10 cm), so labels are
-  // deliberately sparse: every metre (red), every 10 cm, and a "5" at the
-  // half-decimetre.  Labelling every single cm was tried and reverted —
-  // at 9 px apart the digits collide into an unreadable smear.
+  // Labels: every metre (red), every 10 cm, and every single cm near the
+  // bar's end as its digit within the decimetre (1 2 3 4 5 6 7 8 9) — the
+  // same scheme as the archery tape.  An earlier attempt that printed the
+  // full cm number (11, 12, 13 …) smeared at 9 px apart; single digits fit,
+  // but ONLY at 9 px per cm, which is why the tape is no longer shrunk to
+  // fit a metre on screen (see buildRulerDOM / attachMetreMarker).  The
+  // decimetre and metre numbers sit in higher rows than the cm digits so
+  // "10" and its neighbouring "1" / "9" don't overlap.
   //
   //   opts.cssPrefix – class-name prefix (default '')
   //   opts.pxPerMM   – pixel scale (default 0.9)
@@ -108,10 +113,47 @@ const MeasureShared = (function () {
             addLabel(cx, 'cm5', '5');
           } else {
             addTick(cx, 'cm');
+            addLabel(cx, 'cm5', String(c % 10));
           }
         }
       }
     }
+  }
+
+  // ── "Which metre am I in?" marker ─────────────────────────────
+  // A metre is 900 px, wider than most tape viewports, so the red metre mark a
+  // reading counts from can be scrolled off the left edge — and then 12.65 m
+  // looks like 65 cm.  While that metre's own label is off screen, this pins
+  // "◂ 12m" to the tape's left edge, in the metre labels' row and colour.
+  // `host` must be the positioned box around the scroller (not the scroller
+  // itself, or the marker scrolls away with the tape).
+  function attachMetreMarker(tapeWrap, host, opts) {
+    opts = opts || {};
+    const p    = opts.cssPrefix || '';
+    const pxMM = opts.pxPerMM || METRE_PX_PER_MM;
+    const padL = opts.padLeft != null ? opts.padLeft : RULER_PAD_LEFT;
+    let el = host.querySelector('.' + p + 'metre-marker');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = p + 'metre-marker';
+      el.style.cssText = 'position:absolute;left:4px;bottom:98px;z-index:6;pointer-events:none;'
+        + 'font-size:1.1rem;font-weight:900;color:#e94560;background:rgba(250,248,242,0.92);'
+        + 'border-radius:4px;padding:0 5px;';
+      host.appendChild(el);
+    }
+    function update() {
+      const left = tapeWrap.scrollLeft;
+      // The metre the tape is in just right of the marker itself (~60 px in).
+      const m = Math.max(0, Math.floor((left + 60 - padL) / (1000 * pxMM)));
+      const markX = padL + m * 1000 * pxMM;
+      // Its own "12m" label is centred on the mark and ~32 px wide.
+      const labelVisible = markX - 16 >= left;
+      el.textContent = '\u25C2 ' + m + 'm';
+      el.style.display = labelVisible ? 'none' : '';
+    }
+    tapeWrap.addEventListener('scroll', update, { passive: true });
+    update();
+    return update;
   }
 
   // ── Ruler builder ─────────────────────────────────────────────
@@ -167,18 +209,13 @@ const MeasureShared = (function () {
     outer.appendChild(tapeWrap);
     container.appendChild(outer);
 
-    // The metre tape is read to the centimetre, which means the metre mark the
-    // reading is counted from and the bar's end BOTH have to be on screen at
-    // once.  At a fixed 0.9 px/mm a metre is 900px — wider than the tape's
-    // viewport — so a reading like 45.97 m could not show its own "45m".
-    // Fit a whole metre to the viewport instead, measured now that the tape
-    // is in the page.  Floored so the centimetre ticks never get denser than
-    // the millimetre ruler's proven 6px spacing allows.
-    let pxMM = opts.pxPerMM || (isM ? 0.9 : PX_PER_MM);
-    if (isM && !opts.pxPerMM) {
-      const vw = tapeWrap.clientWidth;
-      if (vw > 0) pxMM = Math.max(0.55, Math.min(0.9, (vw - 120) / 1000));
-    }
+    // The metre tape is drawn at a fixed 9 px per cm, the archery tape's scale,
+    // so every centimetre can carry its digit.  It used to shrink to fit a whole
+    // metre on screen (down to 5.5 px per cm) so that the metre mark and the
+    // bar's end were visible together; that squeezed the cm digits into a
+    // smear.  When the metre mark is scrolled off, attachMetreMarker shows
+    // which metre you're in instead.
+    const pxMM = opts.pxPerMM || (isM ? METRE_PX_PER_MM : PX_PER_MM);
 
     const totalMM    = valueMM + padMM;
     const totalWidth = padL + totalMM * pxMM + 40;
@@ -201,6 +238,7 @@ const MeasureShared = (function () {
       // Metre tape — red metre marks, numbered 10 cm marks, cm detail near
       // the bar's end.  Shared with the meter bench (see buildMeterTicks).
       buildMeterTicks(inner, valueMM, { cssPrefix: p, pxPerMM: pxMM, padLeft: padL, totalMM });
+      attachMetreMarker(tapeWrap, outer, { cssPrefix: p, pxPerMM: pxMM, padLeft: padL });
       finishRuler();
       return tapeWrap;
     }
@@ -254,15 +292,12 @@ const MeasureShared = (function () {
       requestAnimationFrame(() => {
         const wrapWidth = tapeWrap.clientWidth;
         const barEndX = padL + valueMM * pxMM;
-        let target = barEndX - wrapWidth * 0.6;
-        if (isM) {
-          // Don't let the metre mark the reading is based on land under the
-          // left edge: a half-clipped "32m" reads as "2m" and costs the
-          // student the answer on a tape they read correctly.
-          const lastMeterX = padL + Math.floor(valueMM / 1000) * 1000 * pxMM;
-          target = Math.min(target, lastMeterX - 48);
-        }
+        // Bar's end at 60% across.  The metre tape used to hold its metre
+        // mark on screen instead, which at 9 px/cm pushed the end of a
+        // x.77 m bar off the right edge; attachMetreMarker covers the metre.
+        const target = barEndX - wrapWidth * 0.6;
         tapeWrap.scrollLeft = Math.max(0, target);
+        tapeWrap.dispatchEvent(new Event('scroll')); // refresh the metre marker
       });
       enableDragScroll(tapeWrap);
     }
@@ -348,6 +383,7 @@ const MeasureShared = (function () {
     enableDragScroll,
     buildRulerDOM,
     buildMeterTicks,
+    attachMetreMarker,
     buildCaliperSVG,
   };
 })();

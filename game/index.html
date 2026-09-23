@@ -143,6 +143,12 @@
     z-index: 4;
   }
   #inventoryBtn.hidden { display: none; }
+  #runeUnhookBtn {
+    position: absolute; bottom: 8px; left: 8px; z-index: 4;
+    background: #3a3113; border: 1px solid #f6c90e; color: #f6c90e;
+    border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; cursor: pointer;
+  }
+  #runeUnhookBtn:hover { background: #4a3f18; }
   #inventoryBtn:hover { background: #334052; }
   .inv-grid {
     display: grid;
@@ -256,7 +262,7 @@
      bottom edge, 26px above the tape floor, so the bar's end traces onto one tick. */
   .rc-tape-scale-label { font-size: 0.78rem; color: var(--muted); margin: 0 0 4px; text-align: left; }
   .rc-tape-wrap { position: relative; overflow-x: auto; overflow-y: hidden; background: #faf8f2; border: 2px solid #ccc;
-    border-radius: 6px; height: 150px; cursor: grab; margin-bottom: 8px; }
+    border-radius: 6px; height: 180px; cursor: grab; margin-bottom: 8px; }
   .rc-tape-wrap:active { cursor: grabbing; }
   .rc-tape-inner { position: relative; height: 100%; }
   .rc-measure-bar { position: absolute; bottom: 26px; height: 26px; background: rgba(52,120,180,0.25);
@@ -272,8 +278,8 @@
   .rc-tick-label { position: absolute; bottom: 56px; font-size: 0.78rem; font-weight: 700; color: #333;
     transform: translateX(-50%); white-space: nowrap; }
   .rc-tick-label.rc-cm5 { bottom: 55px; font-size: 0.72rem; font-weight: 700; color: #7a7a8e; }
-  .rc-tick-label.rc-cm10 { bottom: 56px; font-size: 0.9rem; font-weight: 800; }
-  .rc-tick-label.rc-meter { bottom: 78px; font-size: 1.1rem; font-weight: 900; color: #e94560; }
+  .rc-tick-label.rc-cm10 { bottom: 72px; font-size: 0.9rem; font-weight: 800; }
+  .rc-tick-label.rc-meter { bottom: 94px; font-size: 1.1rem; font-weight: 900; color: #e94560; }
 
   /* ---- Mini-game overlay ---- */
   #gameOverlay {
@@ -570,6 +576,7 @@
         </div>
 
         <button id="inventoryBtn" class="hidden">🎒 Inventory</button>
+        <button id="runeUnhookBtn" class="hidden">✋ Unhook tape</button>
 
         <div id="workbenchModal" class="wb-modal hidden">
           <div class="wb-modal-inner">
