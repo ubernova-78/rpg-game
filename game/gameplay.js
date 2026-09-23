@@ -19,7 +19,10 @@ function updatePlayer(dt) {
 
     if (scene.mode === 'world') {
       nx = Math.max(-spriteSize * 0.3, Math.min(WORLD_COLS * TILE - spriteSize * 0.7, nx));
-      ny = Math.max(-spriteSize * 0.3, Math.min(WORLD_ROWS * TILE - spriteSize * 0.7, ny));
+      // 0.94, not 0.7: the bottom of the FEET stops on the last row (feet bottom =
+      // y + spriteSize*0.94, see feetBox). At 0.7 you could walk half a tile off the
+      // bottom of the world -- the same fault the room clamp below had.
+      ny = Math.max(-spriteSize * 0.3, Math.min(WORLD_ROWS * TILE - spriteSize * 0.94, ny));
       if (!worldBlocked(nx, player.y)) player.x = nx;
       if (!worldBlocked(player.x, ny)) player.y = ny;
 
@@ -36,6 +39,8 @@ function updatePlayer(dt) {
         if (npc.isShop) openShop(); else openNpcDialogue(npc);
       }
       scene.wasOnNpcId = onNpc;
+
+      updateRuneCircle();
 
       const monster = nearbyMonster(player.x, player.y);
       const onMonster = monster ? monster.id : null;
@@ -143,6 +148,7 @@ function drawWorld() {
     if (dx > mapCanvas.width || dx + dw < 0 || dy > mapCanvas.height || dy + dh < 0) continue;
     mapCtx.drawImage(d.img, dx, dy, dw, dh);
   }
+  drawRuneCircle();
   drawNPCs();
   drawMonsters();
 

@@ -236,6 +236,45 @@
     opacity: 0.85;
   }
 
+  /* ---- Rune Circle (rune-circle.js) ---- */
+  #runeModal .wb-modal-inner { max-width: 660px; width: 94%; max-height: 96%; overflow-y: auto; }
+  #runeModal .wb-modal-body { font-size: 14px; color: var(--text); text-align: left; }
+  .rc-row { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+  .rc-row label { font-weight: 700; }
+  .rc-input {
+    width: 120px; padding: 8px; font-size: 1.1rem; text-align: center; border-radius: 6px;
+    border: 2px solid var(--panel-border); background: #fff; color: #222; font-family: 'Courier New', monospace;
+  }
+  .rc-log { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 4px 0 10px; }
+  .rc-log span { background: #1d3038; border: 1px solid #27424c; border-radius: 6px; padding: 3px 10px; font-family: monospace; font-weight: 700; }
+  .rc-msg-bad { color: #ff8a7a; font-weight: 700; }
+  .rc-msg-good { color: #6fd3a8; font-weight: 700; }
+  /* Metre tape — a copy of the tape block in measure-average-bench.html, under the
+     rc- prefix MeasureShared.buildRulerDOM is handed here. Same geometry on purpose:
+     it is the same tape the workshop teaches (feedback: keep measurement views in
+     sync), so a change to one belongs in the other. Every tick hangs from the bar's
+     bottom edge, 26px above the tape floor, so the bar's end traces onto one tick. */
+  .rc-tape-scale-label { font-size: 0.78rem; color: var(--muted); margin: 0 0 4px; text-align: left; }
+  .rc-tape-wrap { position: relative; overflow-x: auto; overflow-y: hidden; background: #faf8f2; border: 2px solid #ccc;
+    border-radius: 6px; height: 150px; cursor: grab; margin-bottom: 8px; }
+  .rc-tape-wrap:active { cursor: grabbing; }
+  .rc-tape-inner { position: relative; height: 100%; }
+  .rc-measure-bar { position: absolute; bottom: 26px; height: 26px; background: rgba(52,120,180,0.25);
+    border: 2px solid #3478b4; border-radius: 3px 0 0 3px; }
+  .rc-unit-badge { position: absolute; top: 10px; left: 8px; font-weight: 800; font-size: 1.2rem; color: #0f3460;
+    background: rgba(255,255,255,0.85); border: 2px solid #0f3460; border-radius: 6px; padding: 1px 10px;
+    z-index: 5; pointer-events: none; }
+  .rc-tick { position: absolute; width: 2px; background: #333; }
+  .rc-tape-inner-m .rc-tick.rc-cm { width: 1px; height: 18px; bottom: 8px; }
+  .rc-tape-inner-m .rc-tick.rc-cm5 { width: 1.5px; height: 26px; bottom: 0; }
+  .rc-tape-inner-m .rc-tick.rc-cm10 { width: 2px; height: 40px; bottom: 0; }
+  .rc-tape-inner-m .rc-tick.rc-meter { width: 3px; height: 56px; bottom: 0; background: #e94560; }
+  .rc-tick-label { position: absolute; bottom: 56px; font-size: 0.78rem; font-weight: 700; color: #333;
+    transform: translateX(-50%); white-space: nowrap; }
+  .rc-tick-label.rc-cm5 { bottom: 55px; font-size: 0.72rem; font-weight: 700; color: #7a7a8e; }
+  .rc-tick-label.rc-cm10 { bottom: 56px; font-size: 0.9rem; font-weight: 800; }
+  .rc-tick-label.rc-meter { bottom: 78px; font-size: 1.1rem; font-weight: 900; color: #e94560; }
+
   /* ---- Mini-game overlay ---- */
   #gameOverlay {
     position: fixed; inset: 0; background: rgba(10,12,14,0.92); z-index: 80;
@@ -540,6 +579,13 @@
           </div>
         </div>
 
+        <div id="runeModal" class="wb-modal hidden">
+          <div class="wb-modal-inner">
+            <div class="wb-modal-title" id="runeTitle">Rune Circle</div>
+            <div id="runeBody"></div>
+          </div>
+        </div>
+
         <div id="creatorModal" class="wb-modal hidden">
           <div class="creator-inner">
             <div class="creator-title">Look in the Mirror</div>
@@ -658,6 +704,7 @@
   <script src="world.js"></script>
   <script src="placevalue.js"></script>
   <script src="measure-shared.js"></script>
+  <script src="bench-math.js"></script>
   <script src="measure.js"></script>
   <script src="quests.js"></script>
   <script src="battle.js"></script>
@@ -665,6 +712,7 @@
   <script src="items.js"></script>
   <script src="gameplay.js"></script>
   <script src="npcs.js"></script>
+  <script src="rune-circle.js"></script>
   <script src="dojo.js"></script>
   <script src="session.js"></script>
 </body>

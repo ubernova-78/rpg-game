@@ -52,6 +52,14 @@ function saveSession() {
   });
 }
 
+// Gold, EXP and win counts changed IN TOWN: update the local copy for the HUD and
+// send the change as an increment, never as a value (see Shared.incrementStudent).
+function bankToRecord(deltas) {
+  for (const k of Object.keys(deltas)) session.record[k] = (session.record[k] || 0) + deltas[k];
+  if (session.demo || !session.nameKey) return;
+  Shared.incrementStudent(session.nameKey, deltas);
+}
+
 function allChestIds() {
   const ids = [];
   for (const list of Object.values(INTERIOR_OBJECTS)) {

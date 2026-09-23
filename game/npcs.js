@@ -105,7 +105,7 @@ const NPC_DEFS = [
     homeCol: TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2), homeRow: TOWN_OFFSET_ROW + TOWN_ROWS + 5,
     range: 3,
     spec: { head: 'head1', hair: 'hair5', top: 'top3', bottom: 'bottom3', skinTone: 3 },
-    message: "Don't stop practicing now. Something tells me your skills will be needed before long.",
+    message: "Follow the path south, past the flowers, to the old Rune Circle. Stand on the stake in the middle, hook your tape measure on it, and find out how far away each rune is.",
   },
   {
     id: 'shopkeeper', name: 'Potion Seller', isShop: true,

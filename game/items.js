@@ -61,7 +61,7 @@ function buyPotion(defId) {
   const gold = session.record.coins || 0;
   if (gold < def.price) { renderShop('Not enough gold for that yet.'); return; }
   if (!hasBackpack) { renderShop('You need a backpack to carry items — find one in your house first.'); return; }
-  session.record.coins = gold - def.price;
+  bankToRecord({ coins: -def.price });
   grantConsumable(defId, 1);
   saveSession();
   paintHud();

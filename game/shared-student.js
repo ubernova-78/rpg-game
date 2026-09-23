@@ -133,6 +133,27 @@ window.Shared = (function(){
     catch(e){ console.warn('Student update failed', e); return false; }
   }
 
+  // Add to counters (coins, totalEXP, pvpWins) without reading them first.
+  //
+  // The town can't write its copy of a counter back: a bench in the overlay may
+  // have banked EXP or coins since the town last read the record, and a plain
+  // write would roll that back. That's why saveSession stopped writing coins and
+  // totalEXP -- and with nothing in their place, gold and EXP won in town (battles,
+  // the shop, PvP) only ever lived in memory and were gone on the next login.
+  // A server-side increment applies the change on top of whatever is stored now,
+  // so it can't clobber anyone's write and nobody can clobber it.
+  async function incrementStudent(nameKey, deltas){
+    if(!DB_OK || !nameKey || !deltas) return false;
+    const patch = {};
+    for(const k of Object.keys(deltas)){
+      const d = deltas[k];
+      if(typeof d === 'number' && d !== 0 && isFinite(d)) patch[k] = firebase.database.ServerValue.increment(d);
+    }
+    if(!Object.keys(patch).length) return true;
+    try{ await DB.ref('students/'+nameKey).update(patch); return true; }
+    catch(e){ console.warn('Student increment failed', e); return false; }
+  }
+
   async function loadLeaderboardByPeriod(period){
     if(!DB_OK) return [];
     try{
@@ -323,7 +344,7 @@ window.Shared = (function(){
   return {
     DB, DB_OK,
     normalizeName, levelThreshold, getLevelInfo,
-    loginStudent, createStudent, loadOrCreateStudent, saveStudent, updateStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
+    loginStudent, createStudent, loadOrCreateStudent, saveStudent, updateStudent, incrementStudent, loadLeaderboardByPeriod, loadPvpLeaderboardByPeriod,
     generateMatchCode, createMatch, joinMatch, watchMatch, cancelMatch,
     reportBattleReady, startBattleRound, submitBattleAnswer, applyBattleResolution,
     watchBattle, resolveRoundOutcome, cleanupBattle

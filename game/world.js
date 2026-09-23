@@ -13,7 +13,12 @@ const VIEWPORT_ROWS = mapCanvas.height / TILE;
 // The original town (built when the world WAS the whole screen) keeps every one of its
 // existing tile coordinates — it's just placed inside the bigger world at this offset,
 // which every town coordinate below gets shifted by in one pass rather than by hand.
-const WORLD_COLS = 55, WORLD_ROWS = 30;
+// WORLD_ROWS was 30. Rows 30-39 are the Rune Circle meadow (see RUNE_CIRCLE below):
+// the old south grassland is the wasp's and snake's wander range from edge to edge,
+// and a battle starting halfway through a graded measurement is not a fair test.
+// The rocky/forest/flower scatter loops all run to WORLD_ROWS, so the new strip
+// dresses itself.
+const WORLD_COLS = 55, WORLD_ROWS = 40;
 const TOWN_OFFSET_COL = 15, TOWN_OFFSET_ROW = 10;
 const TOWN_COLS = 15, TOWN_ROWS = 10; // the original town's own footprint, for biome zoning
 
@@ -249,6 +254,43 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
   if (inBuilding || onPath) DECOR_DEFS.splice(i, 1);
 }
 
+// ---------- Rune Circle (south meadow) ----------
+// A stake with three standing stones around it. Students hook a tape on the stake,
+// walk to each rune, read the tape, then average the three (rune-circle.js).
+//
+// Every student gets the same three distances: each is the straight-line distance
+// between tile centres at 2 m per tile, rounded to the centimetre, so a rune that
+// looks farther away really does read longer. From this layout:
+//   Rune 1 (5 E, 2 N)  = 2*sqrt(29) = 10.77 m
+//   Rune 2 (6 W, 2 N)  = 2*sqrt(40) = 12.65 m
+//   Rune 3 (1 W, 3 S)  = 2*sqrt(10) =  6.32 m
+//   average 29.74 / 3 = 9.9133...  ->  9.91 m
+// Moving a stone changes the answer key; the comment above is the only other place
+// these numbers live.
+const RUNE_CIRCLE = {
+  stake: { col: TOWN_OFFSET_COL + 7, row: 35 },
+  metresPerTile: 2,
+  runes: [
+    { n: 1, col: TOWN_OFFSET_COL + 12, row: 33 },
+    { n: 2, col: TOWN_OFFSET_COL + 1,  row: 33 },
+    { n: 3, col: TOWN_OFFSET_COL + 6,  row: 38 },
+  ],
+};
+for (const rune of RUNE_CIRCLE.runes) {
+  const dc = rune.col - RUNE_CIRCLE.stake.col, dr = rune.row - RUNE_CIRCLE.stake.row;
+  rune.hundredths = Math.round(Math.hypot(dc, dr) * RUNE_CIRCLE.metresPerTile * 100);
+}
+const RUNE_SOLID = new Set(RUNE_CIRCLE.runes.map(r => `${r.col},${r.row}`));
+// Carry the south path on down from the grassland to just above the stake.
+addPathLine(grasslandSpine, TOWN_OFFSET_ROW + TOWN_ROWS + 7, grasslandSpine, RUNE_CIRCLE.stake.row - 1);
+for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
+  const d = DECOR_DEFS[i];
+  const key = `${d.baseCol},${d.baseRow}`;
+  const onStake = Math.abs(d.baseCol - RUNE_CIRCLE.stake.col) <= 1 && Math.abs(d.baseRow - RUNE_CIRCLE.stake.row) <= 1;
+  const nearRune = RUNE_CIRCLE.runes.some(r => Math.abs(d.baseCol - r.col) <= 1 && Math.abs(d.baseRow - r.row) <= 1);
+  if (onStake || nearRune || pathTiles.has(key)) DECOR_DEFS.splice(i, 1);
+}
+
 // Computed here, after every decor-clearing pass above, so it correctly reflects what's
 // actually left in DECOR_DEFS (see the note by decorSolidTiles()'s definition).
 const DECOR_SOLID = decorSolidTiles();
@@ -265,6 +307,7 @@ function isSolidBuildingTile(c, r) {
     }
   }
   if (DECOR_SOLID.has(`${c},${r}`)) return true;
+  if (RUNE_SOLID.has(`${c},${r}`)) return true;
   if (isWaterTile(c, r)) return true;
   return false;
 }

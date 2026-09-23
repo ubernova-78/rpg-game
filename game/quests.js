@@ -131,6 +131,7 @@ wbCloseBtn.addEventListener('click', closeWorkbench);
 window.addEventListener('keydown', e => {
   if (!scene.modalOpen || e.key !== 'Escape') return;
   if (!wbModal.classList.contains('hidden')) closeWorkbench();
+  else if (!runeModal.classList.contains('hidden')) closeRuneModal();
   else if (!chestModal.classList.contains('hidden')) closeChest();
   else if (!battleOverlay.classList.contains('hidden')) closeBattle();
   else if (!shopModal.classList.contains('hidden')) closeShop();

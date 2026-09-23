@@ -17,7 +17,7 @@ function maxHpForLevel(level) {
 }
 function applyExpGain(amount) {
   const before = Shared.getLevelInfo(session.record.totalEXP || 0).level;
-  session.record.totalEXP = (session.record.totalEXP || 0) + amount;
+  bankToRecord({ totalEXP: amount });
   const after = Shared.getLevelInfo(session.record.totalEXP).level;
   playerStats.maxHp = maxHpForLevel(after);
   if (after > before) playerStats.hp = playerStats.maxHp;
@@ -386,7 +386,7 @@ function runBattle({ monsterDef, onEnd }) {
   }
   function renderVictory() {
     applyExpGain(monsterDef.exp);
-    session.record.coins = (session.record.coins || 0) + monsterDef.gold;
+    bankToRecord({ coins: monsterDef.gold });
     const drop = rollDrop();
     if (drop) grantConsumable(drop, 1);
     saveSession();

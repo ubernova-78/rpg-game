@@ -213,8 +213,7 @@ function handlePvpOver(data) {
   battleModeTag.textContent = '';
   if (iWon) {
     const bonus = Math.floor(oppGold * PVP_GOLD_BONUS_PCT);
-    session.record.coins = (session.record.coins || 0) + bonus;
-    session.record.pvpWins = (session.record.pvpWins || 0) + 1;
+    bankToRecord({ coins: bonus, pvpWins: 1 });
     if (typeof myFinalHp === 'number') playerStats.hp = myFinalHp;
     saveSession();
     paintHud();
