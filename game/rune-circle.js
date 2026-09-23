@@ -8,7 +8,13 @@
 //   • Readings are not checked one at a time. After the third, any wrong ones are
 //     named — never with the right value — and the student has to walk back to that
 //     rune and pull the tape again. Only then is the average asked for.
-//   • Done once per student; finishing pays 100 gold.
+//   • Finishing pays 100 gold, the FIRST time only. After that the whole circle
+//     can be replayed (Nick, 2026-09-23); the best score counts. The distances are
+//     the same every time, so the saved record also keeps the first-attempt score
+//     and the attempt count -- a replayed 40 isn't the same as a first-time 40.
+//   • Every finish ends on a results screen (and the stake shows it again later)
+//     listing each first reading and the first average as right or wrong, so a
+//     teacher can check a student's work at a glance.
 
 const RC_POINTS_EACH = 10;
 const RC_GOAL = RC_POINTS_EACH * (RUNE_CIRCLE.runes.length + 1);
@@ -27,15 +33,32 @@ const rc = {
   phase: 'idle',
   readings: RUNE_CIRCLE.runes.map(() => null), // integer hundredths the student entered
   firstTry: RUNE_CIRCLE.runes.map(() => null), // was their FIRST entry right?
+  firstReading: RUNE_CIRCLE.runes.map(() => null), // and what it was
+  firstAverage: null,
   redo: new Set(),                             // rune indices that must be measured again
   avgFirstTry: null,
   startTime: 0,
   score: 0,
+  lastRun: null,  // this session's latest finished run, for demo/teacher (not saved)
+  paidGold: false, // demo/teacher: pay once per session, like a real first finish
 };
+
+function rcResetRun() {
+  rc.readings = RUNE_CIRCLE.runes.map(() => null);
+  rc.firstTry = RUNE_CIRCLE.runes.map(() => null);
+  rc.firstReading = RUNE_CIRCLE.runes.map(() => null);
+  rc.redo = new Set();
+  rc.avgFirstTry = null;
+  rc.firstAverage = null;
+}
+function rcSaved() { return (session.record && session.record.runeCircle) || null; }
 let rcWasOn = null; // edge detection, same idea as scene.wasOnNpcId
 
+// "Finished and not in the middle of a replay" -- the stake shows results, the
+// runes sit quiet and glow green.
 function rcAlreadyDone() {
-  return rc.phase === 'done' || !!(session.record && session.record.runeCircle && session.record.runeCircle.done);
+  if (rc.phase === 'done') return true;
+  return rc.phase === 'idle' && !!(rcSaved() && rcSaved().done);
 }
 function rcFmt(h) { return BenchMath.fmt2(h) + ' m'; }
 function rcList(idxs) {
@@ -104,10 +127,8 @@ function updateRuneCircle() {
 
 function rcAtStake() {
   if (rcAlreadyDone()) {
-    const sc = rc.phase === 'done' ? rc.score : session.record.runeCircle.score;
-    openRuneModal('Rune Circle');
-    rcText(`You've already measured the Rune Circle. Your score was <strong>${sc} of ${RC_GOAL} points</strong>.`);
-    rcButton('Close', closeRuneModal);
+    const saved = rcSaved();
+    rcShowResults(rc.lastRun || (saved && saved.last), saved, {});
     return;
   }
   if (rc.phase === 'idle') { rcShowIntro(); return; }
@@ -161,15 +182,19 @@ function rcAtRune(i) {
 
 // ---------- Screens ----------
 function rcShowIntro() {
-  openRuneModal('Rune Circle');
+  const replay = rc.paidGold || !!(rcSaved() && rcSaved().done);
+  openRuneModal(replay ? 'Rune Circle — measure again' : 'Rune Circle');
   rcText('Three rune stones stand around this stake. How far away is each one?' +
     '<br><br>1. Hook your metre tape on the stake.' +
     '<br>2. Walk to <strong>Rune 1</strong>, then <strong>Rune 2</strong>, then <strong>Rune 3</strong>. ' +
     'At each one, pull the tape tight and read the distance <strong>to the nearest hundredth of a metre</strong> (a whole centimetre).' +
     '<br>3. After Rune 3, work out the <strong>average</strong> of the three, rounded to the nearest hundredth.' +
     `<br><br>${RC_POINTS_EACH} points for each reading and ${RC_POINTS_EACH} for the average, if right the first time — ` +
-    `${RC_GOAL} points. Finish to earn 🪙 ${RC_GOLD}. You can only do this once, so take care!`);
+    `${RC_GOAL} points.` + (replay
+      ? ' Your best score counts. (The gold was for your first finish.)'
+      : ` Finish to earn 🪙 ${RC_GOLD}.`));
   rcButton('Hook the tape on the stake', () => {
+    rcResetRun();
     rc.phase = 'measuring';
     rc.startTime = Date.now();
     closeRuneModal();
@@ -230,7 +255,7 @@ function rcShowTape(i) {
 function rcRecord(i, h) {
   const n = RUNE_CIRCLE.runes[i].n;
   const right = h === RUNE_CIRCLE.runes[i].hundredths;
-  if (rc.firstTry[i] === null) rc.firstTry[i] = right;
+  if (rc.firstTry[i] === null) { rc.firstTry[i] = right; rc.firstReading[i] = h; }
   const wasRedo = rc.redo.has(i);
   rc.readings[i] = h;
 
@@ -309,7 +334,7 @@ function rcShowAverage(lead) {
     }
     const sum = RUNE_CIRCLE.runes.reduce((a, r) => a + r.hundredths, 0);
     const right = p.hundredths === BenchMath.hundredthsFromFraction(sum, 100 * RUNE_CIRCLE.runes.length);
-    if (rc.avgFirstTry === null) rc.avgFirstTry = right;
+    if (rc.avgFirstTry === null) { rc.avgFirstTry = right; rc.firstAverage = p.hundredths; }
     if (!right) {
       msg.className = 'wb-modal-body rc-msg-bad';
       msg.textContent = "That average isn't right. Add the three readings, divide by 3, and round to the nearest hundredth.";
@@ -331,29 +356,87 @@ function rcComplete() {
   const avgPts = rc.avgFirstTry ? RC_POINTS_EACH : 0;
   rc.score = readingPts + avgPts;
   const timeSec = Math.round((Date.now() - rc.startTime) / 1000);
+  const counts = !session.demo && !session.teacher && !!session.nameKey;
+  const prev = counts ? rcSaved() : null;
+  const prevAttempts = prev ? (prev.attempts || (prev.done ? 1 : 0)) : (rc.lastRun ? rc.lastRun.attempt : 0);
 
-  bankToRecord({ coins: RC_GOLD });
-  // Demo and teacher runs don't count: no score row, and not marked done, so the
-  // teacher can walk it again to show a class.
-  if (!session.demo && !session.teacher && session.nameKey) {
-    const done = { done: true, score: rc.score, ts: Date.now() };
-    session.record.runeCircle = done;
-    Shared.updateStudent(session.nameKey, { runeCircle: done });
+  // What the results screen shows, and what the teacher can pull up later.
+  // Values are integer hundredths.
+  const run = {
+    attempt: prevAttempts + 1,
+    readings: rc.firstReading.slice(),       // first entry at each rune
+    readingsOK: rc.firstTry.map(Boolean),
+    finalReadings: rc.readings.slice(),      // after any re-measuring (all right)
+    average: rc.firstAverage,
+    averageOK: !!rc.avgFirstTry,
+    score: rc.score,
+    ts: Date.now(),
+  };
+  rc.lastRun = run;
+
+  // 100 gold for the first finish only; replays are for the score.
+  const firstFinish = counts ? !(prev && prev.done) : !rc.paidGold;
+  if (firstFinish) { bankToRecord({ coins: RC_GOLD }); rc.paidGold = true; }
+
+  let saved = null;
+  if (counts) {
+    saved = {
+      done: true,
+      score: Math.max(rc.score, prev && prev.done ? (prev.score || 0) : 0),   // best
+      firstScore: prev && prev.done ? (prev.firstScore != null ? prev.firstScore : prev.score) : rc.score,
+      attempts: run.attempt,
+      ts: run.ts,
+      last: run,
+    };
+    session.record.runeCircle = saved;
+    Shared.updateStudent(session.nameKey, { runeCircle: saved });
     if (Shared.DB_OK) {
       Shared.DB.ref(RC_DB_PATH).push({
         name: session.name, nameKey: session.nameKey, period: String(session.period),
-        score: rc.score, timeSec, ts: Date.now(),
-        readingsFirstTry: rc.firstTry.map(Boolean), averageFirstTry: !!rc.avgFirstTry,
+        score: rc.score, timeSec, ts: run.ts, attempt: run.attempt,
+        readingsFirstTry: run.readingsOK, averageFirstTry: run.averageOK,
       }).catch(e => console.warn('Rune Circle score save failed', e));
     }
   }
   paintHud();
+  rcShowResults(run, saved, { complete: true, paid: firstFinish });
+}
 
-  openRuneModal('Rune Circle complete!');
-  rcText(`That's the right average. <strong>Score: ${rc.score} of ${RC_GOAL} points</strong>` +
-    ` (readings ${readingPts} of ${RC_POINTS_EACH * RUNE_CIRCLE.runes.length}, average ${avgPts} of ${RC_POINTS_EACH}).` +
-    `<br><br>You earned 🪙 ${RC_GOLD}!`, 'rc-msg-good');
-  rcButton('Nice!', closeRuneModal);
+// The teacher-check screen: every first reading and the first average, right or
+// wrong, with what they corrected it to. Shown at the end of each run and again
+// whenever the student walks back onto the stake.
+function rcShowResults(run, saved, opts) {
+  openRuneModal(opts.complete ? 'Rune Circle complete!' : 'Rune Circle — results');
+  if (!run) {
+    // Finished before results were recorded (the first version kept only a score).
+    rcText(`You've measured the Rune Circle. Best score: <strong>${saved ? saved.score : 0} of ${RC_GOAL} points</strong>.`);
+  } else {
+    const who = session.demo ? 'Demo' : session.name;
+    const when = new Date(run.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    rcText(`<strong>${who}</strong> · attempt ${run.attempt} · ${when}`);
+    const mark = ok => ok ? '<span class="rc-ok">✓ right</span>' : '<span class="rc-bad">✗ wrong</span>';
+    let rows = '';
+    RUNE_CIRCLE.runes.forEach((r, i) => {
+      const first = run.readings[i], fin = run.finalReadings ? run.finalReadings[i] : null;
+      rows += `<tr><td>Rune ${r.n}</td><td>${first != null ? rcFmt(first) : '—'}</td><td>${mark(run.readingsOK[i])}</td>` +
+        `<td>${!run.readingsOK[i] && fin != null ? 'fixed to ' + rcFmt(fin) : ''}</td></tr>`;
+    });
+    const sum = RUNE_CIRCLE.runes.reduce((a, r) => a + r.hundredths, 0);
+    const avgRight = BenchMath.hundredthsFromFraction(sum, 100 * RUNE_CIRCLE.runes.length);
+    rows += `<tr class="rc-avg"><td>Average</td><td>${run.average != null ? rcFmt(run.average) : '—'}</td><td>${mark(run.averageOK)}</td>` +
+      `<td>${!run.averageOK ? 'fixed to ' + rcFmt(avgRight) : ''}</td></tr>`;
+    const table = document.createElement('table');
+    table.className = 'rc-table';
+    table.innerHTML = '<tr><th></th><th>First answer</th><th></th><th></th></tr>' + rows;
+    runeBody.appendChild(table);
+    rcText(`<strong>Score: ${run.score} of ${RC_GOAL} points</strong> — 10 for each answer right the first time.`);
+  }
+  if (saved && saved.attempts > 1) {
+    rcText(`Best score: <strong>${saved.score} of ${RC_GOAL}</strong> · first attempt: ${saved.firstScore} of ${RC_GOAL} · ${saved.attempts} attempts`);
+  }
+  if (opts.paid) rcText(`You earned 🪙 ${RC_GOLD}!`, 'rc-msg-good');
+  rcButton('Measure the circle again', () => { rc.phase = 'idle'; rcResetRun(); rcShowIntro(); });
+  rcButton('Close', closeRuneModal);
 }
 
 // ---------- Drawing (called from drawWorld, under NPCs and the player) ----------

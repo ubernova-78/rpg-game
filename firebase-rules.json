@@ -41,6 +41,9 @@
           "done":    { ".validate": "newData.isBoolean()" },
           "score":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 40" },
           "ts":      { ".validate": "newData.isNumber()" },
+          "firstScore": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 40" },
+          "attempts":   { ".validate": "newData.isNumber() && newData.val() >= 1" },
+          "last":       { ".validate": "newData.hasChildren(['attempt','score'])" },
           "$other":  { ".validate": false }
         },
         "$other":        { ".validate": false }
@@ -124,6 +127,7 @@
           "$i": { ".validate": "newData.isBoolean()" }
         },
         "averageFirstTry": { ".validate": "newData.isBoolean()" },
+        "attempt":  { ".validate": "newData.isNumber() && newData.val() >= 1" },
         "$other":   { ".validate": false }
       }
     },

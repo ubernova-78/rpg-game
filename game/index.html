@@ -255,6 +255,14 @@
   .rc-log span { background: #1d3038; border: 1px solid #27424c; border-radius: 6px; padding: 3px 10px; font-family: monospace; font-weight: 700; }
   .rc-msg-bad { color: #ff8a7a; font-weight: 700; }
   .rc-msg-good { color: #6fd3a8; font-weight: 700; }
+  .rc-table { width: 100%; border-collapse: collapse; margin: 4px 0 12px; font-size: 14px; text-align: left; }
+  .rc-table th { color: var(--muted); font-size: 12px; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid var(--panel-border); }
+  .rc-table td { padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+  .rc-table td:nth-child(2) { font-family: monospace; font-weight: 700; font-size: 15px; }
+  .rc-table td:nth-child(4) { color: var(--muted); font-size: 13px; }
+  .rc-table tr.rc-avg td { border-top: 2px solid var(--panel-border); font-weight: 700; }
+  .rc-ok { color: #6fd3a8; font-weight: 800; }
+  .rc-bad { color: #ff8a7a; font-weight: 800; }
   /* Metre tape — a copy of the tape block in measure-average-bench.html, under the
      rc- prefix MeasureShared.buildRulerDOM is handed here. Same geometry on purpose:
      it is the same tape the workshop teaches (feedback: keep measurement views in
