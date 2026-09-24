@@ -337,7 +337,7 @@
     left:0;
     height:16px;
   }
-  /* Metre tape: same rule, different tick heights. */
+  /* Meter tape: same rule, different tick heights. */
   .tape-inner-m .tick.cm{ height:18px; bottom:8px; }
   .tape-inner-m .tick.cm5{ width:1.5px; height:26px; bottom:0; }
   .tape-inner-m .tick.cm10{ width:2px; height:40px; bottom:0; }
@@ -1050,9 +1050,9 @@
 
   function buildRuler(scale, valueMM){
     let { pxPerMM } = RULER_SCALE[scale];
-    // The metre tape stays at 0.9 px/mm (9 px per cm) so each cm can carry its
-    // digit; it used to shrink to fit a metre on screen, which smeared them.
-    // The metre marker below says which metre you're in when its mark is off.
+    // The meter tape stays at 0.9 px/mm (9 px per cm) so each cm can carry its
+    // digit; it used to shrink to fit a meter on screen, which smeared them.
+    // The meter marker below says which meter you're in when its mark is off.
     const REC_START = 60;
     els.tapeScaleLabel.textContent = scale === 'mm'
       ? 'Scale: small ticks = mm \u00b7 numbered ticks = cm'
@@ -1067,7 +1067,7 @@
     const inner = els.tapeInner;
     inner.innerHTML = '';
     inner.style.width = totalWidth + 'px';
-    // Marks which scale is drawn, so the stylesheet can offset the metre
+    // Marks which scale is drawn, so the stylesheet can offset the meter
     // tape's ticks separately (see the tick block up top).
     inner.className = 'tape-inner' + (scale === 'm' ? ' tape-inner-m' : '');
 
@@ -1092,7 +1092,7 @@
       MeasureShared.buildMeterTicks(inner, valueMM, {
         pxPerMM, padLeft: REC_START, totalMM,
       });
-      MeasureShared.attachMetreMarker(els.tapeWrap, els.unitBadge.parentElement, { pxPerMM, padLeft: REC_START });
+      MeasureShared.attachMeterMarker(els.tapeWrap, els.unitBadge.parentElement, { pxPerMM, padLeft: REC_START });
     } else {
       // mm sub-ticks as a lightweight repeating background, cm ticks numbered
       const mmBg = document.createElement('div');
@@ -1136,11 +1136,11 @@
     requestAnimationFrame(()=>{
       const wrapWidth = els.tapeWrap.clientWidth;
       const barEndX = REC_START + valueMM*pxPerMM;
-      // Bar's end at 60% across. On the metre tape the metre mark may then be
-      // off the left edge — the metre marker (attachMetreMarker) says which.
+      // Bar's end at 60% across. On the meter tape the meter mark may then be
+      // off the left edge — the meter marker (attachMeterMarker) says which.
       const target = barEndX - wrapWidth*0.6;
       els.tapeWrap.scrollLeft = Math.max(0, target);
-      els.tapeWrap.dispatchEvent(new Event('scroll')); // refresh the metre marker
+      els.tapeWrap.dispatchEvent(new Event('scroll')); // refresh the meter marker
     });
 
     // Zoom inset removed — cm scale now uses 6px/mm (same as mm scale) so

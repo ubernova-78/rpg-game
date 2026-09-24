@@ -10,6 +10,7 @@
 <script src="measure-shared.js"></script>
 <script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
+<script src="fix-loop.js"></script>
 <style>
   :root{
     --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
@@ -73,14 +74,14 @@
   /* Every tick HANGS FROM the bar's bottom edge (26px above the tape floor)
      rather than standing on the floor, so the end of the bar can be traced
      straight down onto one specific tick — that is what makes the tenth of a
-     centimetre readable.  Each `bottom` is 26px minus that tick's own height,
+     centimeter readable.  Each `bottom` is 26px minus that tick's own height,
      so the tops all line up; the ragged ends point away from the bar, the way
      a real ruler reads.  Change a height here and its bottom moves with it. */
   .tick{position:absolute;width:2px;background:#333;}
   .tick.half-cm{width:1.5px;bottom:5px;}            /* height 21px, set inline */
   .tick.cm{width:1px;height:26px;bottom:0;}
   .mm-bg{position:absolute;left:0;height:16px;bottom:10px;}
-  /* Metre tape: same rule, different tick heights. */
+  /* Meter tape: same rule, different tick heights. */
   .tape-inner-m .tick.cm{height:18px;bottom:8px;}
   .tape-inner-m .tick.cm5{width:1.5px;height:26px;bottom:0;}
   .tape-inner-m .tick.cm10{width:2px;height:40px;bottom:0;}
@@ -106,6 +107,12 @@
   .summary-table td{padding:8px 12px;border-bottom:1px solid #ddd;}
   .summary-table .wrong{color:var(--miss);font-weight:700;}
   .summary-table .correct{color:var(--good);font-weight:700;}
+  /* FixLoop.renderSummary (fix-loop.js) rows */
+  .fl-table .fl-num{font-family:'Courier New',monospace;font-weight:700;}
+  .fl-table .fl-after{color:var(--dim);font-size:0.88rem;}
+  .fl-table tr.fl-avg td{border-top:2px solid #999;font-weight:700;}
+  .fl-table th:first-child{width:80px;}
+  .fl-ok{color:var(--good);font-weight:800;} .fl-bad{color:var(--miss);font-weight:800;}
 
   .avg-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:16px;flex-wrap:wrap;}
   .avg-label{font-weight:800;font-size:1.05rem;}
@@ -144,10 +151,11 @@
   <div class="screen" id="screen-start">
     <div class="start-title">Measure & Average</div>
     <div class="start-sub">Measure items using calipers (mm), rulers (cm), or tape measures (m), then calculate the average of the set.
-      <br><strong>Read the calipers to the whole millimetre, the ruler to the tenth of a centimetre, and the tape to the hundredth of a metre.</strong>
-      Round every average to the nearest hundredth.</div>
-    <p style="font-size:0.9rem;color:var(--dim);">Three sets — millimetres, then centimetres, then metres — 12 measurements between them.
-      Each set is worth 10 points per measurement in it, awarded only if every measurement <em>and</em> the average are right. 120 points possible.</p>
+      <br><strong>Read the calipers to the whole millimeter, the ruler to the tenth of a centimeter, and the tape to the hundredth of a meter.</strong>
+      Round every average to the nearest hundredth.
+      <br>If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.</div>
+    <p style="font-size:0.9rem;color:var(--dim);">Three sets — millimeters, then centimeters, then meters — 12 measurements between them.
+      Each set is worth 10 points per measurement in it, awarded only if every measurement <em>and</em> the average are right the first time. 120 points possible.</p>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
@@ -187,7 +195,7 @@
 
 <script>
 (function(){
-  // Three sets, always millimetres then centimetres then metres, so every
+  // Three sets, always millimeters then centimeters then meters, so every
   // student practises all three tools every time.  The 12 measurements are
   // split between them (each set gets 3-6), and a set is worth 10 points per
   // measurement in it — so the split varies but the total is always 120.
@@ -283,7 +291,7 @@
   // How precisely each tool is read — the classroom rule, and it decides
   // what values may be generated.  A value has to land exactly on a tick
   // the student can see, or the reading is a guess:
-  //   mm  whole millimetres      (the caliper has no vernier scale)
+  //   mm  whole millimeters      (the caliper has no vernier scale)
   //   cm  tenths of a cm         (= whole mm, the ruler's finest tick)
   //   m   hundredths of a m      (= whole cm, the tape's finest tick)
   // The average is rounded to the nearest hundredth in every unit.
@@ -349,11 +357,10 @@
     const {unit,count,values,measurements,currentItem}=R;
     const ctx=unitContext(unit);
     const val=values[currentItem];
-    const valMM=toMM(val,unit);
 
-    const HOW_PRECISE={mm:'to the nearest whole millimetre',
-                       cm:'to the nearest tenth of a centimetre',
-                       m:'to the nearest hundredth of a metre'};
+    const HOW_PRECISE={mm:'to the nearest whole millimeter',
+                       cm:'to the nearest tenth of a centimeter',
+                       m:'to the nearest hundredth of a meter'};
     els.qtext.innerHTML=`${ctx.icon} Measure item ${currentItem+1} of ${count} using the ${ctx.tool}, `
       + `${HOW_PRECISE[unit]}. (${UNIT_LABELS[unit]})`;
 
@@ -371,7 +378,28 @@
       els.body.appendChild(log);
     }
 
-    // Render the measurement tool
+    renderTool(val);
+
+    // Input row
+    const row=document.createElement('div');row.className='measure-row';
+    const lbl=document.createElement('span');lbl.style.fontWeight='700';
+    lbl.textContent=`Item ${currentItem+1} (${unit}):`;
+    const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
+    inp.placeholder=['0','0.0','0.00'][DECIMALS[unit]];inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
+    els.body.appendChild(row);
+
+    sub.addEventListener('click',()=>submitMeasure(inp));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submitMeasure(inp);});
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  // The caliper / ruler / tape for one value, appended to the question body.
+  // Used for the first reading and again for any reading that has to be fixed.
+  function renderTool(val){
+    const unit=R.unit;
+    const valMM=toMM(val,unit);
     if(unit==='mm'){
       // Calipers with bug specimen
       const wrap=document.createElement('div');
@@ -397,20 +425,6 @@
       };
       MeasureShared.buildRulerDOM(container,valMM,rulerOpts);
     }
-
-    // Input row
-    const row=document.createElement('div');row.className='measure-row';
-    const lbl=document.createElement('span');lbl.style.fontWeight='700';
-    lbl.textContent=`Item ${currentItem+1} (${unit}):`;
-    const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
-    inp.placeholder=['0','0.0','0.00'][DECIMALS[unit]];inp.inputMode='decimal';
-    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
-    row.appendChild(lbl);row.appendChild(inp);row.appendChild(sub);
-    els.body.appendChild(row);
-
-    sub.addEventListener('click',()=>submitMeasure(inp));
-    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submitMeasure(inp);});
-    setTimeout(()=>inp.focus(),80);
   }
 
   function submitMeasure(inp){
@@ -433,25 +447,106 @@
     S.stepsDone++;
     updateHud();
     if(R.currentItem<R.count) showMeasureItem();
-    else showAverageUI();
+    else afterAllMeasured();
+  }
+
+  // ---------- Fix wrong readings ----------
+  // All readings are in: check them together. A wrong one is named, never
+  // given, and shown again on its own tool to re-read; after FixLoop's two
+  // failed fixes its value is shown instead. The average waits until every
+  // reading is settled. Points still come from first tries only.
+  const fmtH=h=>(h/100).toFixed(DECIMALS[R.unit])+' '+R.unit;
+  const fmtAvgH=h=>BenchMath.fmt2(h)+' '+R.unit; // averages are to the hundredth in every unit
+  function afterAllMeasured(){
+    R.fix=FixLoop.create(R.values.map(v=>Math.round(v*100)));
+    R.measHundredths.forEach((h,i)=>R.fix.recordFirst(i,h));
+    const wrong=R.fix.pending();
+    if(!wrong.length){ showAverageUI(`All ${R.count} measurements are right.`); return; }
+    showFixItem(wrong.length===1
+      ? `Measurement ${wrong[0]+1} isn't right.`
+      : `Measurements ${wrong.slice(0,-1).map(i=>i+1).join(', ')} and ${wrong[wrong.length-1]+1} aren't right.`);
+  }
+  function fixLog(current){
+    const log=document.createElement('div');log.className='meas-log';
+    log.innerHTML='<strong>Your measurements:</strong> ';
+    R.fix.items.forEach((it,i)=>{
+      const sp=document.createElement('span');sp.className=`entry ${R.unit}`;
+      const open=it.status===null;
+      sp.textContent=`#${i+1}: ${open?fmtH(it.first)+' ✗':fmtH(it.final)+' ✓'}`;
+      if(open){sp.style.outline=i===current?'2px solid var(--miss)':'1px dashed var(--miss)';}
+      log.appendChild(sp);
+    });
+    els.body.appendChild(log);
+  }
+  function continueAfterFix(){
+    const p=R.fix.pending();
+    if(p.length) showFixItem(null);
+    else showAverageUI(R.fix.items.some(it=>it.status==='shown')
+      ? 'All the measurements are done.' : 'Every measurement is right now.');
+  }
+  function showFixItem(lead){
+    const i=R.fix.pending()[0];
+    els.body.innerHTML='';
+    els.feedback.classList.remove('show','good','bad');
+    els.qtext.innerHTML=(lead?lead+' ':'')+`Measure item ${i+1} again. `
+      +`<span style="font-weight:400;color:var(--dim)">(${FixLoop.triesText(R.fix.triesLeft(i))})</span>`;
+    fixLog(i);
+    renderTool(R.values[i]);
+    const row=document.createElement('div');row.className='measure-row';
+    const lbl=document.createElement('span');lbl.style.fontWeight='700';lbl.textContent=`Item ${i+1} again (${R.unit}):`;
+    const inp=document.createElement('input');inp.type='text';inp.className='measure-input';
+    inp.placeholder=['0','0.0','0.00'][DECIMALS[R.unit]];inp.inputMode='decimal';
+    const sub=document.createElement('button');sub.className='submit-btn';sub.textContent='Submit';
+    row.append(lbl,inp,sub);els.body.appendChild(row);
+    let settled=false;
+    const submit=()=>{
+      if(settled)return;
+      const p=BenchMath.parseHundredths(inp.value);
+      if(!p.ok){BenchMath.nudge(inp,p.reason==='tooManyDecimals'
+        ?`This tool reads to ${['whole units','one decimal place','two decimal places'][DECIMALS[R.unit]]}.`:'Type a number.');return;}
+      const res=R.fix.recordFix(i,p.hundredths);
+      if(res==='fixed'){
+        settled=true;
+        els.feedback.textContent=`Item ${i+1} is right now: ${fmtH(p.hundredths)}.`;
+        els.feedback.className='feedback show good';
+        setTimeout(continueAfterFix,1200);
+      } else if(res==='wrong'){
+        els.feedback.textContent=`Still not right. Look again carefully (${FixLoop.triesText(R.fix.triesLeft(i))}).`;
+        els.feedback.className='feedback show bad';
+        els.qtext.querySelector('span').textContent=`(${FixLoop.triesText(R.fix.triesLeft(i))})`;
+        inp.select();
+      } else {
+        // Shown: hold on the tool with the answer so they can see why, until Next.
+        settled=true;
+        els.feedback.innerHTML=`Item ${i+1} was <strong>${fmtH(R.fix.items[i].correct)}</strong>. `
+          +`Find it on the tool above, then press Next.`;
+        els.feedback.className='feedback show bad';
+        const next=document.createElement('button');next.className='submit-btn';next.textContent='Next';
+        next.style.marginLeft='10px';next.addEventListener('click',continueAfterFix);
+        els.feedback.appendChild(next);
+      }
+    };
+    sub.addEventListener('click',submit);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+    setTimeout(()=>inp.focus(),80);
   }
 
   // ---------- Average phase ----------
-  function showAverageUI(){
+  function showAverageUI(lead){
     els.body.innerHTML='';
-    els.feedback.classList.remove('show');
-    const {unit,count,values,measurements}=R;
+    els.feedback.classList.remove('show','good','bad');
+    const {unit,count}=R;
     const ctx=unitContext(unit);
 
-    els.qtext.innerHTML=`${ctx.icon} All ${count} ${unit} measurements done \u2014 this set is worth ${R.points} points. `
+    els.qtext.innerHTML=`${ctx.icon} ${lead||''} This set is worth ${R.points} points. `
       + `Calculate the average, rounded to the nearest hundredth.`;
 
-    // Show all measurements
+    // The readings as they stand now -- all right, after any fixing.
     const log=document.createElement('div');log.className='meas-log';
     log.innerHTML='<strong>Your measurements:</strong> ';
-    measurements.forEach((m,i)=>{
+    R.fix.items.forEach((it,i)=>{
       const sp=document.createElement('span');sp.className=`entry ${unit}`;
-      sp.textContent=`#${i+1}: ${m} ${unit}`;log.appendChild(sp);
+      sp.textContent=`#${i+1}: ${fmtH(it.final)}`;log.appendChild(sp);
     });
     els.body.appendChild(log);
 
@@ -470,94 +565,65 @@
 
   function submitAverage(inp){
     if(S.locked)return;
-    const raw=inp.value.trim();
-    if(!raw){inp.style.borderColor='var(--miss)';setTimeout(()=>inp.style.borderColor='',500);return;}
-    const parsedAvg=BenchMath.parseHundredths(raw);
+    const parsedAvg=BenchMath.parseHundredths(inp.value.trim());
     if(!parsedAvg.ok){
       BenchMath.nudge(inp, parsedAvg.reason==='tooManyDecimals'
         ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
       return;
     }
-    const val=parsedAvg.hundredths/100;
+    const res=R.fix.recordAverage(parsedAvg.hundredths);
+    if(res==='wrong'){
+      // Every reading is right by now, so this is the arithmetic.
+      els.feedback.textContent=`That average isn't right. Add the ${R.count} measurements, divide by ${R.count}, `
+        +`and round to the nearest hundredth (${FixLoop.triesText(R.fix.avgTriesLeft())}).`;
+      els.feedback.className='feedback show bad';
+      inp.select();
+      return;
+    }
     S.locked=true;
+    finishSet(res);
+  }
 
-    const {unit,count,values,measurements,measHundredths}=R;
-
-    // Check each measurement
-    let allMeasOK=true;
-    const measOK=[];
-    for(let i=0;i<count;i++){
-      const actual=values[i];
-      const student=measurements[i];
-      const ok=Math.abs(toMM(student,unit)-toMM(actual,unit))<=0.5; // 0.5mm tolerance in all units
-      measOK.push(ok);
-      if(!ok)allMeasOK=false;
-    }
-
-    // Both averages as exact integer hundredths, half-up. The old float form
-    // (`Math.round(sum/count*100)/100` compared with `<=0.01`) marked a
-    // correctly-rounded average wrong whenever the true mean landed on a
-    // half-hundredth, and cost the whole set its points for a right answer.
-    const actualH=BenchMath.hundredthsFromFraction(
-      values.reduce((a,v)=>a+Math.round(v*100),0), 100*count);
-    const theirsH=BenchMath.hundredthsFromFraction(
-      measHundredths.reduce((a,h)=>a+h,0), 100*count);
-
-    const avgMatchesActual=parsedAvg.hundredths===actualH;
-    const avgMatchesTheirs=parsedAvg.hundredths===theirsH;
-
-    // Build feedback table
-    const table=document.createElement('table');table.className='summary-table';
-    const thead=document.createElement('thead');
-    thead.innerHTML='<tr><th>#</th><th>Your Measurement</th><th>Actual</th><th></th></tr>';
-    table.appendChild(thead);
-    const tbody=document.createElement('tbody');
-    for(let i=0;i<count;i++){
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${i+1}</td><td>${measurements[i]} ${unit}</td><td>${fmtVal(values[i],unit)} ${unit}</td>
-        <td class="${measOK[i]?'correct':'wrong'}">${measOK[i]?'✓':'✗'}</td>`;
-      tbody.appendChild(tr);
-    }
-    // Average row
-    const avgTr=document.createElement('tr');
-    avgTr.style.borderTop='2px solid #999';
-    const avgOK=allMeasOK&&avgMatchesActual;
-    avgTr.innerHTML=`<td><strong>Avg</strong></td><td><strong>${val} ${unit}</strong></td><td><strong>${BenchMath.fmt2(actualH)} ${unit}</strong></td>
-      <td class="${avgOK?'correct':'wrong'}"><strong>${avgOK?'✓':'✗'}</strong></td>`;
-    tbody.appendChild(avgTr);
-    table.appendChild(tbody);
-
-    // Insert table before feedback
-    els.body.appendChild(table);
-
-    // Determine result
-    // All or nothing for the set: every measurement right AND the average
-    // right, or it scores zero.  Worth 10 points per measurement in the set,
-    // so the three sets always add up to 120 however the 12 were split.
-    const isCorrect=allMeasOK&&avgMatchesActual;
+  // End of a set: the results table (first answers, right or wrong, and what
+  // happened after), then the usual held review. All or nothing on FIRST tries:
+  // every first measurement and the first average right, or the set scores 0.
+  function finishSet(avgResult){
+    const {unit,count}=R;
+    const isCorrect=R.fix.allFirstTry();
     if(isCorrect) S.score=Math.min(GOAL,S.score+R.points);
     S.stepsDone++;
     updateHud();
 
-    // Which part went wrong decides the teaching line. The comparison table
-    // built just above stays on screen while they read it — a miss no longer
-    // wipes it after 2.4 seconds.
+    els.body.innerHTML='';
+    const snap=R.fix.snapshot();
+    FixLoop.renderSummary(els.body, snap, {
+      labels: R.fix.items.map((it,i)=>`Item ${i+1}`), fmt: fmtH, fmtAvg: fmtAvgH,
+      correct: R.fix.items.map(it=>it.correct), avgCorrect: R.fix.avg.correct, cls: 'summary-table fl-table',
+    });
+
+    const firstRight=R.fix.firstTryCount();
     let note;
-    if(!allMeasOK&&avgMatchesTheirs&&!avgMatchesActual){
-      note='Your averaging was right — it was the measurements that were off. Check the table above, then press Next.';
-    } else if(allMeasOK&&!avgMatchesActual){
-      note='Your measurements were all correct — it was the average. Add them again and divide by how many there are.';
-    } else {
-      note='Every measurement in a set has to be right as well as the average. Compare yours with the actual values in the table, then press Next.';
+    if(isCorrect) note='';
+    else if(firstRight===count) note='Your measurements were all right the first time \u2014 it was the average. Add them again and divide by how many there are.';
+    else if(R.fix.avg.firstOK) note=`Your average was right, but ${count-firstRight===1?'1 measurement wasn\u2019t':(count-firstRight)+' measurements weren\u2019t'} right the first time. The table shows which.`;
+    else note='A set needs every first measurement and the first average right. The table shows which ones weren\u2019t.';
+    if(avgResult==='shown') note=`The average was ${fmtAvgH(R.fix.avg.correct)}. `+note;
+
+    // What the end-of-round list shows for this set: the average if that's what
+    // went wrong, otherwise the first measurement that did -- "8.00 -> 8.00" for a
+    // right average in a lost set just looks like a bug.
+    let yours=fmtAvgH(R.fix.avg.first), correct=fmtAvgH(R.fix.avg.correct);
+    if(!isCorrect&&R.fix.avg.firstOK){
+      const k=R.fix.items.findIndex(it=>!it.firstOK);
+      yours=`Item ${k+1}: ${fmtH(R.fix.items[k].first)}`; correct=`Item ${k+1}: ${fmtH(R.fix.items[k].correct)}`;
     }
     Review.show(els.feedback, {
       ok: isCorrect,
-      yours: `${val} ${unit}`,
-      correct: `${BenchMath.fmt2(actualH)} ${unit}`,
+      yours: yours,
+      correct: correct,
       headline: isCorrect ? `Correct! +${R.points} points`
                           : `Not quite \u2014 this set was worth ${R.points} points.`,
       note: note,
-      label: `Actual: ${values.map(v=>fmtVal(v,unit)).join(', ')} ${unit}`,
       autoMs: 2400,
       onNext: nextRound,
     });

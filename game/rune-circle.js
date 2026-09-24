@@ -1,4 +1,4 @@
-// rune-circle.js — the Rune Circle in the south meadow: hook a metre tape on the stake,
+// rune-circle.js — the Rune Circle in the south meadow: hook a meter tape on the stake,
 // walk to each of three runes and read the tape, then average the three readings.
 // Layout and the answer key live in world.js (RUNE_CIRCLE).
 //
@@ -8,6 +8,9 @@
 //   • Readings are not checked one at a time. After the third, any wrong ones are
 //     named — never with the right value — and the student has to walk back to that
 //     rune and pull the tape again. Only then is the average asked for.
+//     The shared FixLoop (fix-loop.js) keeps that state, so the workshop's Measure &
+//     Average bench behaves the same way — including showing the answer after two
+//     failed fixes, so nobody is stuck at one rune all lesson (2026-09-24).
 //   • Finishing pays 100 gold, the FIRST time only. After that the whole circle
 //     can be replayed (Nick, 2026-09-23); the best score counts. The distances are
 //     the same every time, so the saved record also keeps the first-attempt score
@@ -31,12 +34,9 @@ const runeUnhookBtn = document.getElementById('runeUnhookBtn');
 // so stopping can't be used to wipe a wrong first attempt.
 const rc = {
   phase: 'idle',
-  readings: RUNE_CIRCLE.runes.map(() => null), // integer hundredths the student entered
-  firstTry: RUNE_CIRCLE.runes.map(() => null), // was their FIRST entry right?
-  firstReading: RUNE_CIRCLE.runes.map(() => null), // and what it was
-  firstAverage: null,
+  readings: RUNE_CIRCLE.runes.map(() => null), // integer hundredths, as they stand now
   redo: new Set(),                             // rune indices that must be measured again
-  avgFirstTry: null,
+  fix: null,                                   // FixLoop tracker: first tries, fixes, statuses
   startTime: 0,
   score: 0,
   lastRun: null,  // this session's latest finished run, for demo/teacher (not saved)
@@ -45,12 +45,10 @@ const rc = {
 
 function rcResetRun() {
   rc.readings = RUNE_CIRCLE.runes.map(() => null);
-  rc.firstTry = RUNE_CIRCLE.runes.map(() => null);
-  rc.firstReading = RUNE_CIRCLE.runes.map(() => null);
   rc.redo = new Set();
-  rc.avgFirstTry = null;
-  rc.firstAverage = null;
+  rc.fix = FixLoop.create(RUNE_CIRCLE.runes.map(r => r.hundredths));
 }
+rcResetRun();
 function rcSaved() { return (session.record && session.record.runeCircle) || null; }
 let rcWasOn = null; // edge detection, same idea as scene.wasOnNpcId
 
@@ -109,14 +107,14 @@ function rcReadingsLog() {
 function updateRuneCircle() {
   const fb = feetBox(player.x, player.y);
   const fx = fb.x + fb.w / 2, fy = fb.y + fb.h / 2;
-  const centre = (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
+  const center = (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
   let on = null;
-  const s = centre(RUNE_CIRCLE.stake.col, RUNE_CIRCLE.stake.row);
+  const s = center(RUNE_CIRCLE.stake.col, RUNE_CIRCLE.stake.row);
   // The stake is walked onto; runes are solid, so "at a rune" means touching it
-  // from any side — about a tile from its centre.
+  // from any side — about a tile from its center.
   if (Math.hypot(fx - s.x, fy - s.y) < TILE * 0.6) on = 'stake';
   RUNE_CIRCLE.runes.forEach((r, i) => {
-    const p = centre(r.col, r.row);
+    const p = center(r.col, r.row);
     if (Math.hypot(fx - p.x, fy - p.y) < TILE * 1.05) on = i;
   });
   if (on !== null && on !== rcWasOn) {
@@ -185,9 +183,9 @@ function rcShowIntro() {
   const replay = rc.paidGold || !!(rcSaved() && rcSaved().done);
   openRuneModal(replay ? 'Rune Circle — measure again' : 'Rune Circle');
   rcText('Three rune stones stand around this stake. How far away is each one?' +
-    '<br><br>1. Hook your metre tape on the stake.' +
+    '<br><br>1. Hook your meter tape on the stake.' +
     '<br>2. Walk to <strong>Rune 1</strong>, then <strong>Rune 2</strong>, then <strong>Rune 3</strong>. ' +
-    'At each one, pull the tape tight and read the distance <strong>to the nearest hundredth of a metre</strong> (a whole centimetre).' +
+    'At each one, pull the tape tight and read the distance <strong>to the nearest hundredth of a meter</strong> (a whole centimeter).' +
     '<br>3. After Rune 3, work out the <strong>average</strong> of the three, rounded to the nearest hundredth.' +
     `<br><br>${RC_POINTS_EACH} points for each reading and ${RC_POINTS_EACH} for the average, if right the first time — ` +
     `${RC_GOAL} points.` + (replay
@@ -215,9 +213,9 @@ function rcShowPullPrompt(i) {
 function rcShowTape(i) {
   const rune = RUNE_CIRCLE.runes[i];
   openRuneModal(`Rune ${rune.n} — read the tape`);
-  rcText(`Read the tape where it reaches Rune ${rune.n}, <strong>to the nearest hundredth of a metre</strong>.`);
+  rcText(`Read the tape where it reaches Rune ${rune.n}, <strong>to the nearest hundredth of a meter</strong>.`);
   // The tape has to be in a visible container before it is built: buildRulerDOM sizes
-  // a metre to the viewport it can see, and scrolls to the bar's end.
+  // a meter to the viewport it can see, and scrolls to the bar's end.
   const holder = document.createElement('div');
   runeBody.appendChild(holder);
   MeasureShared.buildRulerDOM(holder, rune.hundredths * 10, {
@@ -241,7 +239,7 @@ function rcShowTape(i) {
     const p = BenchMath.parseHundredths(inp.value);
     if (!p.ok) {
       BenchMath.nudge(inp, p.reason === 'tooManyDecimals'
-        ? 'The tape reads to whole centimetres — two decimal places.' : 'Type a number, like 0.00');
+        ? 'The tape reads to whole centimeters — two decimal places.' : 'Type a number, like 0.00');
       return;
     }
     rcRecord(i, p.hundredths);
@@ -254,33 +252,29 @@ function rcShowTape(i) {
 
 function rcRecord(i, h) {
   const n = RUNE_CIRCLE.runes[i].n;
-  const right = h === RUNE_CIRCLE.runes[i].hundredths;
-  if (rc.firstTry[i] === null) { rc.firstTry[i] = right; rc.firstReading[i] = h; }
   const wasRedo = rc.redo.has(i);
-  rc.readings[i] = h;
 
   if (wasRedo) {
-    if (!right) {
+    const res = rc.fix.recordFix(i, h);
+    if (res === 'wrong') {
+      rc.readings[i] = h;
       openRuneModal(`Rune ${n}`);
       rcText(`Rune ${n} still isn't right. Pull the tape again and read it carefully — ` +
-        'find the last red metre mark before the end of the bar, then count on.', 'rc-msg-bad');
+        'find the last red meter mark before the end of the bar, then count on.', 'rc-msg-bad');
+      rcText(`(${FixLoop.triesText(rc.fix.triesLeft(i))}.)`);
       rcButton(`Pull tape tight to Rune ${n} again`, () => rcShowTape(i));
       rcButton('Not now', closeRuneModal);
       return;
     }
     rc.redo.delete(i);
-    if (rc.redo.size) {
-      openRuneModal(`Rune ${n}`);
-      rcText(`Rune ${n} is right now.`, 'rc-msg-good');
-      rcText(`Still to measure again: <strong>${rcList(rcTargets())}</strong>.`);
-      rcButton('OK', closeRuneModal);
-      return;
-    }
-    rc.phase = 'average';
-    rcShowAverage(`Rune ${n} is right now — all three readings are correct.`);
+    rc.readings[i] = rc.fix.items[i].final;
+    if (res === 'shown') { rcShowShown(i); return; }
+    rcAfterFix(`Rune ${n} is right now.`);
     return;
   }
 
+  rc.fix.recordFirst(i, h);
+  rc.readings[i] = h;
   const next = rc.readings.findIndex(r => r === null);
   if (next !== -1) {
     openRuneModal(`Rune ${n}`);
@@ -291,7 +285,7 @@ function rcRecord(i, h) {
   }
 
   // Third reading in: check them all, name any wrong ones, never say the right value.
-  const wrong = RUNE_CIRCLE.runes.map((r, k) => k).filter(k => rc.readings[k] !== RUNE_CIRCLE.runes[k].hundredths);
+  const wrong = rc.fix.pending();
   if (!wrong.length) {
     rc.phase = 'average';
     rcShowAverage('All three readings are correct.');
@@ -304,17 +298,47 @@ function rcRecord(i, h) {
     ? `Your reading for <strong>${rcList(wrong)}</strong> isn't right.`
     : `Your readings for <strong>${rcList(wrong)}</strong> aren't right.`, 'rc-msg-bad');
   rcText('Walk back and measure ' + (wrong.length === 1 ? 'it' : 'them') +
-    ' again — the tape is still hooked on the stake.');
+    ' again — the tape is still hooked on the stake. ' +
+    `You get ${FixLoop.MAX_FIXES} more tries at each before the answer is shown.`);
   // Standing at a rune that needs redoing already? Don't make them step away and back.
   if (rc.redo.has(i)) rcButton(`Pull tape tight to Rune ${n} again`, () => rcShowTape(i));
   rcButton('OK', closeRuneModal);
+}
+
+// Two failed fixes: show the right reading ON the tape, so they can see where it
+// lands, and hold there until they press Continue.
+function rcShowShown(i) {
+  const rune = RUNE_CIRCLE.runes[i];
+  openRuneModal(`Rune ${rune.n}`);
+  rcText(`Rune ${rune.n} is <strong>${rcFmt(rune.hundredths)}</strong>. Find that on the tape below — ` +
+    'count on from the last red meter mark to the end of the bar.', 'rc-msg-bad');
+  const holder = document.createElement('div');
+  runeBody.appendChild(holder);
+  MeasureShared.buildRulerDOM(holder, rune.hundredths * 10, {
+    cssPrefix: 'rc-', scale: 'm', badge: 'm', tapeHeight: '180px',
+    scaleLabel: 'Scale: small ticks = cm · numbered ticks = 10 cm · red ticks = each meter',
+  });
+  rcButton('Continue', () => rcAfterFix(null));
+}
+
+// After a fix is settled: next rune to redo, or on to the average.
+function rcAfterFix(lead) {
+  if (rc.redo.size) {
+    openRuneModal('Rune Circle');
+    if (lead) rcText(lead, 'rc-msg-good');
+    rcText(`Still to measure again: <strong>${rcList(rcTargets())}</strong>.`);
+    rcButton('OK', closeRuneModal);
+    return;
+  }
+  rc.phase = 'average';
+  rcShowAverage((lead ? lead + ' ' : '') + 'All three readings are settled.');
 }
 
 function rcShowAverage(lead) {
   openRuneModal('Average distance');
   if (lead) rcText(lead, 'rc-msg-good');
   rcReadingsLog();
-  rcText('Work out the <strong>average</strong> of your three readings, rounded to the nearest hundredth of a metre.');
+  rcText('Work out the <strong>average</strong> of your three readings, rounded to the nearest hundredth of a meter.');
   const row = document.createElement('div');
   row.className = 'rc-row';
   const lbl = document.createElement('label');
@@ -332,13 +356,20 @@ function rcShowAverage(lead) {
       BenchMath.nudge(inp, p.reason === 'tooManyDecimals' ? BenchMath.TOO_MANY_DECIMALS : 'Type a number, like 0.00');
       return;
     }
-    const sum = RUNE_CIRCLE.runes.reduce((a, r) => a + r.hundredths, 0);
-    const right = p.hundredths === BenchMath.hundredthsFromFraction(sum, 100 * RUNE_CIRCLE.runes.length);
-    if (rc.avgFirstTry === null) { rc.avgFirstTry = right; rc.firstAverage = p.hundredths; }
-    if (!right) {
+    const res = rc.fix.recordAverage(p.hundredths);
+    if (res === 'wrong') {
       msg.className = 'wb-modal-body rc-msg-bad';
-      msg.textContent = "That average isn't right. Add the three readings, divide by 3, and round to the nearest hundredth.";
+      msg.textContent = "That average isn't right. Add the three readings, divide by 3, and round to the nearest hundredth " +
+        `(${FixLoop.triesText(rc.fix.avgTriesLeft())}).`;
       inp.select();
+      return;
+    }
+    if (res === 'shown') {
+      msg.className = 'wb-modal-body rc-msg-bad';
+      msg.innerHTML = `The average is <strong>${rcFmt(rc.fix.avg.correct)}</strong>: add the three readings, then divide by 3.`;
+      go.disabled = true; inp.disabled = true;
+      const cont = gateButton('Continue', rcComplete);
+      msg.after(cont);
       return;
     }
     rcComplete();
@@ -352,8 +383,8 @@ function rcShowAverage(lead) {
 
 function rcComplete() {
   rc.phase = 'done';
-  const readingPts = rc.firstTry.filter(Boolean).length * RC_POINTS_EACH;
-  const avgPts = rc.avgFirstTry ? RC_POINTS_EACH : 0;
+  const readingPts = rc.fix.firstTryCount() * RC_POINTS_EACH;
+  const avgPts = rc.fix.avg.firstOK ? RC_POINTS_EACH : 0;
   rc.score = readingPts + avgPts;
   const timeSec = Math.round((Date.now() - rc.startTime) / 1000);
   const counts = !session.demo && !session.teacher && !!session.nameKey;
@@ -362,16 +393,13 @@ function rcComplete() {
 
   // What the results screen shows, and what the teacher can pull up later.
   // Values are integer hundredths.
-  const run = {
+  // readings / readingsOK / readingsStatus ('right' | 'fixed' | 'shown'), finalReadings,
+  // average / averageOK / averageStatus -- see FixLoop.snapshot.
+  const run = Object.assign(rc.fix.snapshot(), {
     attempt: prevAttempts + 1,
-    readings: rc.firstReading.slice(),       // first entry at each rune
-    readingsOK: rc.firstTry.map(Boolean),
-    finalReadings: rc.readings.slice(),      // after any re-measuring (all right)
-    average: rc.firstAverage,
-    averageOK: !!rc.avgFirstTry,
     score: rc.score,
     ts: Date.now(),
-  };
+  });
   rc.lastRun = run;
 
   // 100 gold for the first finish only; replays are for the score.
@@ -414,21 +442,10 @@ function rcShowResults(run, saved, opts) {
     const who = session.demo ? 'Demo' : session.name;
     const when = new Date(run.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     rcText(`<strong>${who}</strong> · attempt ${run.attempt} · ${when}`);
-    const mark = ok => ok ? '<span class="rc-ok">✓ right</span>' : '<span class="rc-bad">✗ wrong</span>';
-    let rows = '';
-    RUNE_CIRCLE.runes.forEach((r, i) => {
-      const first = run.readings[i], fin = run.finalReadings ? run.finalReadings[i] : null;
-      rows += `<tr><td>Rune ${r.n}</td><td>${first != null ? rcFmt(first) : '—'}</td><td>${mark(run.readingsOK[i])}</td>` +
-        `<td>${!run.readingsOK[i] && fin != null ? 'fixed to ' + rcFmt(fin) : ''}</td></tr>`;
+    FixLoop.renderSummary(runeBody, run, {
+      labels: RUNE_CIRCLE.runes.map(r => 'Rune ' + r.n), fmt: rcFmt,
+      correct: RUNE_CIRCLE.runes.map(r => r.hundredths), avgCorrect: rc.fix.avg.correct, cls: 'fl-table',
     });
-    const sum = RUNE_CIRCLE.runes.reduce((a, r) => a + r.hundredths, 0);
-    const avgRight = BenchMath.hundredthsFromFraction(sum, 100 * RUNE_CIRCLE.runes.length);
-    rows += `<tr class="rc-avg"><td>Average</td><td>${run.average != null ? rcFmt(run.average) : '—'}</td><td>${mark(run.averageOK)}</td>` +
-      `<td>${!run.averageOK ? 'fixed to ' + rcFmt(avgRight) : ''}</td></tr>`;
-    const table = document.createElement('table');
-    table.className = 'rc-table';
-    table.innerHTML = '<tr><th></th><th>First answer</th><th></th><th></th></tr>' + rows;
-    runeBody.appendChild(table);
     rcText(`<strong>Score: ${run.score} of ${RC_GOAL} points</strong> — 10 for each answer right the first time.`);
   }
   if (saved && saved.attempts > 1) {

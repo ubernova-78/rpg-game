@@ -259,7 +259,7 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
 // walk to each rune, read the tape, then average the three (rune-circle.js).
 //
 // Every student gets the same three distances: each is the straight-line distance
-// between tile centres at 2 m per tile, rounded to the centimetre, so a rune that
+// between tile centers at 2 m per tile, rounded to the centimeter, so a rune that
 // looks farther away really does read longer. From this layout:
 //   Rune 1 (5 E, 2 N)  = 2*sqrt(29) = 10.77 m
 //   Rune 2 (6 W, 2 N)  = 2*sqrt(40) = 12.65 m
@@ -269,7 +269,7 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
 // these numbers live.
 const RUNE_CIRCLE = {
   stake: { col: TOWN_OFFSET_COL + 7, row: 35 },
-  metresPerTile: 2,
+  metersPerTile: 2,
   runes: [
     { n: 1, col: TOWN_OFFSET_COL + 12, row: 33 },
     { n: 2, col: TOWN_OFFSET_COL + 1,  row: 33 },
@@ -278,7 +278,7 @@ const RUNE_CIRCLE = {
 };
 for (const rune of RUNE_CIRCLE.runes) {
   const dc = rune.col - RUNE_CIRCLE.stake.col, dr = rune.row - RUNE_CIRCLE.stake.row;
-  rune.hundredths = Math.round(Math.hypot(dc, dr) * RUNE_CIRCLE.metresPerTile * 100);
+  rune.hundredths = Math.round(Math.hypot(dc, dr) * RUNE_CIRCLE.metersPerTile * 100);
 }
 const RUNE_SOLID = new Set(RUNE_CIRCLE.runes.map(r => `${r.col},${r.row}`));
 // Carry the south path on down from the grassland to just above the stake.
@@ -403,7 +403,7 @@ const INTERIOR_OBJECTS = {
   // The camera follows the player like the overworld.
   //
   // They are all on one row on purpose. A bench is 3 tiles wide in collision, not 2 —
-  // the 32px sprite is centred on a tile centre, so it straddles and covers
+  // the 32px sprite is centered on a tile center, so it straddles and covers
   // col-1..col+1 — and a bench in rows 1-2 is approached from row 3, which is the only
   // row the player can walk along to reach it (the y-clamp stops them standing higher).
   // So any SECOND row of benches squeezes row 3 under the ones above into a one-tile
