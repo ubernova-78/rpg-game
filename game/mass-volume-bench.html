@@ -53,6 +53,8 @@
   /* Caliper */
   .caliper-wrap{overflow-x:auto;margin:8px 0;text-align:center;}
   .caliper-wrap svg{max-width:100%;height:auto;}
+  .convert-note{max-width:560px;margin:4px auto 0;padding:8px 12px;background:#fff7d6;border:2px solid var(--gold);
+    border-radius:8px;font-size:0.92rem;text-align:center;}
   .tool-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;text-align:center;}
 
   /* Ruler — the class names and geometry MeasureShared.buildRulerDOM renders
@@ -304,7 +306,8 @@
       title:'Find the Volume',
       sub:`Measure 4 rectangular prisms: length, width and height in centimeters. Then calculate each volume in cm³.
         <ul>
-          <li>Small prisms are measured with <strong>calipers</strong>, big ones with a <strong>ruler</strong>. Read both to the <strong>tenth of a centimeter</strong>. Each small tick is 1 mm, which is 0.1 cm.</li>
+          <li>Small prisms are measured with <strong>calipers</strong>, which read in <strong>millimeters</strong>. Convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
+          <li>Big prisms are measured with a <strong>ruler</strong> in centimeters, to the tenth. Each small tick is 1 mm, which is 0.1 cm.</li>
           <li><strong>Volume = length × width × height</strong>, rounded to the nearest hundredth.</li>
         </ul>
         If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.`,
@@ -315,7 +318,7 @@
       sub:`Find the density of 3 blocks. For each one:
         <ul>
           <li>Weigh it on the <strong>pocket scale</strong>, to the hundredth of a gram (0.01 g).</li>
-          <li>Measure its length, width and height with <strong>calipers</strong>, to the tenth of a centimeter.</li>
+          <li>Measure its length, width and height with <strong>calipers</strong>. They read in <strong>millimeters</strong>, so convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
           <li><strong>Volume = length × width × height</strong> (cm³).</li>
           <li><strong>Density = mass ÷ volume</strong> (g/cm³).</li>
         </ul>
@@ -628,21 +631,25 @@
     const w=Math.ceil(x1+dx+90), h=Math.ceil(oy+28);
     return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${face}${top}${side}${marks}</svg>`;
   }
-  // The tool for one edge.  Calipers read 0-8 cm, numbered in cm; the ruler
-  // takes anything longer.
+  // The tool for one edge.  Calipers read 0-80 mm and are numbered in mm,
+  // like the classroom ones, but every answer is in cm: converting is part of
+  // the task (Nick, 2026-10-30), so the reminder sits right under the tool.
+  // The ruler takes anything longer and reads in cm directly.
   const CALIPER_MAX_MM=80;
   function renderDimTool(body,p,key){
     const mm=p[key]; // tenths of a cm are whole mm
     if(p.tool==='calipers'){
       const lbl=document.createElement('p'); lbl.className='tool-label';
-      lbl.textContent='Calipers: numbered marks = cm · small ticks = mm (0.1 cm)';
+      lbl.textContent='Calipers: numbered marks = 10 mm · small ticks = 1 mm';
       body.appendChild(lbl);
       const wrap=document.createElement('div'); wrap.className='caliper-wrap';
       wrap.innerHTML=MeasureShared.buildCaliperSVG(mm,CALIPER_MAX_MM,{
-        labelCm:true,
         specimenSVG:b=>`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${p.color}" stroke="#333" stroke-width="1.5"/>`,
       });
       body.appendChild(wrap);
+      const note=document.createElement('div'); note.className='convert-note';
+      note.innerHTML='📏 The calipers read in <strong>millimeters</strong>. Write your answer in <strong>centimeters</strong>: divide by 10. (For example, 37 mm = 3.7 cm.)';
+      body.appendChild(note);
     } else {
       // Into the page before building: buildRulerDOM scrolls the bar's end
       // into view, which is ignored on a detached element.
@@ -655,9 +662,14 @@
   }
   function dimReading(p,key,noun){
     const name=DIM_NAMES[key];
+    const cal=p.tool==='calipers';
     return { label:name, unit:'cm', dec:1, correct:p[key]*10,
-      prompt:`Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the ${p.tool}, to the nearest tenth of a centimeter.`,
+      prompt: cal
+        ? `Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the calipers in millimeters, then <strong>convert to centimeters</strong>.`
+        : `Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the ruler, to the nearest tenth of a centimeter.`,
       again:`Measure the ${name.toLowerCase()} again.`,
+      // Typing the caliper's mm reading straight in is the mistake to expect.
+      hint: cal ? h=>h===p[key]*100 ? `That's the reading in millimeters. Divide by 10 to change it to centimeters.` : '' : null,
       render(body){
         const pw=document.createElement('div'); pw.className='prism-wrap'; pw.innerHTML=prismSVG(p,key); body.appendChild(pw);
         renderDimTool(body,p,key);
