@@ -147,6 +147,22 @@
         "$other":   { ".validate": false }
       }
     },
+    "mvd_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','bench','score','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "bench":    { ".validate": "newData.isString() && newData.val().matches(/^(mass|volume|density)$/)" },
+        "score":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 120" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
     "archery_scores": {
       ".read": true,
       ".indexOn": ["period"],

@@ -254,6 +254,23 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
   if (inBuilding || onPath) DECOR_DEFS.splice(i, 1);
 }
 
+// The Mass, Volume & Density Workshop sits at the forest edge east of the Dojo. Not in
+// the south grassland between the Elapsed workshop and the Dojo, which looks emptier:
+// wandering monsters ignore collision, and the Grass Snake's range (cols 22-28, rows
+// 23-29) would have walked it straight across the building.
+const MVD_COL = DOJO_COL + 6, MVD_ROW = DOJO_ROW;
+BUILDING_DEFS.push({
+  id: 'mvd', img: loadImage('tiles/building_blue.png'),
+  tileX: MVD_COL, tileY: MVD_ROW, tilesWide: 5, tilesTall: 3, doorCol: 2, doorRow: 2,
+  name: 'Mass, Volume & Density Workshop', label: 'Mass, Volume & Density Workshop',
+});
+for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
+  const d = DECOR_DEFS[i];
+  if (d.baseCol >= MVD_COL - 1 && d.baseCol <= MVD_COL + 5 && d.baseRow >= MVD_ROW - 1 && d.baseRow <= MVD_ROW + 4) {
+    DECOR_DEFS.splice(i, 1);
+  }
+}
+
 // ---------- Rune Circle (south meadow) ----------
 // A stake with three standing stones around it. Students hook a tape on the stake,
 // walk to each rune, read the tape, then average the three (rune-circle.js).
@@ -365,8 +382,9 @@ const INTERIOR_SIZES = {
   caveDeep: { cols: 11, rows: 9 },
   dojo: { cols: 13, rows: 10 },
   elapsed: { cols: 9, rows: 7 },
+  mvd: { cols: 13, rows: 7 },
 };
-const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg };
+const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg, mvd: floorImg };
 // A light, warm overlay tinting the normal floor texture toward a boxing-mat look for the
 // Dojo — there's no dedicated light-colored floor tile in the licensed art pack, so this
 // tints the same floor_interior.png tile everything else uses rather than needing new art.
@@ -461,6 +479,13 @@ const INTERIOR_OBJECTS = {
   elapsed: [
     { id: 'simpleBench', kind: 'workbench', img: workbenchImg, col: 2, row: 1, label: 'Simple Elapsed Time Work Bench', shortLabel: 'Simple Elapsed', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'simple' },
     { id: 'startstopBench', kind: 'workbench', img: workbenchImg, col: 6, row: 1, label: 'Start & Stop Time Work Bench', shortLabel: 'Start & Stop', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'startstop' },
+  ],
+  // Three benches 4 tiles apart along the top wall (see the note on `red` for why one
+  // row), so the room is 13 wide: 4 per bench plus a margin.
+  mvd: [
+    { id: 'massBench',    kind: 'workbench', img: workbenchImg, col: 2,  row: 1, label: 'Mass Work Bench',    shortLabel: 'Mass',    src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'mass' },
+    { id: 'volumeBench',  kind: 'workbench', img: workbenchImg, col: 6,  row: 1, label: 'Volume Work Bench',  shortLabel: 'Volume',  src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'volume' },
+    { id: 'densityBench', kind: 'workbench', img: workbenchImg, col: 10, row: 1, label: 'Density Work Bench', shortLabel: 'Density', src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'density' },
   ],
   dojo: [],
 };

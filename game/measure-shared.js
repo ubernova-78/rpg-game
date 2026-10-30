@@ -10,6 +10,7 @@
      • measure-bench.html          (practice workbench)
      • measure-average-bench.html  (measure & average workshop)
      • potion-quest.html           (potion gathering mini-game)
+     • mass-volume-bench.html      (mass, volume & density workshop)
    ================================================================ */
 
 // eslint-disable-next-line no-unused-vars
@@ -310,6 +311,9 @@ const MeasureShared = (function () {
   //                      instead of the default blue bar.  Receives
   //                      { x, y, w, h } with the bar's bounding box.
   //   opts.extraH      – extra px below the bar for legs/stems (default 0)
+  //   opts.labelCm     – number the beam in cm (0 1 2 …) instead of mm
+  //                      (0 10 20 …).  Same ticks either way; the Mass,
+  //                      Volume & Density workshop reads it in cm.
   //
   function buildCaliperSVG(valueMM, maxMM, opts) {
     opts = opts || {};
@@ -335,7 +339,7 @@ const MeasureShared = (function () {
       const tickW = isCM ? 1.6 : isHalfCM ? 1.3 : 0.8;
       ticks += `<line x1="${x}" y1="${beamY + beamH}" x2="${x}" y2="${beamY + beamH - tickH}" stroke="#fff" stroke-width="${tickW}"/>`;
       if (isCM) {
-        ticks += `<text x="${x}" y="${beamY + 10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${mm}</text>`;
+        ticks += `<text x="${x}" y="${beamY + 10}" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">${opts.labelCm ? mm / 10 : mm}</text>`;
       }
     }
 

@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mass, Volume & Density Workbench</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<script src="measure-shared.js"></script>
+<script src="bench-math.js"></script>
+<script src="answer-review.js"></script>
+<script src="fix-loop.js"></script>
+<style>
+  :root{
+    --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
+    --paper:#f0ece2; --accent:#e94560; --teal:#1a936f;
+    --gold:#f6c90e; --ink:#1a1a2e; --dim:#7a7a8e;
+    --miss:#c1443a; --good:#2d936c; --line:#ddd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Verdana,sans-serif;background:var(--bench);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .app{width:100%;max-width:860px;background:var(--paper);color:var(--ink);
+    border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden;border:3px solid var(--bench3);}
+  .titlebar{background:linear-gradient(135deg,var(--bench2),var(--bench3));padding:14px 20px;
+    display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--accent);}
+  .titlebar h1{margin:0;font-size:1.2rem;color:var(--paper);letter-spacing:0.5px;}
+  .titlebar .badge{background:var(--accent);color:#fff;padding:5px 12px;border-radius:8px;font-weight:bold;font-size:0.82rem;}
+  .screen{padding:24px;} .hidden{display:none !important;}
+
+  .hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-weight:700;flex-wrap:wrap;gap:8px;}
+  .pill{background:#fff;border:2px solid #ddd;border-radius:20px;padding:5px 12px;font-size:0.9rem;}
+  .progressbar{height:10px;background:#e0ddd4;border-radius:6px;overflow:hidden;margin-bottom:18px;border:1px solid #ccc;}
+  .progressfill{height:100%;background:var(--teal);width:0%;transition:width .3s;}
+
+  .qtext{font-size:1.05rem;font-weight:700;margin:0 0 14px;line-height:1.45;}
+  .feedback{padding:10px 14px;border-radius:8px;font-weight:700;font-size:0.95rem;margin-top:14px;display:none;text-align:center;}
+  .feedback.show{display:block;}
+  .feedback.good{background:#d4edda;color:#155724;border:2px solid #28a745;}
+  .feedback.bad{background:#f8d7da;color:#721c24;border:2px solid #dc3545;}
+
+  .start-title{font-size:1.5rem;font-weight:800;margin-bottom:6px;}
+  .start-sub{color:var(--dim);margin-bottom:16px;line-height:1.55;}
+  .start-sub ul{margin:8px 0 0;padding-left:20px;}
+  .start-sub li{margin-bottom:4px;}
+  .primary{width:100%;padding:14px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
+  .primary:hover{filter:brightness(1.08);}
+  .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
+  .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
+  .end-msg{color:var(--dim);margin:10px 0 20px;}
+
+  /* Caliper */
+  .caliper-wrap{overflow-x:auto;margin:8px 0;text-align:center;}
+  .caliper-wrap svg{max-width:100%;height:auto;}
+  .tool-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;text-align:center;}
+
+  /* Ruler — the class names and geometry MeasureShared.buildRulerDOM renders
+     against.  Copied from measure-average-bench.html; keep them in step (see
+     the note there about the top-anchored copy that hid every mm tick). */
+  .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
+  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
+    border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{position:relative;height:100%;}
+  .measure-bar{position:absolute;bottom:26px;height:26px;background:rgba(52,120,180,0.25);
+    border:2px solid #3478b4;border-radius:3px 0 0 3px;}
+  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1.2rem;color:var(--bench3);
+    background:rgba(255,255,255,0.85);border:2px solid var(--bench3);border-radius:6px;padding:1px 10px;
+    z-index:5;pointer-events:none;}
+  .tick{position:absolute;width:2px;background:#333;}
+  .tick.half-cm{width:1.5px;bottom:5px;}
+  .tick.cm{width:1px;height:26px;bottom:0;}
+  .mm-bg{position:absolute;left:0;height:16px;bottom:10px;}
+  .tick-label{position:absolute;bottom:56px;font-size:0.78rem;font-weight:700;color:#333;
+    transform:translateX(-50%);white-space:nowrap;}
+
+  /* Prism drawing */
+  .prism-wrap{text-align:center;margin:0 0 6px;}
+  .prism-wrap svg{max-width:100%;height:auto;}
+
+  /* Inputs */
+  .measure-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;}
+  .measure-input{width:130px;padding:8px;font-size:1.1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:'Courier New',monospace;}
+  .measure-input:focus{border-color:var(--teal);outline:none;}
+  .calc-input{border-color:var(--gold);background:#fffbea;}
+  .submit-btn{padding:10px 24px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;}
+  .submit-btn:hover{filter:brightness(1.1);}
+  .formula{text-align:center;font-weight:700;font-size:1.05rem;margin:10px 0;padding:8px;background:#fff;border:2px dashed var(--gold);border-radius:8px;}
+
+  /* Readings so far */
+  .meas-log{margin:0 0 12px;padding:8px 12px;background:#fff;border:2px solid var(--line);border-radius:8px;}
+  .meas-log .entry{display:inline-block;padding:4px 10px;margin:3px 4px;border-radius:6px;font-weight:700;font-family:monospace;font-size:0.95rem;background:#e3eef9;color:#1f4e79;}
+  .meas-log .entry.calc{background:#fff3c4;color:#7a5b00;}
+
+  /* Summary table */
+  .summary-table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.95rem;}
+  .summary-table th{background:var(--bench2);color:var(--paper);padding:8px 12px;text-align:left;}
+  .summary-table td{padding:8px 12px;border-bottom:1px solid #ddd;}
+  .fl-table .fl-num{font-family:'Courier New',monospace;font-weight:700;}
+  .fl-table .fl-after{color:var(--dim);font-size:0.88rem;}
+  .fl-table tr.fl-calc td{background:#fffbea;}
+  .fl-ok{color:var(--good);font-weight:800;} .fl-bad{color:var(--miss);font-weight:800;}
+
+  /* ---------- Scales ---------- */
+  .scale-stage{display:flex;gap:18px;align-items:flex-start;justify-content:center;flex-wrap:wrap;
+    background:#d9d4c7;border:2px solid #b9b2a2;border-radius:10px;padding:16px 12px 12px;overflow:hidden;}
+  .scale-msg{min-height:1.4em;text-align:center;font-weight:700;color:var(--miss);margin-top:8px;font-size:0.95rem;}
+  .scale-msg.info{color:var(--bench3);}
+
+  /* Kitchen scale: round stainless pan over a black base with the LCD in front. */
+  .kscale{position:relative;width:270px;height:320px;flex:none;}
+  .kpan{position:absolute;top:0;left:10px;width:250px;height:250px;border-radius:50%;
+    background:radial-gradient(circle at 38% 32%,#fbfbfb 0%,#d7dadd 38%,#a9aeb3 72%,#8c9196 100%);
+    box-shadow:0 6px 0 #6f7377,0 10px 18px rgba(0,0,0,0.35);z-index:2;}
+  .kbase{position:absolute;bottom:0;left:35px;width:200px;height:110px;background:#1e1f21;
+    border-radius:20px 20px 40px 40px;z-index:1;}
+  .kfront{position:absolute;bottom:8px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .klcd{width:104px;height:44px;}
+  .brand{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:9px;color:#aaa;letter-spacing:1px;}
+
+  /* Pocket scale: black case, lid up behind, square pan, blue LCD on the right. */
+  .pscale{position:relative;width:310px;flex:none;}
+  .plid{background:#1b1c1e;border-radius:10px 10px 2px 2px;height:120px;padding:10px 14px;color:#cfd3d6;
+    font-size:10px;line-height:1.4;border:2px solid #000;}
+  .plid b{display:block;font-size:12px;letter-spacing:1px;margin-bottom:4px;color:#fff;}
+  .pbody{background:#202124;border:2px solid #000;border-top:none;border-radius:2px 2px 12px 12px;height:180px;
+    position:relative;display:flex;align-items:center;padding:12px;gap:10px;}
+  .ppan{position:relative;flex:none;width:150px;height:150px;border-radius:4px;
+    background:linear-gradient(135deg,#f2f3f4 0%,#c3c7cb 45%,#e4e6e8 60%,#a6abb0 100%);
+    box-shadow:inset 0 0 0 2px #8e9398;}
+  .pright{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .plcd{width:104px;height:40px;}
+  .pcap{font-size:9px;color:#aaa;text-align:center;line-height:1.3;}
+  .pbtns{display:flex;gap:4px;}
+
+  .lcd{border-radius:4px;display:flex;align-items:center;justify-content:flex-end;padding:0 6px;gap:4px;
+    font-family:'Courier New',monospace;font-weight:800;}
+  .lcd .lcd-num{font-size:22px;letter-spacing:1px;}
+  .lcd .lcd-unit{font-size:12px;min-width:16px;text-align:left;}
+  .klcd{background:#b9c4a6;color:#1d221a;box-shadow:inset 0 0 0 2px #4b5245;}
+  .klcd.off{background:#7f8875;}
+  .plcd{background:#3d7bff;color:#eef4ff;box-shadow:inset 0 0 0 2px #0d2a6b,0 0 10px rgba(61,123,255,0.6);}
+  .plcd.off{background:#1a2747;box-shadow:inset 0 0 0 2px #0d1a33;}
+  .lcd.off .lcd-num,.lcd.off .lcd-unit{visibility:hidden;}
+
+  .sbtn{border:none;border-radius:6px;background:#3a3c40;color:#fff;font-weight:800;font-size:11px;
+    padding:7px 8px;cursor:pointer;box-shadow:0 3px 0 #111;font-family:inherit;line-height:1.1;}
+  .sbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #111;}
+  .sbtn:hover{background:#4a4d52;}
+  .pbtns .sbtn{background:#e8e8e8;color:#111;box-shadow:0 3px 0 #777;font-size:10px;padding:7px 6px;}
+  .pbtns .sbtn:hover{background:#fff;}
+
+  .pan-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;}
+
+  /* The bench beside the scale, holding whatever isn't on it. */
+  .tray{flex:1;min-width:220px;max-width:300px;background:#a07a52;border:3px solid #7a5a3a;border-radius:8px;
+    padding:8px;align-self:stretch;display:flex;flex-direction:column;}
+  .tray-label{font-size:0.78rem;font-weight:700;color:#fff3e0;text-align:center;margin-bottom:6px;}
+  .tray-slots{flex:1;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-around;gap:10px;min-height:150px;padding:6px;}
+
+  .obj{position:relative;display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;
+    user-select:none;border-radius:8px;padding:2px;transition:transform .12s;}
+  .obj:hover{transform:translateY(-3px);}
+  .obj:focus-visible{outline:3px solid var(--gold);}
+  .obj .obj-name{font-size:0.75rem;font-weight:800;color:#fff;background:rgba(0,0,0,0.45);border-radius:6px;padding:1px 7px;margin-top:3px;white-space:nowrap;}
+  .pan-load .obj-name{display:none;}
+  .pan-load .obj:hover{transform:none;}
+  .emo{line-height:1;display:block;}
+  .in-bowl{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-end;min-height:4px;}
+  .bowl-art{position:relative;z-index:2;display:block;}
+  .rolling{animation:roll-off 1.1s ease-in forwards;pointer-events:none;}
+  @keyframes roll-off{
+    0%{transform:translateX(0) rotate(0);opacity:1;}
+    25%{transform:translateX(40px) rotate(160deg);opacity:1;}
+    100%{transform:translateX(320px) translateY(60px) rotate(900deg);opacity:0;}
+  }
+
+  /* Leaderboard */
+  .leaderboard{text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;}
+  .leaderboard h3{margin:0 0 4px;color:var(--ink);}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .sc{text-align:right;font-family:monospace;}
+  .leaderboard .tm{text-align:right;font-family:monospace;color:var(--dim);}
+  .lb-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .lb-tabs button{flex:1;padding:8px 12px;border:2px solid #ddd;border-radius:8px;background:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;color:var(--ink);}
+  .lb-tabs button.active{background:var(--bench3);color:#fff;border-color:var(--bench3);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1 id="title">Mass Work Bench</h1>
+    <div class="badge" id="badge">MASS</div>
+  </div>
+
+  <div class="screen" id="screen-start">
+    <div class="start-title" id="start-title"></div>
+    <div class="start-sub" id="start-sub"></div>
+    <p style="font-size:0.9rem;color:var(--dim);" id="start-points"></p>
+    <button class="primary" id="btn-start">Start Practice</button>
+    <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
+  </div>
+
+  <div class="screen hidden" id="screen-game">
+    <div class="hud">
+      <div class="pill" id="hud-round">Item 1 / 12</div>
+      <div class="pill" id="hud-step">Mass</div>
+      <div class="pill" id="hud-score">0 of 120 points</div>
+    </div>
+    <div class="progressbar"><div class="progressfill" id="progressfill"></div></div>
+    <div class="qtext" id="qtext"></div>
+    <div id="question-body"></div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="screen hidden" id="screen-end">
+    <div class="end-title" id="end-title">Round complete</div>
+    <div class="end-score" id="end-score">0</div>
+    <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
+    <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
+    <div id="review-list"></div>
+    <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
+    <button class="primary" id="btn-again">Play Again</button>
+  </div>
+
+  <div class="screen hidden" id="screen-leaderboard">
+    <div class="leaderboard">
+      <h3 id="lb-title">Top scores</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best score out of 120 — fastest time breaks ties.</p>
+      <div class="lb-tabs" id="lb-tabs"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back-from-lb" style="background:#555;margin-top:16px;">Back</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Three benches in one page, picked by `bench` in the login message (or
+  // ?bench= when opened directly for testing):
+  //   mass     12 objects on the classroom scales, 10 points each
+  //   volume   4 rectangular prisms, L x W x H in cm, then volume in cm3, 30 each
+  //   density  3 blocks: weigh, measure, volume, density in g/cm3, 40 each
+  // Everything is in grams and centimeters to match the class assignments.
+  //
+  // Scoring follows Measure & Average: a prism or block scores only if every
+  // step is right the FIRST time (all-or-nothing; partial credit was offered
+  // for that bench and declined).  A wrong reading is named but not shown, and
+  // the student measures it again; after two failed fixes the answer is shown
+  // (FixLoop's rules).  Calculations come after every reading is settled, so a
+  // wrong volume is the arithmetic, never a misread.
+  const GOAL = 120, PERIODS = ['2','6','7'];
+  const BENCHES = {
+    mass:    { title:'Mass Work Bench',    badge:'MASS',    tasks:12, points:10, noun:'Item' },
+    volume:  { title:'Volume Work Bench',  badge:'VOLUME',  tasks:4,  points:30, noun:'Prism' },
+    density: { title:'Density Work Bench', badge:'DENSITY', tasks:3,  points:40, noun:'Block' },
+  };
+  let bench = BENCHES[new URLSearchParams(location.search).get('bench')] ? new URLSearchParams(location.search).get('bench') : 'mass';
+  let S = { score:0, taskIdx:0, startTime:0, tasks:[], locked:false };
+  let player = { name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    start:$('screen-start'), game:$('screen-game'), end:$('screen-end'), lb:$('screen-leaderboard'),
+    btnStart:$('btn-start'), btnAgain:$('btn-again'), btnViewLb:$('btn-view-lb'), btnBackFromLb:$('btn-back-from-lb'),
+    hudRound:$('hud-round'), hudStep:$('hud-step'), hudScore:$('hud-score'),
+    progressfill:$('progressfill'), qtext:$('qtext'), body:$('question-body'), feedback:$('feedback'),
+    endTitle:$('end-title'), endScore:$('end-score'), endMsg:$('end-msg'), reviewList:$('review-list'),
+    endLeaderboard:$('end-leaderboard'), lbTabs:$('lb-tabs'), lbBody:$('lb-body'),
+  };
+  const allScreens=[els.start,els.game,els.end,els.lb];
+  function showScreen(s){allScreens.forEach(x=>x.classList.add('hidden'));s.classList.remove('hidden');}
+
+  const randInt=(lo,hi)=>Math.floor(Math.random()*(hi-lo+1))+lo;
+  const pick=a=>a[randInt(0,a.length-1)];
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=randInt(0,i);[a[i],a[j]]=[a[j],a[i]];}return a;}
+  const fmtTime=sec=>{sec=Math.max(0,Math.round(sec));return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');};
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  // Integer hundredths -> string with `dec` decimals.  Only ever called on
+  // values that are exact at that precision (inputs with extra digits are
+  // refused before they get here), so trimming the string is exact.
+  function fmtDec(h,dec){const s=BenchMath.fmt2(h);return dec===2?s:dec===1?s.slice(0,-1):s.slice(0,-3);}
+
+  // ---------- Start screen ----------
+  const START = {
+    mass: {
+      title:'Weigh It',
+      sub:`Weigh 12 objects on the classroom scales and write each mass in grams.
+        <ul>
+          <li><strong>Kitchen scale</strong>: write the mass to the <strong>whole gram</strong>.</li>
+          <li><strong>Pocket scale</strong>: write the mass to the <strong>hundredth of a gram</strong> (0.01 g).</li>
+          <li>Turn the scale on first, and check it shows <strong>g</strong>. If it doesn't, press UNIT or MODE until it does.</li>
+          <li><strong>Round things roll!</strong> Put the bowl on the scale, press TARE so it reads 0, then put the object in the bowl.</li>
+        </ul>
+        If a mass is wrong you'll be told, and you weigh it again. After two more tries the answer is shown.`,
+      points:'10 points for each mass that is right the first time. 120 points possible.',
+    },
+    volume: {
+      title:'Find the Volume',
+      sub:`Measure 4 rectangular prisms: length, width and height in centimeters. Then calculate each volume in cm³.
+        <ul>
+          <li>Small prisms are measured with <strong>calipers</strong>, big ones with a <strong>ruler</strong>. Read both to the <strong>tenth of a centimeter</strong>. Each small tick is 1 mm, which is 0.1 cm.</li>
+          <li><strong>Volume = length × width × height</strong>, rounded to the nearest hundredth.</li>
+        </ul>
+        If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.`,
+      points:'Each prism is worth 30 points if all three measurements and the volume are right the first time. 120 points possible.',
+    },
+    density: {
+      title:'Find the Density',
+      sub:`Find the density of 3 blocks. For each one:
+        <ul>
+          <li>Weigh it on the <strong>pocket scale</strong>, to the hundredth of a gram (0.01 g).</li>
+          <li>Measure its length, width and height with <strong>calipers</strong>, to the tenth of a centimeter.</li>
+          <li><strong>Volume = length × width × height</strong> (cm³).</li>
+          <li><strong>Density = mass ÷ volume</strong> (g/cm³).</li>
+        </ul>
+        Round volume and density to the nearest hundredth. If a measurement is wrong you'll be told which one, and you measure it again.`,
+      points:'Each block is worth 40 points if every step is right the first time. 120 points possible.',
+    },
+  };
+  function renderStart(){
+    const b=BENCHES[bench], t=START[bench];
+    $('title').textContent=b.title; $('badge').textContent=b.badge; document.title=b.title;
+    $('start-title').textContent=t.title; $('start-sub').innerHTML=t.sub; $('start-points').textContent=t.points;
+    $('lb-title').textContent=b.title+' — top scores';
+  }
+
+  // ---------- Firebase ----------
+  // One path for all three benches, told apart by `bench` -- like
+  // measure_scores.  Each bench still gets its own leaderboard (filtered).
+  const DB_PATH='mvd_scores';
+  async function saveRun(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){}}
+  async function loadRuns(period){
+    if(!Shared.DB_OK)return [];
+    try{
+      const r=[];
+      const s1=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s1.forEach(c => { r.push(c.val()); });
+      return r.filter(x=>x.bench===bench);
+    }catch(e){return[];}
+  }
+  function bestBy(runs){const m={};runs.forEach(r=>{const k=r.nameKey||String(r.name||'').toLowerCase();const c=m[k];if(!c||r.score>c.score||(r.score===c.score&&r.timeSec<c.timeSec))m[k]=r;});return Object.values(m);}
+  function renderLbTable(rows,container,label){
+    if(!rows.length){container.innerHTML='<p>No runs yet for this period.</p>';return;}
+    let h='';if(label)h+=`<h3>Period ${label} leaders</h3>`;
+    h+='<table><tr><th></th><th>Name</th><th style="text-align:right">Score</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i)=>{const me=player.nameKey&&(r.nameKey||'')===player.nameKey;
+      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="sc">${r.score}</td><td class="tm">${r.timeSec!=null?fmtTime(r.timeSec):'—'}</td></tr>`;});
+    h+='</table>';container.innerHTML=h;
+  }
+  async function showLeaderboard(p){els.lbBody.innerHTML='<p>Loading…</p>';els.lbTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.per===String(p)));
+    const runs=await loadRuns(p);renderLbTable(bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10),els.lbBody);}
+  PERIODS.forEach(p=>{const b=document.createElement('button');b.textContent='P'+p;b.dataset.per=p;b.addEventListener('click',()=>showLeaderboard(p));els.lbTabs.appendChild(b);});
+  els.btnViewLb.addEventListener('click',()=>{showScreen(els.lb);showLeaderboard(player.period||PERIODS[0]);});
+  els.btnBackFromLb.addEventListener('click',()=>showScreen(els.start));
+
+  // ---------- Object art ----------
+  const svg=(px,inner)=>`<svg width="${px}" height="${px}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
+  const emo=ch=>px=>`<span class="emo" style="font-size:${px}px">${ch}</span>`;
+  function golfDimples(){let d='';for(let y=18;y<=82;y+=11)for(let x=18;x<=82;x+=11){if((x-50)**2+(y-50)**2<38*38)d+=`<circle cx="${x+(y%22?5:0)}" cy="${y}" r="2.6" fill="#cfd4d8"/>`;}return d;}
+  const ART={
+    marble: px=>svg(px,`<defs><radialGradient id="g-marble" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#c9ecff"/><stop offset="1" stop-color="#1d5fae"/></radialGradient></defs>
+      <circle cx="50" cy="50" r="46" fill="url(#g-marble)" stroke="#123c6b" stroke-width="2"/>
+      <path d="M18 62 C34 28 60 78 84 38" stroke="#fff" stroke-width="8" fill="none" opacity="0.65"/>
+      <circle cx="34" cy="28" r="8" fill="#fff" opacity="0.8"/>`),
+    pingpong: px=>svg(px,`<circle cx="50" cy="50" r="46" fill="#fbfaf5" stroke="#b9b6a8" stroke-width="2"/>
+      <path d="M8 52 Q50 64 92 52" stroke="#dedbd0" stroke-width="2" fill="none"/><circle cx="34" cy="30" r="9" fill="#fff"/>`),
+    golfball: px=>svg(px,`<circle cx="50" cy="50" r="46" fill="#ffffff" stroke="#a9b0b5" stroke-width="2"/>${golfDimples()}`),
+    bouncyball: px=>svg(px,`<defs><clipPath id="c-bouncy"><circle cx="50" cy="50" r="46"/></clipPath></defs>
+      <g clip-path="url(#c-bouncy)"><rect width="100" height="100" fill="#e63946"/><rect y="28" width="100" height="16" fill="#ffd166"/><rect y="58" width="100" height="16" fill="#118ab2"/></g>
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#7a1d25" stroke-width="2"/><circle cx="33" cy="28" r="7" fill="#fff" opacity="0.7"/>`),
+    eraser: px=>svg(px,`<rect x="6" y="34" width="88" height="36" rx="8" fill="#f4a3b5" stroke="#b5637a" stroke-width="2"/>
+      <rect x="52" y="34" width="34" height="36" fill="#3a6fc4" stroke="#24467d" stroke-width="2"/>`),
+    quarter: px=>svg(px,`<defs><radialGradient id="g-quarter" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f4f6f8"/><stop offset="1" stop-color="#8f979e"/></radialGradient></defs>
+      <circle cx="50" cy="50" r="46" fill="url(#g-quarter)" stroke="#5f666c" stroke-width="3"/><circle cx="50" cy="50" r="38" fill="none" stroke="#7d858b" stroke-width="1.5"/>
+      <text x="50" y="60" font-size="28" font-weight="bold" text-anchor="middle" fill="#4a5056" font-family="Verdana">25¢</text>`),
+    gluestick: px=>svg(px,`<rect x="33" y="30" width="34" height="66" rx="4" fill="#7b4ba0" stroke="#4a2b63" stroke-width="2"/>
+      <rect x="31" y="6" width="38" height="26" rx="4" fill="#f5f5f5" stroke="#9a9a9a" stroke-width="2"/>
+      <rect x="38" y="50" width="24" height="26" fill="#fff" opacity="0.85"/><text x="50" y="68" font-size="11" text-anchor="middle" font-weight="bold" fill="#4a2b63">GLUE</text>`),
+    stapler: px=>svg(px,`<rect x="6" y="70" width="88" height="14" rx="5" fill="#2b2d31"/>
+      <path d="M10 66 L10 52 Q10 44 20 44 L86 44 Q92 44 92 52 L92 58 Z" fill="#c1272d" stroke="#7d1418" stroke-width="2"/>
+      <rect x="10" y="62" width="12" height="10" fill="#2b2d31"/>`),
+    waterbottle: px=>svg(px,`<rect x="38" y="2" width="24" height="12" rx="3" fill="#1d6fc4"/>
+      <path d="M40 14 L60 14 L60 22 Q72 26 72 38 L72 92 Q72 98 64 98 L36 98 Q28 98 28 92 L28 38 Q28 26 40 22 Z" fill="#bfe3fb" stroke="#5a9bd1" stroke-width="2" opacity="0.95"/>
+      <rect x="28" y="50" width="44" height="22" fill="#4aa3df"/><text x="50" y="66" font-size="11" text-anchor="middle" font-weight="bold" fill="#fff">WATER</text>`),
+    paperclip: emo('📎'), pencil: emo('✏️'), key: emo('🔑'), scissors: emo('✂️'), phone: emo('📱'),
+    orange: emo('🍊'), baseball: emo('⚾'), softball: emo('🥎'), textbook: emo('📘'), mug: emo('☕'), sneaker: emo('👟'),
+  };
+
+  // The 20 objects.  Masses are in grams; each run picks a value in the range
+  // at the scale's precision.  `round` objects roll off a bare pan.
+  // Pocket scale capacity is 200 g, so every pocket object (plus its bowl)
+  // stays under that.  `px` is the drawing size on that scale's pan.
+  const OBJECTS = [
+    { id:'marble',      name:'marble',          scale:'pocket',  round:true,  min:4.80,  max:5.90,  px:40 },
+    { id:'pingpong',    name:'ping pong ball',  scale:'pocket',  round:true,  min:2.60,  max:2.80,  px:56 },
+    { id:'golfball',    name:'golf ball',       scale:'pocket',  round:true,  min:45.40, max:45.93, px:60 },
+    { id:'bouncyball',  name:'bouncy ball',     scale:'pocket',  round:true,  min:10.00, max:30.00, px:48 },
+    { id:'paperclip',   name:'paper clip',      scale:'pocket',  round:false, min:0.90,  max:1.60,  px:44 },
+    { id:'pencil',      name:'pencil',          scale:'pocket',  round:false, min:5.50,  max:7.50,  px:70 },
+    { id:'eraser',      name:'eraser',          scale:'pocket',  round:false, min:12.00, max:24.00, px:72 },
+    { id:'quarter',     name:'quarter',         scale:'pocket',  round:false, min:5.62,  max:5.72,  px:44 },
+    { id:'key',         name:'key',             scale:'pocket',  round:false, min:4.00,  max:11.00, px:52 },
+    { id:'gluestick',   name:'glue stick',      scale:'pocket',  round:false, min:18.00, max:42.00, px:72 },
+    { id:'scissors',    name:'pair of scissors',scale:'pocket',  round:false, min:40.00, max:85.00, px:72 },
+    { id:'phone',       name:'phone',           scale:'pocket',  round:false, min:160.00,max:195.00,px:80 },
+    { id:'orange',      name:'orange',          scale:'kitchen', round:true,  min:130,   max:190,   px:96 },
+    { id:'baseball',    name:'baseball',        scale:'kitchen', round:true,  min:142,   max:149,   px:88 },
+    { id:'softball',    name:'softball',        scale:'kitchen', round:true,  min:177,   max:199,   px:100 },
+    { id:'stapler',     name:'stapler',         scale:'kitchen', round:false, min:180,   max:340,   px:130 },
+    { id:'textbook',    name:'textbook',        scale:'kitchen', round:false, min:850,   max:1600,  px:140 },
+    { id:'waterbottle', name:'water bottle',    scale:'kitchen', round:false, min:505,   max:530,   px:130 },
+    { id:'mug',         name:'coffee mug',      scale:'kitchen', round:false, min:280,   max:380,   px:104 },
+    { id:'sneaker',     name:'sneaker',         scale:'kitchen', round:false, min:280,   max:460,   px:124 },
+  ];
+  // A value on the scale's own resolution, as integer hundredths of a gram.
+  function genMassH(o){
+    return o.scale==='kitchen' ? randInt(o.min,o.max)*100 : randInt(Math.round(o.min*100),Math.round(o.max*100));
+  }
+  // 12 of the 20, with at least 3 that roll and at least 4 on each scale.
+  function pickObjects(){
+    for(;;){
+      const c=shuffle(OBJECTS.slice()).slice(0,BENCHES.mass.tasks);
+      if(c.filter(o=>o.round).length>=3 && c.filter(o=>o.scale==='pocket').length>=4 && c.filter(o=>o.scale==='kitchen').length>=4) return c;
+    }
+  }
+
+  // Bowls.  Drawn over the bottom of whatever is in them so it sits inside.
+  const BOWL = {
+    kitchen:{ w:180, h:70, sink:38, name:'bowl' },
+    pocket: { w:112, h:44, sink:24, name:'bowl' },
+  };
+  function bowlSVG(type){
+    const b=BOWL[type], w=b.w, h=b.h;
+    return `<svg class="bowl-art" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 ${h*0.22} Q${w*0.08} ${h-3} ${w/2} ${h-3} Q${w*0.92} ${h-3} ${w-3} ${h*0.22} Z" fill="#e9eef1" stroke="#8d9aa3" stroke-width="2.5"/>
+      <ellipse cx="${w/2}" cy="${h*0.22}" rx="${w/2-3}" ry="${h*0.16}" fill="none" stroke="#8d9aa3" stroke-width="2.5"/>
+      <path d="M${w*0.18} ${h*0.5} Q${w*0.3} ${h*0.8} ${w*0.5} ${h*0.82}" stroke="#fff" stroke-width="4" fill="none" opacity="0.8"/>
+    </svg>`;
+  }
+
+  // ---------- The scales ----------
+  // Modeled on the two scales used in class:
+  //   kitchen  whole grams.  Buttons UNIT and TARE; TARE also turns it on,
+  //            the way the classroom kitchen scale's one button does.
+  //   pocket   0.01 g, 200 g capacity.  Buttons TARE, MODE and ON/OFF.
+  // Nothing can go on a scale that is off, so the order is always: turn it
+  // on, (bowl + TARE for round things), then the object.  Each scale starts
+  // off, and sometimes in a unit other than grams.
+  const UNITS = { kitchen:['g','oz','lb'], pocket:['g','oz','ct','gn'] };
+  const UNIT_WORDS = { g:'grams', oz:'ounces', lb:'pounds', ct:'carats', gn:'grains' };
+  function displayValue(loadH,unit,type){
+    const g=loadH/100;
+    if(unit==='g') return type==='kitchen' ? String(Math.round(g)) : BenchMath.fmt2(loadH);
+    if(unit==='oz') return (g/28.349523125).toFixed(type==='kitchen'?2:3);
+    if(unit==='lb') return (g/453.59237).toFixed(3);
+    if(unit==='ct') return (g*5).toFixed(2);
+    return (g*15.4323584).toFixed(1); // gn
+  }
+
+  // item: { name, art (html), massH, round }.  bowlH: this run's bowl mass.
+  function createScale(host,type,item,bowlH,msgEl){
+    const st={ on:false, unitIdx: Math.random()<0.5?0:randInt(1,UNITS[type].length-1),
+      tareH:0, bowlOn:false, itemOn:false, rolling:false, booting:false };
+    const stage=document.createElement('div'); stage.className='scale-stage';
+    const unitBtn = type==='kitchen'?'UNIT':'MODE';
+    if(type==='kitchen'){
+      stage.innerHTML=`<div class="kscale">
+          <div class="kpan"><div class="pan-load"></div></div>
+          <div class="kbase"><div class="kfront">
+            <button class="sbtn" data-act="unit">UNIT</button>
+            <div class="lcd klcd off"><span class="lcd-num"></span><span class="lcd-unit"></span></div>
+            <button class="sbtn" data-act="tare">⏻<br>TARE</button>
+          </div><div class="brand">KITCHEN SCALE</div></div>
+        </div>`;
+    } else {
+      stage.innerHTML=`<div class="pscale">
+          <div class="plid"><b>QUICK USER GUIDE</b>1. Press ON/OFF. Wait for 0.00.<br>2. Press MODE until the display shows g.<br>3. Place a container and press TARE.<br>4. Place the item and read the mass.</div>
+          <div class="pbody">
+            <div class="ppan"><div class="pan-load"></div></div>
+            <div class="pright">
+              <div class="lcd plcd off"><span class="lcd-num"></span><span class="lcd-unit"></span></div>
+              <div class="pcap">Capacity: 200 g<br>Graduation: 0.01 g</div>
+              <div class="pbtns"><button class="sbtn" data-act="tare">TARE</button><button class="sbtn" data-act="unit">MODE</button><button class="sbtn" data-act="power">ON/OFF</button></div>
+            </div>
+          </div>
+        </div>`;
+    }
+    const tray=document.createElement('div'); tray.className='tray';
+    tray.innerHTML='<div class="tray-label">On the bench: click something to put it on the scale or take it off</div><div class="tray-slots"></div>';
+    stage.appendChild(tray);
+    host.appendChild(stage);
+    const msg=msgEl;
+
+    const pan=stage.querySelector('.pan-load'), slots=tray.querySelector('.tray-slots');
+    const lcd=stage.querySelector('.lcd'), lcdNum=lcd.querySelector('.lcd-num'), lcdUnit=lcd.querySelector('.lcd-unit');
+
+    const bowlEl=document.createElement('div'); bowlEl.className='obj bowl-obj'; bowlEl.tabIndex=0;
+    bowlEl.innerHTML=`<div class="in-bowl" style="margin-bottom:-${BOWL[type].sink}px"></div>${bowlSVG(type)}<div class="obj-name">bowl</div>`;
+    const inBowl=bowlEl.querySelector('.in-bowl');
+    const itemEl=document.createElement('div'); itemEl.className='obj item-obj'; itemEl.tabIndex=0;
+    itemEl.innerHTML=`${item.art}<div class="obj-name">${esc(item.name)}</div>`;
+    slots.appendChild(itemEl); slots.appendChild(bowlEl);
+
+    function say(text,info){ msg.textContent=text||''; msg.className='scale-msg'+(info?' info':''); }
+    const loadH=()=>(st.bowlOn?bowlH:0)+(st.itemOn?item.massH:0);
+    const unit=()=>UNITS[type][st.unitIdx];
+    function render(){
+      if(!st.on){ lcd.classList.add('off'); return; }
+      lcd.classList.remove('off');
+      if(st.booting){ lcdNum.textContent=type==='kitchen'?'8888':'888.88'; lcdUnit.textContent=''; return; }
+      lcdNum.textContent=displayValue(loadH()-st.tareH,unit(),type);
+      lcdUnit.textContent=unit();
+    }
+    // Turning on zeroes whatever is on the pan, as a real scale does.
+    function powerOn(){
+      st.on=true; st.booting=true; st.tareH=loadH(); render();
+      setTimeout(()=>{ st.booting=false; render(); },500);
+    }
+    function act(a){
+      if(st.rolling) return;
+      say('');
+      if(a==='power'){ if(st.on){ st.on=false; render(); } else powerOn(); return; }
+      if(a==='tare'){
+        if(!st.on){ if(type==='kitchen') powerOn(); else say('The scale is off. Press ON/OFF first.'); return; }
+        st.tareH=loadH(); render(); return;
+      }
+      if(a==='unit'){
+        if(!st.on){ say(`The scale is off. ${type==='kitchen'?'Press TARE to turn it on.':'Press ON/OFF first.'}`); return; }
+        st.unitIdx=(st.unitIdx+1)%UNITS[type].length; render(); return;
+      }
+    }
+    stage.querySelectorAll('.sbtn').forEach(b=>b.addEventListener('click',()=>act(b.dataset.act)));
+
+    const turnOnFirst=()=>say(`Turn the scale on first${type==='kitchen'?' (press TARE)':' (press ON/OFF)'}.`);
+    function clickItem(e){
+      e.stopPropagation();
+      if(st.rolling) return;
+      say('');
+      if(st.itemOn){ st.itemOn=false; slots.insertBefore(itemEl,slots.firstChild); render(); return; }
+      if(!st.on||st.booting){ turnOnFirst(); return; }
+      if(item.round&&!st.bowlOn){
+        // It rolls off: shown on the pan, then off the edge, then back on the bench.
+        st.rolling=true; pan.appendChild(itemEl); itemEl.classList.add('rolling');
+        setTimeout(()=>{
+          itemEl.classList.remove('rolling'); slots.insertBefore(itemEl,slots.firstChild); st.rolling=false;
+          say(`The ${item.name} rolled off the scale! Round things need a bowl: put the bowl on, press TARE, then put the ${item.name} in the bowl.`);
+        },1100);
+        return;
+      }
+      (st.bowlOn?inBowl:pan).appendChild(itemEl); st.itemOn=true; render();
+    }
+    function clickBowl(){
+      if(st.rolling) return;
+      say('');
+      if(st.bowlOn){
+        // Taking the bowl off takes out what's in it too.
+        if(st.itemOn&&itemEl.parentElement===inBowl){ st.itemOn=false; slots.insertBefore(itemEl,slots.firstChild); }
+        st.bowlOn=false; slots.appendChild(bowlEl); render(); return;
+      }
+      if(!st.on||st.booting){ turnOnFirst(); return; }
+      if(st.itemOn){ say(`Take the ${item.name} off first, then put the bowl on.`); return; }
+      pan.appendChild(bowlEl); st.bowlOn=true; render();
+    }
+    itemEl.addEventListener('click',clickItem);
+    bowlEl.addEventListener('click',clickBowl);
+    [itemEl,bowlEl].forEach(el=>el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); el.click(); } }));
+    render();
+
+    return {
+      type, unitBtn,
+      snapshot(){ return { on:st.on, unit:unit(), bowlOn:st.bowlOn, itemOn:st.itemOn, readingH:loadH()-st.tareH, itemH:item.massH }; },
+    };
+  }
+
+  // Why a mass came out wrong, from how the scale was set when it was typed.
+  // Names the mistake without giving the number.
+  function massHint(scale,name,h){
+    const s=scale.snapshot();
+    if(!s.on) return `The scale was off. Turn it on, then put the ${name} on it.`;
+    if(!s.itemOn) return `The ${name} wasn't on the scale.`;
+    if(s.unit!=='g') return `The scale was showing ${UNIT_WORDS[s.unit]}, not grams. Press ${scale.unitBtn} until it shows g.`;
+    if(s.readingH!==s.itemH){
+      if(s.bowlOn&&s.readingH>s.itemH) return `That mass includes the bowl. Put the bowl on, press TARE so it reads 0, then put the ${name} in.`;
+      return `The scale wasn't zeroed. Take everything off, press TARE so it reads 0, then weigh again.`;
+    }
+    return scale.type==='pocket' ? 'Read the display again carefully, and write both decimal places.' : 'Read the display again carefully.';
+  }
+
+  // ---------- Prisms ----------
+  const DIM_NAMES={L:'Length',W:'Width',H:'Height'};
+  const PRISM_COLORS=['#4f8fd6','#e07a5f','#81b29a','#e9c46a','#9b72cf','#c8a165'];
+  function shade(hex,f){ // f>0 lighter, f<0 darker
+    const n=parseInt(hex.slice(1),16); let r=n>>16,g=(n>>8)&255,b=n&255;
+    const t=f>0?255:0, p=Math.abs(f);
+    r=Math.round(r+(t-r)*p); g=Math.round(g+(t-g)*p); b=Math.round(b+(t-b)*p);
+    return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+  }
+  // A box in oblique view: L across, H up, W going back.  The edge being
+  // measured is drawn thick and gold with its name; no numbers, which would
+  // give the answer away.  dims in tenths of a cm.
+  function prismSVG(p,highlight,maxW,maxH){
+    maxW=maxW||260; maxH=maxH||150;
+    const L=p.L/10,W=p.W/10,H=p.H/10, kx=0.6, ky=0.45;
+    const s=Math.min(maxW/(L+kx*W),maxH/(H+ky*W));
+    const dx=kx*W*s, dy=ky*W*s, ox=70, oy=24+dy+H*s;
+    const x1=ox+L*s, yT=oy-H*s;
+    const c=p.color;
+    const face=`<polygon points="${ox},${oy} ${x1},${oy} ${x1},${yT} ${ox},${yT}" fill="${c}" stroke="#333" stroke-width="1.5"/>`;
+    const top=`<polygon points="${ox},${yT} ${x1},${yT} ${x1+dx},${yT-dy} ${ox+dx},${yT-dy}" fill="${shade(c,0.35)}" stroke="#333" stroke-width="1.5"/>`;
+    const side=`<polygon points="${x1},${oy} ${x1+dx},${oy-dy} ${x1+dx},${yT-dy} ${x1},${yT}" fill="${shade(c,-0.25)}" stroke="#333" stroke-width="1.5"/>`;
+    const edges={
+      L:{x1:ox,y1:oy,x2:x1,y2:oy, lx:(ox+x1)/2, ly:oy+18, anchor:'middle'},
+      H:{x1:ox,y1:oy,x2:ox,y2:yT, lx:ox-8, ly:(oy+yT)/2+5, anchor:'end'},
+      W:{x1:x1,y1:oy,x2:x1+dx,y2:oy-dy, lx:x1+dx/2+10, ly:oy-dy/2+14, anchor:'start'},
+    };
+    let marks='';
+    for(const k of ['L','W','H']){
+      const e=edges[k], on=k===highlight;
+      if(on) marks+=`<line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="#f6c90e" stroke-width="6" stroke-linecap="round"/>`;
+      marks+=`<text x="${e.lx}" y="${e.ly}" font-size="${on?15:12}" font-weight="${on?800:600}" fill="${on?'#1a1a2e':'#8a8a99'}" text-anchor="${e.anchor}" font-family="Verdana">${DIM_NAMES[k]}</text>`;
+    }
+    const w=Math.ceil(x1+dx+90), h=Math.ceil(oy+28);
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${face}${top}${side}${marks}</svg>`;
+  }
+  // The tool for one edge.  Calipers read 0-8 cm, numbered in cm; the ruler
+  // takes anything longer.
+  const CALIPER_MAX_MM=80;
+  function renderDimTool(body,p,key){
+    const mm=p[key]; // tenths of a cm are whole mm
+    if(p.tool==='calipers'){
+      const lbl=document.createElement('p'); lbl.className='tool-label';
+      lbl.textContent='Calipers: numbered marks = cm · small ticks = mm (0.1 cm)';
+      body.appendChild(lbl);
+      const wrap=document.createElement('div'); wrap.className='caliper-wrap';
+      wrap.innerHTML=MeasureShared.buildCaliperSVG(mm,CALIPER_MAX_MM,{
+        labelCm:true,
+        specimenSVG:b=>`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${p.color}" stroke="#333" stroke-width="1.5"/>`,
+      });
+      body.appendChild(wrap);
+    } else {
+      // Into the page before building: buildRulerDOM scrolls the bar's end
+      // into view, which is ignored on a detached element.
+      const container=document.createElement('div'); body.appendChild(container);
+      MeasureShared.buildRulerDOM(container,mm,{ scale:'cm', badge:'cm', tapeHeight:'120px',
+        scaleLabel:'Ruler: numbered ticks = cm · small ticks = mm (0.1 cm)' });
+      const bar=container.querySelector('.measure-bar');
+      if(bar){ bar.style.background=p.color; bar.style.borderColor=shade(p.color,-0.4); }
+    }
+  }
+  function dimReading(p,key,noun){
+    const name=DIM_NAMES[key];
+    return { label:name, unit:'cm', dec:1, correct:p[key]*10,
+      prompt:`Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the ${p.tool}, to the nearest tenth of a centimeter.`,
+      again:`Measure the ${name.toLowerCase()} again.`,
+      render(body){
+        const pw=document.createElement('div'); pw.className='prism-wrap'; pw.innerHTML=prismSVG(p,key); body.appendChild(pw);
+        renderDimTool(body,p,key);
+      } };
+  }
+  function massReading(itemSpec,type,bowlH){
+    const r={ label:'Mass', unit:'g', dec:type==='kitchen'?0:2, correct:itemSpec.massH, scale:null,
+      prompt:`Weigh the <strong>${esc(itemSpec.name)}</strong> on the <strong>${type} scale</strong>. Write its mass to the `
+        +(type==='kitchen'?'<strong>nearest gram</strong>.':'<strong>hundredth of a gram</strong>.'),
+      again:`Weigh the ${esc(itemSpec.name)} again.`,
+      render(body){
+        const msg=document.createElement('div'); msg.className='scale-msg';
+        r.scale=createScale(body,type,itemSpec,bowlH,msg);
+        body.appendChild(msg);
+      },
+      hint(h){ return r.scale ? massHint(r.scale,itemSpec.name,h) : ''; } };
+    return r;
+  }
+  // Volume to the hundredth, from the edges in tenths: the product is in
+  // thousandths of a cm3, so it is exact in integers.
+  const volumeH=p=>BenchMath.hundredthsFromFraction(p.L*p.W*p.H,1000);
+
+  // ---------- Building each bench's tasks ----------
+  function buildMassTasks(){
+    // One bowl per scale for the whole run; its mass is what a skipped TARE adds.
+    const bowls={ kitchen:randInt(180,260)*100, pocket:randInt(1500,2500) };
+    return pickObjects().map((o,i)=>{
+      const spec={ name:o.name, art:ART[o.id](o.px), massH:genMassH(o), round:o.round };
+      return { title:`Item ${i+1} of 12`, readings:[massReading(spec,o.scale,bowls[o.scale])], calcs:[] };
+    });
+  }
+  function genPrism(size){
+    for(;;){
+      const p = size==='small'
+        ? { L:randInt(30,79), W:0, H:randInt(8,60), tool:'calipers' }
+        : { L:randInt(90,150), W:0, H:randInt(20,100), tool:'ruler' };
+      p.W = size==='small' ? randInt(15,p.L-5) : randInt(40,p.L-10);
+      // Three different edges, so each one is clearly its own measurement.
+      if(p.L!==p.W&&p.W!==p.H&&p.L!==p.H) return p;
+    }
+  }
+  const volumeCalc={ label:'Volume', unit:'cm³',
+    formula:'Volume = length × width × height', retry:'Multiply length × width × height, then round to the nearest hundredth.',
+    compute:t=>volumeH(t.prism) };
+  function buildVolumeTasks(){
+    const colors=shuffle(PRISM_COLORS.slice());
+    return shuffle(['small','small','large','large']).map((size,i)=>{
+      const p=genPrism(size); p.color=colors[i];
+      return { title:`Prism ${i+1} of 4`, prism:p,
+        readings:['L','W','H'].map(k=>dimReading(p,k,'prism')), calcs:[volumeCalc] };
+    });
+  }
+  // Real densities (g/cm3, as hundredths) so a block's answer comes out near
+  // its material's.  Mass = density x volume, kept under the pocket scale's 200 g.
+  const MATERIALS=[
+    { dH:60,  color:'#c8a165' },  // pine
+    { dH:118, color:'#5aa9e6' },  // acrylic
+    { dH:270, color:'#b8bec6' },  // aluminum
+    { dH:785, color:'#7d8590' },  // steel
+    { dH:850, color:'#d4af37' },  // brass
+    { dH:896, color:'#c87533' },  // copper
+  ];
+  function genBlock(mat){
+    for(;;){
+      const p={ L:randInt(20,79), W:0, H:randInt(8,50), tool:'calipers', color:mat.color };
+      p.W=randInt(10,p.L-5);
+      if(p.L===p.W||p.W===p.H||p.L===p.H) continue;
+      const massH=BenchMath.hundredthsFromFraction(mat.dH*p.L*p.W*p.H,100000);
+      if(massH>=500&&massH<=19500&&volumeH(p)>=200){ p.massH=massH; return p; }
+    }
+  }
+  // The block on the scale: same proportions, small, no labels.
+  function blockArt(p){
+    const L=p.L/10,W=p.W/10,H=p.H/10, kx=0.6, ky=0.45;
+    const s=Math.min(80/(L+kx*W),60/(H+ky*W));
+    const dx=kx*W*s, dy=ky*W*s, ox=3, oy=3+dy+H*s, x1=ox+L*s, yT=oy-H*s, c=p.color;
+    const w=Math.ceil(x1+dx+3), h=Math.ceil(oy+3);
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="${ox},${oy} ${x1},${oy} ${x1},${yT} ${ox},${yT}" fill="${c}" stroke="#333" stroke-width="1.5"/>
+      <polygon points="${ox},${yT} ${x1},${yT} ${x1+dx},${yT-dy} ${ox+dx},${yT-dy}" fill="${shade(c,0.35)}" stroke="#333" stroke-width="1.5"/>
+      <polygon points="${x1},${oy} ${x1+dx},${oy-dy} ${x1+dx},${yT-dy} ${x1},${yT}" fill="${shade(c,-0.25)}" stroke="#333" stroke-width="1.5"/></svg>`;
+  }
+  function buildDensityTasks(){
+    const bowlH=randInt(1500,2500);
+    return shuffle(MATERIALS.slice()).slice(0,3).map((m,i)=>{
+      const p=genBlock(m);
+      const spec={ name:'block', art:blockArt(p), massH:p.massH, round:false };
+      return { title:`Block ${i+1} of 3`, prism:p,
+        readings:[massReading(spec,'pocket',bowlH)].concat(['L','W','H'].map(k=>dimReading(p,k,'block'))),
+        calcs:[volumeCalc,
+          { label:'Density', unit:'g/cm³', formula:'Density = mass ÷ volume',
+            retry:'Divide the mass by the volume, then round to the nearest hundredth.',
+            // From the right mass and the right (rounded) volume -- the two
+            // numbers on screen when it is asked.
+            compute:t=>BenchMath.hundredthsFromFraction(p.massH,volumeH(p)) }] };
+    });
+  }
+
+  // ---------- Game flow ----------
+  els.btnStart.addEventListener('click',()=>{
+    S.score=0; S.taskIdx=0; S.startTime=Date.now(); S.locked=false;
+    Review.reset();
+    S.tasks = bench==='mass'?buildMassTasks():bench==='volume'?buildVolumeTasks():buildDensityTasks();
+    els.endLeaderboard.style.display='none';
+    updateHud(); showScreen(els.game); startTask();
+  });
+  els.btnAgain.addEventListener('click',()=>showScreen(els.start));
+
+  function updateHud(step){
+    els.hudScore.textContent=`${S.score} of ${GOAL} points`;
+    els.progressfill.style.width=`${(S.taskIdx/S.tasks.length)*100}%`;
+    els.hudRound.textContent=`${BENCHES[bench].noun} ${Math.min(S.taskIdx+1,S.tasks.length)} / ${S.tasks.length}`;
+    if(step) els.hudStep.textContent=step;
+  }
+  function clearFeedback(){ els.feedback.className='feedback'; els.feedback.innerHTML=''; }
+
+  let T=null; // the task in progress
+  function startTask(){
+    if(S.taskIdx>=S.tasks.length){ finishGame(); return; }
+    T=S.tasks[S.taskIdx];
+    T.fix=FixLoop.create(T.readings.map(r=>r.correct));
+    T.calcState=T.calcs.map(()=>({ first:null, firstOK:null, fixes:0, status:null, correct:null }));
+    T.firstHints=[];
+    S.locked=false;
+    showReading(0);
+  }
+
+  // Readings so far, as chips above the tool.
+  function readingLog(upTo,current){
+    if(!T.readings.length||upTo<=0) return;
+    const log=document.createElement('div'); log.className='meas-log';
+    log.innerHTML='<strong>Your measurements:</strong> ';
+    T.readings.slice(0,upTo).forEach((r,i)=>{
+      const it=T.fix.items[i], sp=document.createElement('span'); sp.className='entry';
+      let txt;
+      if(it.status===null&&T.fix.allRecorded()){ txt=`${r.label}: ${fmtDec(it.first,r.dec)} ${r.unit} ✗`;
+        sp.style.outline=i===current?'2px solid var(--miss)':'1px dashed var(--miss)'; }
+      else txt=`${r.label}: ${fmtDec(it.final,r.dec)} ${r.unit}${T.fix.allRecorded()?' ✓':''}`;
+      sp.textContent=txt; log.appendChild(sp);
+    });
+    T.calcs.forEach((c,j)=>{
+      const cs=T.calcState[j]; if(cs.status===null) return;
+      const sp=document.createElement('span'); sp.className='entry calc';
+      sp.textContent=`${c.label}: ${BenchMath.fmt2(cs.correct)} ${c.unit}`; log.appendChild(sp);
+    });
+    els.body.appendChild(log);
+  }
+  function inputRow(label,placeholder,cls,onSubmit){
+    const row=document.createElement('div'); row.className='measure-row';
+    const lbl=document.createElement('span'); lbl.style.fontWeight='700'; lbl.textContent=label;
+    const inp=document.createElement('input'); inp.type='text'; inp.className='measure-input'+(cls?' '+cls:'');
+    inp.placeholder=placeholder; inp.inputMode='decimal'; inp.autocomplete='off';
+    const sub=document.createElement('button'); sub.className='submit-btn'; sub.textContent='Submit';
+    row.append(lbl,inp,sub); els.body.appendChild(row);
+    sub.addEventListener('click',()=>onSubmit(inp));
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') onSubmit(inp); });
+    return inp;
+  }
+  // A reading typed at a precision its tool can't show is sent back without
+  // costing a try: 4.35 cm is not on any tick, and a kitchen scale has no decimals.
+  function parseReading(inp,r){
+    const p=BenchMath.parseHundredths(inp.value);
+    const tooFine=['This scale reads to the whole gram. No decimals.','Read to the tenth of a centimeter (one decimal place).','This scale reads to the hundredth of a gram (two decimal places).'][r.dec];
+    if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?tooFine:'Type a number.'); return null; }
+    if((r.dec===0&&p.hundredths%100!==0)||(r.dec===1&&p.hundredths%10!==0)){ BenchMath.nudge(inp,tooFine); return null; }
+    return p.hundredths;
+  }
+  const placeholderFor=dec=>['0','0.0','0.00'][dec];
+
+  // First pass: every reading in order, recorded without being judged.
+  function showReading(i){
+    const r=T.readings[i];
+    els.body.innerHTML=''; clearFeedback();
+    updateHud(r.label);
+    els.qtext.innerHTML=`${T.title}: ${r.prompt}`;
+    readingLog(i,-1);
+    r.render(els.body);
+    let taken=false;
+    const inp=inputRow(`${r.label} (${r.unit}):`,placeholderFor(r.dec),'',inp=>{
+      if(taken) return;
+      const h=parseReading(inp,r); if(h===null) return;
+      taken=true;
+      T.firstHints[i]=r.hint?r.hint(h):'';
+      T.fix.recordFirst(i,h);
+      if(i+1<T.readings.length) showReading(i+1); else afterReadings();
+    });
+    // Not on a weighing step: the student starts at the scale, not the box.
+    if(r.label!=='Mass') setTimeout(()=>inp.focus(),80);
+  }
+
+  // All readings in: check them together, then fix the wrong ones one at a time.
+  function afterReadings(){
+    const wrong=T.fix.pending();
+    if(!wrong.length){ showCalc(0); return; }
+    const names=wrong.map(i=>T.readings[i].label.toLowerCase());
+    const lead = T.readings.length===1 ? `That mass isn't right.`
+      : names.length===1 ? `The ${names[0]} isn't right.`
+      : `The ${names.slice(0,-1).join(', ')} and ${names[names.length-1]} aren't right.`;
+    showFixReading(lead);
+  }
+  function continueAfterFix(){
+    if(T.fix.pending().length) showFixReading(null); else showCalc(0);
+  }
+  function showFixReading(lead){
+    const i=T.fix.pending()[0], r=T.readings[i];
+    els.body.innerHTML=''; clearFeedback();
+    updateHud(r.label);
+    const hint=T.firstHints[i]&&T.fix.items[i].fixes===0?' '+T.firstHints[i]:'';
+    els.qtext.innerHTML=`${T.title}: ${lead?lead+hint+' ':''}${r.again} `
+      +`<span style="font-weight:400;color:var(--dim)">(${FixLoop.triesText(T.fix.triesLeft(i))})</span>`;
+    readingLog(T.readings.length>1?T.readings.length:0,i);
+    r.render(els.body);
+    let settled=false;
+    const inp=inputRow(`${r.label} again (${r.unit}):`,placeholderFor(r.dec),'',inp=>{
+      if(settled) return;
+      const h=parseReading(inp,r); if(h===null) return;
+      const why=r.hint?r.hint(h):'';
+      const res=T.fix.recordFix(i,h);
+      if(res==='fixed'){
+        settled=true;
+        els.feedback.textContent=`${r.label} is right now: ${fmtDec(h,r.dec)} ${r.unit}.`;
+        els.feedback.className='feedback show good';
+        setTimeout(continueAfterFix,1200);
+      } else if(res==='wrong'){
+        els.feedback.textContent=`Still not right. ${why||'Look again carefully.'} (${FixLoop.triesText(T.fix.triesLeft(i))})`;
+        els.feedback.className='feedback show bad';
+        els.qtext.querySelector('span').textContent=`(${FixLoop.triesText(T.fix.triesLeft(i))})`;
+        inp.select();
+      } else {
+        settled=true;
+        els.feedback.innerHTML=`The ${r.label.toLowerCase()} was <strong>${fmtDec(T.fix.items[i].correct,r.dec)} ${r.unit}</strong>. `
+          +(why?esc(why)+' ':'')+`Press Next when you're ready.`;
+        els.feedback.className='feedback show bad';
+        const next=document.createElement('button'); next.className='submit-btn'; next.textContent='Next';
+        next.style.marginLeft='10px'; next.addEventListener('click',continueAfterFix);
+        els.feedback.appendChild(next);
+      }
+    });
+    if(r.label!=='Mass') setTimeout(()=>inp.focus(),80);
+  }
+
+  // Calculations, once every reading is right (or shown).  Same rules as the
+  // average in Measure & Average: two more tries, then the answer is shown.
+  function showCalc(j){
+    if(j>=T.calcs.length){ finishTask(); return; }
+    const c=T.calcs[j], cs=T.calcState[j];
+    cs.correct=c.compute(T);
+    els.body.innerHTML=''; clearFeedback();
+    updateHud(c.label);
+    const lead=j===0?(T.fix.items.every(it=>it.status==='right')?'All the measurements are right. ':'All the measurements are done. '):'';
+    els.qtext.innerHTML=`${T.title}: ${lead}Calculate the <strong>${c.label.toLowerCase()}</strong> in ${c.unit}, rounded to the nearest hundredth.`;
+    readingLog(T.readings.length,-1);
+    const f=document.createElement('div'); f.className='formula'; f.textContent=c.formula; els.body.appendChild(f);
+    let settled=false;
+    const inp=inputRow(`${c.label} (${c.unit}):`,'0.00','calc-input',inp=>{
+      if(settled||S.locked) return;
+      const p=BenchMath.parseHundredths(inp.value);
+      if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?BenchMath.TOO_MANY_DECIMALS:'Type a number, like 0.00'); return; }
+      const h=p.hundredths;
+      let res;
+      if(cs.first===null){ cs.first=h; cs.firstOK=h===cs.correct; res=cs.firstOK?'right':'wrong'; if(cs.firstOK) cs.status='right'; }
+      else if(h===cs.correct){ cs.status='fixed'; res='fixed'; }
+      else { cs.fixes++; res=cs.fixes>=FixLoop.MAX_FIXES?'shown':'wrong'; if(res==='shown') cs.status='shown'; }
+      const left=FixLoop.MAX_FIXES-cs.fixes;
+      if(res==='right'||res==='fixed'){
+        settled=true;
+        els.feedback.textContent=`${c.label}: ${BenchMath.fmt2(h)} ${c.unit}. ${res==='right'?'Right!':'Right now.'}`;
+        els.feedback.className='feedback show good';
+        setTimeout(()=>showCalc(j+1),1000);
+      } else if(res==='wrong'){
+        els.feedback.textContent=`That ${c.label.toLowerCase()} isn't right. ${c.retry} (${FixLoop.triesText(left)})`;
+        els.feedback.className='feedback show bad';
+        inp.select();
+      } else {
+        settled=true;
+        els.feedback.innerHTML=`The ${c.label.toLowerCase()} was <strong>${BenchMath.fmt2(cs.correct)} ${c.unit}</strong>. Press Next when you're ready.`;
+        els.feedback.className='feedback show bad';
+        const next=document.createElement('button'); next.className='submit-btn'; next.textContent='Next';
+        next.style.marginLeft='10px'; next.addEventListener('click',()=>showCalc(j+1));
+        els.feedback.appendChild(next);
+      }
+    });
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  // The table: first answer, right or wrong, and what happened after.
+  function renderTaskSummary(){
+    const mark=ok=>ok?'<span class="fl-ok">✓ right</span>':'<span class="fl-bad">✗ wrong</span>';
+    const after=(ok,status,correct)=>ok?'':status==='shown'?'answer shown: '+correct:'fixed';
+    let rows='<tr><th></th><th>First answer</th><th></th><th></th></tr>';
+    T.readings.forEach((r,i)=>{
+      const it=T.fix.items[i];
+      rows+=`<tr><td>${r.label}</td><td class="fl-num">${fmtDec(it.first,r.dec)} ${r.unit}</td><td>${mark(it.firstOK)}</td>`
+        +`<td class="fl-after">${after(it.firstOK,it.status,fmtDec(it.correct,r.dec)+' '+r.unit)}</td></tr>`;
+    });
+    T.calcs.forEach((c,j)=>{
+      const cs=T.calcState[j];
+      rows+=`<tr class="fl-calc"><td>${c.label}</td><td class="fl-num">${BenchMath.fmt2(cs.first)} ${c.unit}</td><td>${mark(cs.firstOK)}</td>`
+        +`<td class="fl-after">${after(cs.firstOK,cs.status,BenchMath.fmt2(cs.correct)+' '+c.unit)}</td></tr>`;
+    });
+    const table=document.createElement('table'); table.className='summary-table fl-table'; table.innerHTML=rows;
+    els.body.appendChild(table);
+  }
+
+  // All or nothing on FIRST tries, like a set in Measure & Average.
+  function finishTask(){
+    S.locked=true;
+    const pts=BENCHES[bench].points;
+    const readOK=T.fix.items.every(it=>it.firstOK), calcOK=T.calcState.every(cs=>cs.firstOK);
+    const ok=readOK&&calcOK;
+    if(ok) S.score=Math.min(GOAL,S.score+pts);
+    updateHud();
+    els.progressfill.style.width=`${((S.taskIdx+1)/S.tasks.length)*100}%`;
+    const last=S.taskIdx+1>=S.tasks.length;
+
+    // What the end-of-round list shows: the first thing that went wrong.
+    let yours, correct, note='';
+    const k=T.fix.items.findIndex(it=>!it.firstOK);
+    const single=T.readings.length===1&&!T.calcs.length;
+    if(k!==-1){
+      const r=T.readings[k], it=T.fix.items[k];
+      const pre=single?'':r.label+': ';
+      yours=pre+fmtDec(it.first,r.dec)+' '+r.unit; correct=pre+fmtDec(it.correct,r.dec)+' '+r.unit;
+      note=T.firstHints[k]||'';
+    } else {
+      const j=T.calcState.findIndex(cs=>!cs.firstOK);
+      if(j!==-1){ const c=T.calcs[j], cs=T.calcState[j];
+        yours=`${c.label}: ${BenchMath.fmt2(cs.first)} ${c.unit}`; correct=`${c.label}: ${BenchMath.fmt2(cs.correct)} ${c.unit}`;
+        note=`Your measurements were right the first time. It was the ${c.label.toLowerCase()}: ${c.retry.charAt(0).toLowerCase()+c.retry.slice(1)}`;
+      } else if(single){ const r=T.readings[0]; yours=correct=fmtDec(r.correct,r.dec)+' '+r.unit; }
+      else { yours=correct=`${T.calcs[T.calcs.length-1].label}: ${BenchMath.fmt2(T.calcState[T.calcState.length-1].correct)} ${T.calcs[T.calcs.length-1].unit}`; }
+    }
+    if(!ok&&!single) note=(note?note+' ':'')+`A ${BENCHES[bench].noun.toLowerCase()} needs every step right the first time. The table shows which ones weren't.`;
+    if(!ok&&single) note=(note?note+' ':'')+'Points are for first tries only.';
+
+    // A single weighing keeps its scale on screen to look back at; a prism
+    // or block swaps its last tool for the table of every step.
+    if(!single){
+      els.body.innerHTML='';
+      els.qtext.innerHTML=`${T.title}: done.`;
+      renderTaskSummary();
+    }
+    Review.show(els.feedback,{
+      ok, yours, correct, note,
+      headline: ok?`Correct! +${pts} points`:`Not quite. This ${BENCHES[bench].noun.toLowerCase()} was worth ${pts} points.`,
+      autoMs: single?1400:2400,
+      nextLabel: last?'See results →':`Next ${BENCHES[bench].noun.toLowerCase()} →`,
+      onNext: ()=>{ S.taskIdx++; startTask(); },
+    });
+  }
+
+  // ---------- End game ----------
+  async function finishGame(){
+    showScreen(els.end);
+    els.endScore.textContent=S.score;
+    Review.renderList(els.reviewList);
+    const word={mass:'Weighing',volume:'Volume',density:'Density'}[bench];
+    if(S.score>=120){els.endTitle.textContent='Perfect score!';els.endMsg.textContent=`${word} master!`;}
+    else if(S.score>=90){els.endTitle.textContent='Great job!';els.endMsg.textContent='Strong skills! Try again for a perfect score.';}
+    else if(S.score>=60){els.endTitle.textContent='Getting there!';els.endMsg.textContent='Keep practicing!';}
+    else{els.endTitle.textContent='Round complete';els.endMsg.textContent='Keep practicing to improve your score.';}
+
+    if(player.loggedIn&&!player.demo&&!player.teacher){
+      const timeSec=Math.round((Date.now()-S.startTime)/1000);
+      await saveRun({name:player.name,nameKey:player.nameKey,period:String(player.period),bench,score:S.score,timeSec,ts:Date.now()});
+      const runs=await loadRuns(player.period);
+      const rows=bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
+      if(rows.length){renderLbTable(rows,els.endLeaderboard,player.period);els.endLeaderboard.style.display='block';}
+    }
+  }
+
+  // ---------- PostMessage login ----------
+  window.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='mvd-login'){
+      const d=e.data;
+      player.name=d.name||'';player.nameKey=Shared.normalizeName(d.name||'');
+      player.period=String(d.period||'');player.demo=!!d.demo;player.teacher=!!d.teacher;player.loggedIn=true;
+      if(BENCHES[d.bench]) bench=d.bench;
+      renderStart();
+    }
+  });
+
+  renderStart();
+  showScreen(els.start);
+})();
+</script>
+</body>
+</html>
