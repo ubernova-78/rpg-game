@@ -75,6 +75,8 @@
     padding:10px 14px;margin:0 0 10px;color:#155724;font-weight:700;}
   .key{display:inline-block;width:22px;height:6px;border-radius:3px;vertical-align:middle;margin:0 4px 0 8px;}
 
+  .best-box{background:#fff;border:2px solid var(--teal);border-radius:10px;padding:10px 14px;margin:0 0 12px;
+    font-weight:800;font-size:1.05rem;text-align:center;color:var(--ink);}
   .leaderboard{text-align:left;margin-top:16px;background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;}
   .leaderboard h3{margin:0 0 4px;color:var(--ink);}
   .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
@@ -107,6 +109,7 @@
       </ul>
       If it's wrong you'll be shown why, and you try again. After two more tries the answer is shown.</div>
     <p style="font-size:0.9rem;color:var(--dim);">12 boxes, 10 points each if you pick the right 3 edges the first time. 120 points possible.</p>
+    <div id="start-best" class="best-box" style="display:none;"></div>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
@@ -135,6 +138,7 @@
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
     <div id="review-list"></div>
+    <div id="end-best" class="best-box" style="display:none;margin-top:14px;"></div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
@@ -202,6 +206,31 @@
   PERIODS.forEach(p=>{ const b=document.createElement('button'); b.textContent='P'+p; b.dataset.per=p;
     b.addEventListener('click',()=>showLeaderboard(p)); els.lbTabs.appendChild(b); });
   $('btn-view-lb').addEventListener('click',()=>{ showScreen(els.lb); showLeaderboard(player.period||PERIODS[0]); });
+  // No leaderboard on this practice bench (Nick, 2026-11-03): competition is
+  // for the Density bench only.  The student's own best shows instead, and
+  // scores are still saved (the Density lock reads them).  true brings the
+  // leaderboard back.
+  const HAS_LEADERBOARD=false;
+  if(!HAS_LEADERBOARD) $('btn-view-lb').style.display='none';
+  const realStudent=()=>player.loggedIn&&!player.demo&&!player.teacher;
+  // Read with a time limit: a read with no connection waits rather than failing.
+  async function myBest(){
+    if(!Shared.DB_OK||!player.nameKey) return null;
+    try{
+      const snap=await Promise.race([Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(player.period)).once('value'),
+        new Promise(r=>setTimeout(()=>r(null),8000))]);
+      if(!snap) return null;
+      let best=0; snap.forEach(c => { const r=c.val(); if(r.nameKey===player.nameKey) best=Math.max(best,r.score||0); });
+      return best;
+    }catch(e){ return null; }
+  }
+  async function showStartBest(){
+    const box=$('start-best');
+    if(!realStudent()){ box.style.display='none'; return; }
+    const b=await myBest();
+    if(!b){ box.style.display='none'; return; }
+    box.textContent=`Your best: ${b} of 120`+(b>=120?' ✓':''); box.style.display='';
+  }
   $('btn-back-from-lb').addEventListener('click',()=>showScreen(els.start));
 
   // ---------- The box (box3d.js) ----------
@@ -304,11 +333,11 @@
   }
   $('btn-start').addEventListener('click',()=>{
     S.score=0; S.idx=0; S.startTime=Date.now(); S.boxes=buildBoxes();
-    Review.reset(); els.endLb.style.display='none';
+    Review.reset(); els.endLb.style.display='none'; $('end-best').style.display='none';
     els.hudScore.textContent=`0 of ${GOAL} points`; els.progress.style.width='0%';
     showScreen(els.game); nextBox();
   });
-  $('btn-again').addEventListener('click',()=>showScreen(els.start));
+  $('btn-again').addEventListener('click',()=>{ showScreen(els.start); showStartBest(); });
 
   async function finishGame(){
     showScreen(els.end);
@@ -321,8 +350,13 @@
     if(player.loggedIn&&!player.demo&&!player.teacher){
       const timeSec=Math.round((Date.now()-S.startTime)/1000);
       await saveRun({ name:player.name, nameKey:player.nameKey, period:String(player.period), score:S.score, timeSec, ts:Date.now() });
-      const rows=bestBy(await loadRuns(player.period)).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
-      if(rows.length){ renderLbTable(rows,els.endLb,player.period); els.endLb.style.display='block'; }
+      if(HAS_LEADERBOARD){
+        const rows=bestBy(await loadRuns(player.period)).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
+        if(rows.length){ renderLbTable(rows,els.endLb,player.period); els.endLb.style.display='block'; }
+      } else {
+        const b=await myBest(), best=Math.max(S.score,b||0); // this run counts even if the read lags
+        $('end-best').textContent=`Your best on this bench: ${best} of 120`+(best>=120?' ✓':''); $('end-best').style.display='';
+      }
     }
   }
 
@@ -331,6 +365,7 @@
       const d=e.data;
       player.name=d.name||''; player.nameKey=Shared.normalizeName(d.name||'');
       player.period=String(d.period||''); player.demo=!!d.demo; player.teacher=!!d.teacher; player.loggedIn=true;
+      showStartBest();
     }
   });
   showScreen(els.start);

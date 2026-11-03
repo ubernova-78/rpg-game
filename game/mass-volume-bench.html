@@ -47,6 +47,7 @@
   .start-sub li{margin-bottom:4px;}
   .primary{width:100%;padding:14px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
   .primary:hover{filter:brightness(1.08);}
+  .primary:disabled{background:#b7b7c2;cursor:default;filter:none;}
   .end-title{font-size:1.5rem;font-weight:800;margin-bottom:10px;}
   .end-score{font-size:2.5rem;font-weight:800;color:var(--teal);}
   .end-msg{color:var(--dim);margin:10px 0 20px;}
@@ -78,6 +79,14 @@
   .submit-btn.ghost{background:#fff;color:var(--ink);border:2px solid #ccc;}
   .submit-btn:disabled{background:#aab;cursor:default;filter:none;}
   .key{display:inline-block;width:22px;height:6px;border-radius:3px;vertical-align:middle;margin:0 4px 0 8px;}
+  .best-box{background:#fff;border:2px solid var(--teal);border-radius:10px;padding:10px 14px;margin:0 0 12px;
+    font-weight:800;font-size:1.05rem;text-align:center;color:var(--ink);}
+  .best-box.end{margin:14px 0 0;}
+  .lock-box{background:#fff7d6;border:2px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 12px;}
+  .lock-box h3{margin:0 0 6px;}
+  .lock-box table{border-collapse:collapse;margin:6px auto 4px;}
+  .lock-box td{padding:4px 12px;font-weight:700;}
+  .lock-box .done{color:var(--good);} .lock-box .todo{color:var(--miss);}
   .wrong-banner{background:#f8d7da;border:2px solid #dc3545;border-left-width:8px;border-radius:8px;
     padding:10px 14px;margin:0 0 12px;color:#721c24;}
   .wrong-banner .wb-head{font-size:1.1rem;font-weight:800;}
@@ -238,6 +247,8 @@
     <div class="start-title" id="start-title"></div>
     <div class="start-sub" id="start-sub"></div>
     <p style="font-size:0.9rem;color:var(--dim);" id="start-points"></p>
+    <div id="start-best" class="best-box" style="display:none;"></div>
+    <div id="start-lock" class="lock-box" style="display:none;"></div>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
   </div>
@@ -260,6 +271,7 @@
     <div style="font-size:0.9rem;color:var(--dim);">of 120 points</div>
     <div class="end-msg" id="end-msg">Keep practicing to improve your score.</div>
     <div id="review-list"></div>
+    <div id="end-best" class="best-box" style="display:none;"></div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
@@ -367,11 +379,73 @@
       points:'Each block is worth 40 points if every step is right the first time. 120 points possible.',
     },
   };
+  // Only the Density bench has a leaderboard (Nick, 2026-11-03): practice
+  // benches show the student's own best instead, which they can show the
+  // teacher.  Scores are still saved on every bench -- the lock reads them.
+  const HAS_LEADERBOARD=b=>b==='density';
   function renderStart(){
     const b=BENCHES[bench], t=START[bench];
     $('title').textContent=b.title; $('badge').textContent=b.badge; document.title=b.title;
     $('start-title').textContent=t.title; $('start-sub').innerHTML=t.sub; $('start-points').textContent=t.points;
     $('lb-title').textContent=b.title+' — top scores';
+    els.btnViewLb.style.display=HAS_LEADERBOARD(bench)?'':'none';
+    // Inside the game, which bench this is only arrives with the login
+    // message; until then the page would be the Mass bench with Start live,
+    // and a quick click could start the wrong bench or skip the lock.
+    if(IN_GAME&&!player.loggedIn){ setStart(false,'Loading…'); return; }
+    if(bench==='density') checkLock(); else showMyBest();
+  }
+
+  // ---------- A student's best scores ----------
+  // Read with a time limit: a Firebase read with no connection waits rather
+  // than failing, and a lesson can't wait on it.  null = couldn't tell.
+  const withTimeout=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
+  async function myBests(){
+    if(!Shared.DB_OK||!player.nameKey) return null;
+    try{
+      const read=path=>Shared.DB.ref(path).orderByChild('period').equalTo(String(player.period)).once('value');
+      const res=await withTimeout(Promise.all([read(DB_PATH),read('dimension_scores')]),8000);
+      if(!res) return null;
+      const best={ mass:0, volume:0, density:0, dimensions:0 };
+      res[0].forEach(c => { const r=c.val(); if(r.nameKey===player.nameKey&&best[r.bench]!=null) best[r.bench]=Math.max(best[r.bench],r.score||0); });
+      res[1].forEach(c => { const r=c.val(); if(r.nameKey===player.nameKey) best.dimensions=Math.max(best.dimensions,r.score||0); });
+      return best;
+    }catch(e){ return null; }
+  }
+  const realStudent=()=>player.loggedIn&&!player.demo&&!player.teacher;
+  async function showMyBest(){
+    const box=$('start-best'); $('start-lock').style.display='none'; setStart(true);
+    if(!realStudent()){ box.style.display='none'; return; }
+    const b=await myBests();
+    if(!b||!b[bench]){ box.style.display='none'; return; }
+    box.textContent=`Your best: ${b[bench]} of 120`+(b[bench]>=120?' ✓':''); box.style.display='';
+  }
+
+  // ---------- The Density lock ----------
+  // Density opens once the student has had 120 at some point on Mass, Find
+  // the 3 Dimensions and Volume (Nick, 2026-11-03).  The teacher login and
+  // demo mode skip it.  If the scores can't be read (no connection), it
+  // opens rather than lock a class out mid-lesson.
+  const LOCK_BENCHES=[['mass','Mass'],['dimensions','Find the 3 Dimensions'],['volume','Volume']];
+  const IN_GAME=window.parent!==window;
+  function setStart(enabled,label){ els.btnStart.disabled=!enabled; els.btnStart.textContent=label||'Start Practice'; }
+  async function checkLock(){
+    const lock=$('start-lock'); $('start-best').style.display='none';
+    if(!realStudent()){
+      setStart(true);
+      lock.style.display=player.loggedIn?'':'none';
+      lock.innerHTML='<strong>Teacher / demo:</strong> open for you. Students unlock this bench by getting 120 on Mass, Find the 3 Dimensions and Volume.';
+      return;
+    }
+    setStart(false,'Checking…'); lock.style.display=''; lock.textContent='Checking your scores…';
+    const b=await myBests();
+    if(!b){ setStart(true); lock.style.display='none'; return; }
+    const open=LOCK_BENCHES.every(([k])=>b[k]>=120);
+    setStart(open,open?'':'🔒 Locked');
+    els.btnViewLb.style.display='';
+    if(open){ lock.style.display='none'; if(b.density){ $('start-best').textContent=`Your best: ${b.density} of 120`; $('start-best').style.display=''; } return; }
+    lock.innerHTML='<h3>🔒 Locked</h3>Get <strong>120</strong> on all three of these benches to unlock Density:'
+      +'<table>'+LOCK_BENCHES.map(([k,name])=>`<tr><td>${name}</td><td class="${b[k]>=120?'done':'todo'}">${b[k]>=120?'120 ✓':`best ${b[k]} of 120`}</td></tr>`).join('')+'</table>';
   }
 
   // ---------- Firebase ----------
@@ -829,10 +903,12 @@
     S.score=0; S.taskIdx=0; S.startTime=Date.now(); S.locked=false;
     Review.reset();
     S.tasks = bench==='mass'?buildMassTasks():bench==='volume'?buildVolumeTasks():buildDensityTasks();
-    els.endLeaderboard.style.display='none';
+    els.endLeaderboard.style.display='none'; $('end-best').style.display='none';
     updateHud(); showScreen(els.game); startTask();
   });
-  els.btnAgain.addEventListener('click',()=>showScreen(els.start));
+  // Back to the start screen re-reads the best (and the lock), so a run
+  // just finished counts at once.
+  els.btnAgain.addEventListener('click',()=>{ showScreen(els.start); renderStart(); });
 
   function updateHud(step){
     els.hudScore.textContent=`${S.score} of ${GOAL} points`;
@@ -1260,9 +1336,16 @@
     if(player.loggedIn&&!player.demo&&!player.teacher){
       const timeSec=Math.round((Date.now()-S.startTime)/1000);
       await saveRun({name:player.name,nameKey:player.nameKey,period:String(player.period),bench,score:S.score,timeSec,ts:Date.now()});
-      const runs=await loadRuns(player.period);
-      const rows=bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
-      if(rows.length){renderLbTable(rows,els.endLeaderboard,player.period);els.endLeaderboard.style.display='block';}
+      if(HAS_LEADERBOARD(bench)){
+        const runs=await loadRuns(player.period);
+        const rows=bestBy(runs).sort((a,b)=>b.score-a.score||a.timeSec-b.timeSec).slice(0,10);
+        if(rows.length){renderLbTable(rows,els.endLeaderboard,player.period);els.endLeaderboard.style.display='block';}
+      } else {
+        // This run counts even if the read back hasn't caught up with it.
+        const b=await myBests(), best=Math.max(S.score,b?b[bench]:0);
+        const eb=$('end-best'); eb.className='best-box end';
+        eb.textContent=`Your best on this bench: ${best} of 120`+(best>=120?' ✓':''); eb.style.display='';
+      }
     }
   }
 
