@@ -29,7 +29,13 @@ function updatePlayer(dt) {
       const b = worldDoorTrigger(player.x, player.y);
       const onDoor = !!b;
       if (onDoor && !scene.wasOnDoor) {
-        enterBuilding(BUILDING_DEFS.find(bd => bd.id === b.id));
+        // Closed from the teacher dashboard. Teacher accounts still go in,
+        // to look round before it opens.
+        if (ClassSettings.buildingClosed(b.id) && !session.teacher) {
+          showSimpleMessage(chestModalEls, b.label, 'This workshop opens later. Your teacher will open it when it\'s time.');
+        } else {
+          enterBuilding(BUILDING_DEFS.find(bd => bd.id === b.id));
+        }
       }
       scene.wasOnDoor = onDoor;
 

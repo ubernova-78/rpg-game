@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physics Quest — Teacher Dashboard</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="shared-student.js"></script>
+<script src="catalog.js"></script>
+<style>
+  :root{ --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460; --paper:#f0ece2; --accent:#e94560;
+    --teal:#1a936f; --gold:#f6c90e; --ink:#1a1a2e; --dim:#6b6b7e; --miss:#c1443a; --good:#2d936c; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Verdana,sans-serif;background:var(--bench);color:var(--ink);padding:20px;}
+  .app{max-width:980px;margin:0 auto;background:var(--paper);border-radius:14px;overflow:hidden;border:3px solid var(--bench3);}
+  .titlebar{background:linear-gradient(135deg,var(--bench2),var(--bench3));padding:14px 20px;display:flex;align-items:center;
+    justify-content:space-between;border-bottom:3px solid var(--accent);color:var(--paper);gap:12px;flex-wrap:wrap;}
+  .titlebar h1{margin:0;font-size:1.2rem;}
+  .who{font-size:0.85rem;opacity:0.9;}
+  .screen{padding:20px 24px;} .hidden{display:none !important;}
+  .btn{padding:8px 16px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:0.92rem;cursor:pointer;}
+  .btn:hover{filter:brightness(1.1);} .btn:disabled{background:#aab;cursor:default;filter:none;}
+  .btn.ghost{background:#fff;color:var(--ink);border:2px solid #ccc;}
+  .btn.small{padding:4px 10px;font-size:0.8rem;}
+  .btn.warn{background:var(--miss);}
+  input[type=text],input[type=email],input[type=password]{padding:8px 10px;border:2px solid #ccc;border-radius:6px;font-size:0.95rem;}
+  .signin{max-width:360px;margin:30px auto;display:flex;flex-direction:column;gap:10px;}
+  .err{color:var(--miss);font-weight:700;min-height:1.2em;}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+  .tabs button,.periods button{padding:8px 14px;border:2px solid #ccc;border-radius:8px;background:#fff;font-weight:700;cursor:pointer;color:var(--ink);}
+  .tabs button.active,.periods button.active{background:var(--bench3);color:#fff;border-color:var(--bench3);}
+  .periods{margin-left:auto;display:flex;gap:6px;align-items:center;}
+  .status{min-height:1.4em;font-weight:700;margin:0 0 10px;}
+  .status.ok{color:var(--good);} .status.bad{color:var(--miss);}
+  .card{background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;margin-bottom:12px;}
+  .card h3{margin:0;font-size:1.05rem;display:flex;align-items:center;gap:10px;}
+  .card.closed{background:#f4f1ea;}
+  .benches{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;}
+  .toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;user-select:none;}
+  .toggle input{width:18px;height:18px;}
+  .tag{font-size:0.75rem;font-weight:800;padding:2px 8px;border-radius:10px;}
+  .tag.open{background:#d4edda;color:#155724;} .tag.shut{background:#f8d7da;color:#721c24;}
+  .hint{color:var(--dim);font-size:0.88rem;margin:0 0 12px;line-height:1.45;}
+  table.students{width:100%;border-collapse:collapse;background:#fff;border:2px solid #ddd;border-radius:10px;}
+  table.students th{background:var(--bench2);color:var(--paper);text-align:left;padding:8px 10px;font-size:0.85rem;}
+  table.students td{padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top;font-size:0.92rem;}
+  .pin{font-family:'Courier New',monospace;font-weight:800;font-size:1.05rem;letter-spacing:2px;}
+  .pin-new{width:72px;font-family:'Courier New',monospace;}
+  .scores{margin:6px 0 2px;display:flex;flex-wrap:wrap;gap:4px 6px;}
+  .chip{display:inline-block;padding:2px 8px;border-radius:6px;background:#e3eef9;color:#1f4e79;font-size:0.8rem;font-weight:700;}
+  .chip.full{background:#d4edda;color:#155724;}
+  .none{color:var(--dim);font-size:0.85rem;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <h1>Physics Quest — Teacher Dashboard</h1>
+    <div class="who" id="who"></div>
+  </div>
+
+  <div class="screen" id="screen-signin">
+    <div class="signin">
+      <p class="hint">Sign in with the teacher account (the same one as the Place Value bench's teacher view).</p>
+      <input type="email" id="email" placeholder="Email" autocomplete="username">
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+      <button class="btn" id="btn-signin">Sign in</button>
+      <div class="err" id="signin-err"></div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="screen-main">
+    <div class="bar">
+      <div class="tabs" id="tabs">
+        <button data-tab="workshops" class="active">Workshops</button>
+        <button data-tab="questions">Battle questions</button>
+        <button data-tab="students">Students</button>
+      </div>
+      <div class="periods" id="periods"><span style="font-weight:700">Period:</span></div>
+    </div>
+    <div class="status" id="status"></div>
+
+    <div id="tab-workshops">
+      <p class="hint">Closed workshops keep their door shut ("opens later"); closed benches won't open. Changes reach students straight away, even mid-lesson. Teacher accounts can still go in.</p>
+      <div id="workshops"></div>
+      <button class="btn ghost" id="btn-copy">Copy this period's settings to all periods</button>
+    </div>
+
+    <div id="tab-questions" class="hidden">
+      <p class="hint">Which question types monster battles and Dojo duels ask in this period. At least one stays on.</p>
+      <div class="card" id="questions"></div>
+      <button class="btn ghost" id="btn-copy-q">Copy this period's settings to all periods</button>
+    </div>
+
+    <div id="tab-students" class="hidden">
+      <p class="hint">Students whose last login was in this period. PINs are hidden until you click Show, in case this is on the projector. Scores are each student's best on each bench.</p>
+      <div class="bar"><input type="text" id="search" placeholder="Search by name"><button class="btn ghost small" id="btn-reload">Reload</button></div>
+      <div id="students"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // The teacher account the Firebase rules trust (also in firebase-rules.json).
+  const TEACHER_UID='VrGdq2EJQ5NmgNssQjShyN1hIBI3';
+  const $=id=>document.getElementById(id);
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const db=()=>Shared.DB;
+  let period=CATALOG.periods[0], tab='workshops', settings={}, settingsRef=null, user=null;
+
+  function status(msg,ok){ const s=$('status'); s.textContent=msg||''; s.className='status '+(ok===false?'bad':ok?'ok':''); }
+  // Every write says whether it worked: a write the rules refuse doesn't
+  // throw anywhere else, it just doesn't happen.
+  async function write(what,fn){
+    try{ await fn(); status(`Saved: ${what}.`,true); }
+    catch(e){
+      console.warn('[teacher] write failed',what,e);
+      status(/permission/i.test(String(e&&(e.code||e.message)))
+        ? `Couldn't save (${what}): permission denied. Are the new Firebase rules published, and are you signed in as the teacher account?`
+        : `Couldn't save (${what}): ${e&&e.message||e}`, false);
+    }
+  }
+
+  // ---------- Sign in ----------
+  const AUTH=Shared.DB_OK?firebase.auth():null;
+  $('btn-signin').addEventListener('click',()=>{
+    const em=$('email').value.trim(), pw=$('password').value;
+    if(!em||!pw){ $('signin-err').textContent='Enter both.'; return; }
+    $('signin-err').textContent='';
+    AUTH.signInWithEmailAndPassword(em,pw).catch(e=>{
+      $('signin-err').textContent=e.code==='auth/invalid-credential'?'Wrong email or password.':e.message;
+    });
+  });
+  $('password').addEventListener('keydown',e=>{ if(e.key==='Enter') $('btn-signin').click(); });
+  function onAuth(u){
+    user=u||null;
+    if(!user){ $('screen-signin').classList.remove('hidden'); $('screen-main').classList.add('hidden'); $('who').textContent=''; return; }
+    if(user.uid!==TEACHER_UID){
+      $('signin-err').textContent=`Signed in as ${user.email}, which isn't the teacher account the game trusts. Sign in with that one.`;
+      AUTH&&AUTH.signOut(); return;
+    }
+    $('who').innerHTML=`${esc(user.email)} <button class="btn ghost small" id="btn-signout">Sign out</button>`;
+    $('btn-signout').addEventListener('click',()=>AUTH.signOut());
+    $('screen-signin').classList.add('hidden'); $('screen-main').classList.remove('hidden');
+    choosePeriod(period);
+  }
+  if(AUTH) AUTH.onAuthStateChanged(onAuth);
+  else $('signin-err').textContent="Can't reach Firebase, so the dashboard can't load.";
+  window.__teacher={ onAuth }; // for tests
+
+  // ---------- Period and tab ----------
+  CATALOG.periods.forEach(p=>{ const b=document.createElement('button'); b.textContent='P'+p; b.dataset.per=p;
+    b.addEventListener('click',()=>choosePeriod(p)); $('periods').appendChild(b); });
+  function choosePeriod(p){
+    period=p; status('');
+    $('periods').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.per===p));
+    if(settingsRef) settingsRef.off();
+    settingsRef=db().ref('settings/'+p);
+    settingsRef.on('value',snap=>{ settings=snap.val()||{}; renderWorkshops(); renderQuestions(); },
+      err=>status(`Couldn't read settings: ${err.message}`,false));
+    if(tab==='students') loadStudents();
+  }
+  $('tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    tab=b.dataset.tab;
+    $('tabs').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
+    ['workshops','questions','students'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==tab));
+    status(''); if(tab==='students') loadStudents();
+  }));
+
+  // ---------- Workshops and benches ----------
+  const isOff=(group,id)=>!!(settings[group]&&settings[group][id]);
+  // Only what's switched off is stored; switching back on removes the entry.
+  const setOff=(group,id,off,what)=>write(what,()=>db().ref(`settings/${period}/${group}/${id}`).set(off?true:null));
+  function renderWorkshops(){
+    $('workshops').innerHTML='';
+    for(const w of CATALOG.workshops){
+      const closed=isOff('closedBuildings',w.id);
+      const card=document.createElement('div'); card.className='card'+(closed?' closed':'');
+      card.innerHTML=`<h3><label class="toggle"><input type="checkbox" ${closed?'':'checked'}> ${esc(w.label)}</label>
+        <span class="tag ${closed?'shut':'open'}">${closed?'CLOSED':'OPEN'}</span></h3><div class="benches"></div>`;
+      card.querySelector('h3 input').addEventListener('change',e=>setOff('closedBuildings',w.id,!e.target.checked,`${w.label} ${e.target.checked?'opened':'closed'} for period ${period}`));
+      const list=card.querySelector('.benches');
+      for(const b of w.benches){
+        const off=isOff('closedBenches',b.id);
+        const l=document.createElement('label'); l.className='toggle';
+        l.innerHTML=`<input type="checkbox" ${off?'':'checked'} ${closed?'disabled':''}> ${esc(b.label)}`;
+        if(closed) l.style.opacity='0.5';
+        l.querySelector('input').addEventListener('change',e=>setOff('closedBenches',b.id,!e.target.checked,`${b.label} bench ${e.target.checked?'opened':'closed'} for period ${period}`));
+        list.appendChild(l);
+      }
+      $('workshops').appendChild(card);
+    }
+  }
+
+  // ---------- Battle questions ----------
+  function renderQuestions(){
+    const box=$('questions'); box.innerHTML='';
+    const onCount=CATALOG.questions.filter(q=>!isOff('questionsOff',q.key)).length;
+    for(const q of CATALOG.questions){
+      const on=!isOff('questionsOff',q.key);
+      const l=document.createElement('label'); l.className='toggle'; l.style.display='flex'; l.style.margin='6px 0';
+      l.innerHTML=`<input type="checkbox" ${on?'checked':''}> ${esc(q.label)}`;
+      const inp=l.querySelector('input');
+      if(on&&onCount===1){ inp.disabled=true; l.title='At least one question type stays on.'; }
+      inp.addEventListener('change',e=>setOff('questionsOff',q.key,!e.target.checked,`"${q.label}" ${e.target.checked?'on':'off'} for period ${period}`));
+      box.appendChild(l);
+    }
+  }
+
+  // Copy is two clicks, so a stray click can't overwrite three classes.
+  function copyButton(btn){
+    let armed=false, t=null;
+    btn.addEventListener('click',()=>{
+      if(!armed){ armed=true; btn.textContent='Click again to copy to every period'; btn.classList.add('warn');
+        t=setTimeout(()=>{ armed=false; btn.textContent="Copy this period's settings to all periods"; btn.classList.remove('warn'); },4000); return; }
+      clearTimeout(t); armed=false; btn.textContent="Copy this period's settings to all periods"; btn.classList.remove('warn');
+      const copy=JSON.parse(JSON.stringify(settings||{}));
+      write(`period ${period}'s settings copied to every period`,()=>Promise.all(CATALOG.periods.filter(p=>p!==period).map(p=>db().ref('settings/'+p).set(copy))));
+    });
+  }
+  copyButton($('btn-copy')); copyButton($('btn-copy-q'));
+
+  // ---------- Students ----------
+  // Every bench that saves a score out of 120 (the Rune Circle is out of 40).
+  // Best per student per bench, for this period.
+  const BENCH_NAMES={ unit:'Choose the Unit', mm:'Millimeter', cm:'Centimeter', m:'Meter', mixed:'Mixed Practice',
+    simple:'Simple Elapsed', startstop:'Start & Stop', mass:'Mass', volume:'Volume', density:'Density' };
+  const SOURCES=[
+    { path:'scores',                 name:r=>'Place Value ('+(r.level||'?')+')' },
+    { path:'measure_scores',         name:r=>BENCH_NAMES[r.bench]||r.bench },
+    { path:'rounding_scores',        name:()=>'Rounding' },
+    { path:'average_scores',         name:()=>'Avg Distance' },
+    { path:'measure_average_scores', name:()=>'Measure & Avg' },
+    { path:'rune_circle_scores',     name:()=>'Rune Circle', of:40 },
+    { path:'elapsed_scores',         name:r=>BENCH_NAMES[r.bench]||r.bench },
+    { path:'mvd_scores',             name:r=>BENCH_NAMES[r.bench]||r.bench },
+    { path:'dimension_scores',       name:()=>'3 Dimensions' },
+  ];
+  let students=[], bests={};
+  async function loadStudents(){
+    const box=$('students'); box.innerHTML='<p class="none">Loading…</p>';
+    try{
+      const snap=await db().ref('students').orderByChild('lastPeriod').equalTo(period).once('value');
+      students=[]; snap.forEach(c => { students.push(Object.assign({ key:c.key }, c.val())); });
+      students.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+      bests={};
+      await Promise.all(SOURCES.map(async src=>{
+        const s=await db().ref(src.path).orderByChild('period').equalTo(period).once('value');
+        s.forEach(c => {
+          const r=c.val(); if(!r||typeof r.score!=='number') return;
+          const k=r.nameKey||Shared.normalizeName(r.name||''); const n=src.name(r);
+          bests[k]=bests[k]||{}; const cur=bests[k][n];
+          if(!cur||r.score>cur.score) bests[k][n]={ score:r.score, of:src.of||120 };
+        });
+      }));
+      renderStudents();
+    }catch(e){ box.innerHTML=`<p class="err">Couldn't load students: ${esc(e.message)}</p>`; }
+  }
+  $('btn-reload').addEventListener('click',loadStudents);
+  $('search').addEventListener('input',renderStudents);
+  function renderStudents(){
+    const q=$('search').value.trim().toLowerCase();
+    const rows=students.filter(s=>!q||String(s.name).toLowerCase().includes(q));
+    const box=$('students');
+    if(!rows.length){ box.innerHTML=`<p class="none">${students.length?'No one matches that search.':'No students in this period yet.'}</p>`; return; }
+    const t=document.createElement('table'); t.className='students';
+    t.innerHTML='<tr><th>Name</th><th>PIN</th><th>New PIN</th><th>Teacher</th><th>Best scores</th></tr>';
+    for(const s of rows){
+      const tr=document.createElement('tr');
+      const sc=bests[s.key]||{};
+      const chips=Object.keys(sc).sort().map(n=>`<span class="chip ${sc[n].score>=sc[n].of?'full':''}">${esc(n)}: ${sc[n].score}/${sc[n].of}</span>`).join('');
+      tr.innerHTML=`<td><strong>${esc(s.name)}</strong></td>
+        <td><span class="pin">••••</span> <button class="btn ghost small show">Show</button></td>
+        <td><input type="text" class="pin-new" maxlength="4" inputmode="numeric" placeholder="0000"> <button class="btn small set">Set</button></td>
+        <td><label class="toggle"><input type="checkbox" class="teach" ${s.isTeacher?'checked':''}></label></td>
+        <td><div class="scores">${chips||'<span class="none">no scores yet</span>'}</div></td>`;
+      const pinEl=tr.querySelector('.pin'), showBtn=tr.querySelector('.show');
+      showBtn.addEventListener('click',()=>{ const shown=pinEl.textContent!=='••••';
+        pinEl.textContent=shown?'••••':(s.pin||'—'); showBtn.textContent=shown?'Show':'Hide'; });
+      const inp=tr.querySelector('.pin-new');
+      inp.addEventListener('input',()=>{ inp.value=inp.value.replace(/\D/g,'').slice(0,4); });
+      tr.querySelector('.set').addEventListener('click',()=>{
+        if(!/^[0-9]{4}$/.test(inp.value)){ status('A PIN is 4 digits.',false); return; }
+        const pin=inp.value;
+        write(`new PIN for ${s.name}`,async()=>{ await db().ref(`students/${s.key}/pin`).set(pin); s.pin=pin; inp.value='';
+          if(pinEl.textContent!=='••••') pinEl.textContent=pin; });
+      });
+      tr.querySelector('.teach').addEventListener('change',e=>{
+        const v=e.target.checked;
+        write(`${s.name} ${v?'marked as':'no longer'} a teacher account`,async()=>{ await db().ref(`students/${s.key}/isTeacher`).set(v); s.isTeacher=v; })
+          .then(()=>{ e.target.checked=!!s.isTeacher; });
+      });
+      t.appendChild(tr);
+    }
+    box.innerHTML=''; box.appendChild(t);
+  }
+})();
+</script>
+</body>
+</html>

@@ -248,6 +248,29 @@ function validateContent() {
       }
     }
   }
+  // The teacher dashboard's catalog must list exactly the game's workshops,
+  // benches and question types, or something can't be switched off.
+  const catBench = new Set(), catBuilding = new Set(CATALOG.workshops.map(w => w.id));
+  for (const w of CATALOG.workshops) {
+    if (!BUILDING_DEFS.some(b => b.id === w.id)) problems.push(`catalog.js workshop "${w.id}" isn't a building`);
+    for (const b of w.benches) {
+      catBench.add(b.id);
+      if (!(INTERIOR_OBJECTS[w.id] || []).some(o => o.id === b.id && o.kind === 'workbench')) problems.push(`catalog.js bench "${b.id}" isn't a workbench in "${w.id}"`);
+    }
+  }
+  for (const [roomId, objs] of Object.entries(INTERIOR_OBJECTS)) {
+    for (const o of objs) {
+      if (o.kind !== 'workbench') continue;
+      if (!catBuilding.has(roomId)) problems.push(`room "${roomId}" has workbenches but isn't in catalog.js, so the teacher dashboard can't close it`);
+      else if (!catBench.has(o.id)) problems.push(`workbench "${o.id}" isn't in catalog.js, so the teacher dashboard can't close it`);
+    }
+  }
+  for (const key of Object.keys(BATTLE_QUESTION_POOL)) {
+    if (!CATALOG.questions.some(q => q.key === key)) problems.push(`battle question "${key}" isn't in catalog.js, so the teacher dashboard can't switch it off`);
+  }
+  for (const q of CATALOG.questions) {
+    if (!(q.key in BATTLE_QUESTION_POOL)) problems.push(`catalog.js question "${q.key}" isn't in BATTLE_QUESTION_POOL`);
+  }
   for (const m of WORLD_MONSTER_DEFS) {
     if (m.sprite && !MONSTER_IMG[m.sprite]) problems.push(`monster "${m.id}" uses sprite "${m.sprite}", which has no MONSTER_IMG entry — it would be invisible but still start battles`);
   }

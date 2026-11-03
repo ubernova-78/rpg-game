@@ -14,6 +14,14 @@ const wbCloseBtn = document.getElementById('wbCloseBtn');
 let wbModalCloseHook = null;
 
 function openWorkbench(wb) {
+  // Closed from the teacher dashboard (teacher accounts can still use it).
+  if (ClassSettings.benchClosed(wb.id) && !session.teacher) {
+    scene.modalOpen = true;
+    wbTitle.textContent = wb.label;
+    wbBody.textContent = 'This bench is closed for now. Your teacher will open it when it\'s time.';
+    wbModal.classList.remove('hidden');
+    return;
+  }
   if (wb.src) { openGameOverlay(wb); return; }
   scene.modalOpen = true;
   wbTitle.textContent = wb.label;

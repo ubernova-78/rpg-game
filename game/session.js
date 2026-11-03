@@ -172,7 +172,6 @@ const loginEls = {
   createName: document.getElementById('createName'),
   createPin: document.getElementById('createPin'),
   createPeriod: document.getElementById('createPeriod'),
-  teacherMode: document.getElementById('teacherMode'),
   createErr: document.getElementById('createError'),
   btnCreate: document.getElementById('btnCreate'),
   linkToLogin: document.getElementById('linkToLogin'),
@@ -267,7 +266,11 @@ loginEls.btnCreate.addEventListener('click', async () => {
   loginEls.btnCreate.disabled = true;
   loginEls.btnCreate.textContent = 'Creating...';
   const name = loginEls.createName.value.trim(), pin = loginEls.createPin.value.trim(), period = loginEls.createPeriod.value;
-  const teacher = loginEls.teacherMode.checked;
+  // New accounts are never teachers. The "Teacher account" checkbox that used
+  // to be here let any student make one (and so skip leaderboards and the
+  // Density lock); teacher accounts are now marked from the teacher
+  // dashboard, and a Firebase rule stops anyone else setting isTeacher.
+  const teacher = false;
 
   const result = await Shared.createStudent(name, pin, period);
   if (!result.ok) {
@@ -287,6 +290,9 @@ loginEls.btnCreate.addEventListener('click', async () => {
 });
 
 function enterTown() {
+  // The teacher dashboard's switches for this period (closed workshops and
+  // benches, battle question types), followed live.
+  ClassSettings.watch(session.period);
   loginEls.screenLogin.classList.add('hidden');
   loginEls.screenCreate.classList.add('hidden');
   loginEls.screenTown.classList.remove('hidden');

@@ -20,7 +20,7 @@
       ".read": true,
       ".indexOn": ["lastPeriod"],
       "$nameKey": {
-        ".write": "!data.exists() || (data.child('pin').val() === newData.child('pin').val())",
+        ".write": "!data.exists() || (data.child('pin').val() === newData.child('pin').val()) || auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3'",
         ".validate": "newData.hasChildren(['name','pin','totalEXP','coins'])",
         "name":          { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "pin":           { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)" },
@@ -35,7 +35,7 @@
         "claimedChests": { ".validate": true },
         "hp":            { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "pvpWins":       { ".validate": "newData.isNumber() && newData.val() >= 0" },
-        "isTeacher":     { ".validate": "newData.isBoolean()" },
+        "isTeacher":     { ".validate": "newData.isBoolean() && (auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || newData.val() === false || newData.val() === data.val())" },
         "runeCircle": {
           ".validate": "newData.hasChildren(['done','score'])",
           "done":    { ".validate": "newData.isBoolean()" },
@@ -207,6 +207,17 @@
         "expEarned":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
         "timestamp":  { ".validate": "newData.isNumber()" },
         "$other":     { ".validate": false }
+      }
+    },
+    "settings": {
+      ".read": true,
+      "$period": {
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3'",
+        ".validate": "$period.matches(/^[267]$/)",
+        "closedBuildings": { "$id": { ".validate": "newData.isBoolean()" } },
+        "closedBenches":   { "$id": { ".validate": "newData.isBoolean()" } },
+        "questionsOff":    { "$id": { ".validate": "newData.isBoolean()" } },
+        "$other": { ".validate": false }
       }
     },
     "pvpMatches": {

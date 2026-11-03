@@ -190,7 +190,12 @@ const BATTLE_QUESTION_POOL = {
   // 'measure-m-read':   1,   // meter tape — enable when ready
 };
 function pickRoundKey() {
-  const entries = Object.entries(BATTLE_QUESTION_POOL);
+  // Only the types the teacher dashboard has on for this period. If that
+  // leaves none (it shouldn't -- the dashboard keeps at least one on), use
+  // them all rather than stall a battle.
+  const all = Object.entries(BATTLE_QUESTION_POOL);
+  const on = all.filter(([key]) => ClassSettings.questionOn(key));
+  const entries = on.length ? on : all;
   const total = entries.reduce((sum, [, w]) => sum + w, 0);
   let r = Math.random() * total;
   for (const [key, w] of entries) {
