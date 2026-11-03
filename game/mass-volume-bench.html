@@ -308,7 +308,7 @@
         <ul>
           <li>Small prisms are measured with <strong>calipers</strong>, which read in <strong>millimeters</strong>. Convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
           <li>Big prisms are measured with a <strong>ruler</strong> in centimeters, to the tenth. Each small tick is 1 mm, which is 0.1 cm.</li>
-          <li><strong>Volume = length × width × height</strong>, rounded to the nearest hundredth.</li>
+          <li>Then calculate the <strong>volume</strong>, rounded to the nearest hundredth. Use your notes if you need to.</li>
         </ul>
         If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.`,
       points:'Each prism is worth 30 points if all three measurements and the volume are right the first time. 120 points possible.',
@@ -319,7 +319,7 @@
         <ul>
           <li>Weigh it on the <strong>pocket scale</strong>, to the hundredth of a gram (0.01 g).</li>
           <li>Measure its length, width and height with <strong>calipers</strong>. They read in <strong>millimeters</strong>, so convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
-          <li><strong>Volume = length × width × height</strong> (cm³).</li>
+          <li>Calculate the <strong>volume</strong> (cm³). Use your notes if you need to.</li>
           <li><strong>Density = mass ÷ volume</strong> (g/cm³).</li>
         </ul>
         Round volume and density to the nearest hundredth. If a measurement is wrong you'll be told which one, and you measure it again.`,
@@ -712,7 +712,9 @@
     }
   }
   const volumeCalc={ label:'Volume', unit:'cm³',
-    formula:'Volume = length × width × height', retry:'Multiply length × width × height, then round to the nearest hundredth.',
+    // No formula on screen: working out how is the task (Nick, 2026-11-03).
+    formula:'📓 Not sure how to find the volume of a rectangular prism? Check your notes.',
+    retry:'Check your notes for how to find the volume, then round to the nearest hundredth.',
     compute:t=>volumeH(t.prism) };
   function buildVolumeTasks(){
     const colors=shuffle(PRISM_COLORS.slice());
