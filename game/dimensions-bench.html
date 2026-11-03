@@ -237,10 +237,11 @@
   // Group colors for the explanation views.
   const GROUP_COLORS=['#e63946','#1d6fd6','#e0a800'];
   const WRONG_COLOR='#ff6a00';
-  // Pale, muted box colors, so every edge color shows against them: the
-  // purple of a pick, the orange of a wrong direction, and the red / blue /
-  // gold of the answer.  A purple box once hid the purple picks.
-  const BOX_COLORS=['#d9d2c3','#c5d0c0','#cad3dc','#e6dccb','#c9c2b8','#d3cbd8','#bfcbc6','#dcd0bd'];
+  // Box colors are greens, teals and a light grey only: hues no edge uses.
+  // Edges are black, purple (a pick), orange (a wrong direction) and red /
+  // blue / gold (the answer), and Nick wants the box entirely unlike all of
+  // them (2026-11-03).  A purple box once hid the purple picks.
+  const BOX_COLORS=['#b7e1a1','#a3dcc2','#c9dcb3','#9ed6cf','#cfe8c2','#d6d6d6','#b5d8c0','#bfe0d6'];
 
   // Very different shapes on purpose: each catches a different mistake.
   //   flat   the thin edge is the one that gets forgotten (a book)
@@ -292,7 +293,7 @@
     // Faces: only the ones facing us.
     FACES.forEach((f,k)=>{
       if(!facing[k]) return;
-      const n=normal(f), lit=0.62+0.38*Math.max(0,n[0]*LIGHT[0]+n[1]*LIGHT[1]+n[2]*LIGHT[2]);
+      const n=normal(f), lit=0.78+0.22*Math.max(0,n[0]*LIGHT[0]+n[1]*LIGHT[1]+n[2]*LIGHT[2]);
       const pts=f.corners.map(i=>P[i].map(x=>x.toFixed(1)).join(',')).join(' ');
       out+=`<polygon class="face" points="${pts}" fill="${shadeHex(B.color,lit)}" stroke="none"/>`;
     });
