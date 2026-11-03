@@ -77,7 +77,14 @@ const BenchMath = (function () {
   function parseHundredths(raw) {
     // ".6" is how students write 0.6; it used to fail the digit check and come
     // back "Type a number", which read as marked wrong (Nick, 2026-11-03).
-    const s = String(raw).trim().replace(/^(-?)\./, '$10.');
+    let s = String(raw).trim().replace(/^(-?)\./, '$10.');
+    // Thousands commas, as students write big volumes: "1,282.78". Only in
+    // the right places (every 3 digits), so "12,82" -- more likely a slip than
+    // a number -- is still refused. (Nick, 2026-11-03.)
+    if (s.includes(',')) {
+      if (!/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return { ok: false, reason: 'badCommas' };
+      s = s.replace(/,/g, '');
+    }
     if (s === '') return { ok: false, reason: 'empty' };
     if (!/^-?\d+(\.\d+)?$/.test(s)) return { ok: false, reason: 'notANumber' };
     const dot = s.indexOf('.');
@@ -124,6 +131,7 @@ const BenchMath = (function () {
 
   // The message every bench shows for an answer that has not been rounded.
   const TOO_MANY_DECIMALS = 'Round your answer to two decimal places.';
+  const BAD_COMMAS = 'Check your commas: they go every 3 digits, like 1,282.78. Or leave them out.';
 
   return {
     nudge,
@@ -132,5 +140,6 @@ const BenchMath = (function () {
     parseHundredths,
     fmt2,
     TOO_MANY_DECIMALS,
+    BAD_COMMAS,
   };
 })();

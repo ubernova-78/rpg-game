@@ -1015,7 +1015,7 @@
   function parseReading(inp,r){
     const p=BenchMath.parseHundredths(inp.value);
     const tooFine=['This scale reads whole numbers. No decimals.','Read to the tenth of a centimeter (one decimal place).','This scale reads to the hundredth (two decimal places).'][r.dec];
-    if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?tooFine:'Type a number.'); return null; }
+    if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?tooFine:p.reason==='badCommas'?BenchMath.BAD_COMMAS:'Type a number.'); return null; }
     if((r.dec===0&&p.hundredths%100!==0)||(r.dec===1&&p.hundredths%10!==0)){ BenchMath.nudge(inp,tooFine); return null; }
     return p.hundredths;
   }
@@ -1190,7 +1190,7 @@
     const inp=inputRow(lbl(c),'0.00','calc-input',inp=>{
       if(settled||S.locked) return;
       const p=BenchMath.parseHundredths(inp.value);
-      if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?BenchMath.TOO_MANY_DECIMALS:'Type a number, like 0.00'); return; }
+      if(!p.ok){ BenchMath.nudge(inp,p.reason==='tooManyDecimals'?BenchMath.TOO_MANY_DECIMALS:p.reason==='badCommas'?BenchMath.BAD_COMMAS:'Type a number, like 0.00'); return; }
       const h=p.hundredths;
       let res;
       if(cs.first===null){ cs.first=h; cs.firstOK=h===cs.correct; res=cs.firstOK?'right':'wrong'; if(cs.firstOK) cs.status='right'; }
