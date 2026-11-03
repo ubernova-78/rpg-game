@@ -711,6 +711,10 @@
       hint: cal ? h=>h===r.correct*10 ? `That's the reading in millimeters. Divide by 10 to change it to centimeters.` : '' : null,
       render(body){
         const v=showBox(body,p,{}); v.box.pickable=false; v.box.measuring=T.picks[k]; v.render();
+        // The box keeps the student's last turn, which can leave this edge
+        // round the back -- "edge B (gold)" with nothing gold on screen. If
+        // so, turn it to a view where the edge shows.
+        for(let n=0;n<60&&!v.box.visible.has(T.picks[k]);n++){ v.box.R=Box3D.startRotation(n>=20); v.render(); }
         renderDimTool(body,p,r.correct/10);
       } };
     return r;
@@ -954,14 +958,20 @@
     const endWrong=()=>{ v.setMode('solid'); banner.innerHTML=''; clearFeedback(); sync(); };
     v=showBox(els.body,T.prism,{ onChange:()=>{ nudge.textContent=''; sync(); }, onDismiss:endWrong, onNudge:m=>{ nudge.textContent=m; } });
     els.body.append(ctr,nudge);
-    clearBtn.addEventListener('click',()=>{ if(v.box.mode==='wrong') endWrong(); v.clear(); });
-    const proceed=()=>{ T.picks=v.picks(); setEdgeCorrects(); done(); };
+    // Once the pick is settled (right, or shown) it is copied and Clear does
+    // nothing: Clear in the 1.5 s before measuring began used to empty the
+    // picks and throw in setEdgeCorrects, freezing the screen (cold review).
+    clearBtn.addEventListener('click',()=>{ if(P.status) return; if(v.box.mode==='wrong') endWrong(); v.clear(); });
+    let settledPicks=null;
+    const settle=()=>{ settledPicks=v.picks(); clearBtn.disabled=true; };
+    let gone=false;
+    const proceed=()=>{ if(gone) return; gone=true; T.picks=settledPicks; setEdgeCorrects(); done(); };
     checkBtn.addEventListener('click',()=>{
       if(v.box.sel.length!==3||v.box.mode!=='solid') return;
       const res=v.check();
       if(P.firstOK===null) P.firstOK=res.right;
       if(res.right){
-        P.status=P.wrongs?'fixed':'right';
+        P.status=P.wrongs?'fixed':'right'; settle();
         checkBtn.disabled=true; v.box.pickable=false; v.render();
         els.feedback.textContent='✓ Three different directions. Now measure edges A, B and C.';
         els.feedback.className='feedback show good';
@@ -972,7 +982,7 @@
       P.firstWrong=P.firstWrong||(res.allSame?'all 3 edges the same way':'2 edges the same way');
       if(P.wrongs>=PICK_TRIES){
         // Shown: the directions in color, and one edge of each picked for them.
-        P.status='shown'; v.pickOnePerDirection(); v.box.pickable=false; v.setMode('groups'); checkBtn.disabled=true;
+        P.status='shown'; v.pickOnePerDirection(); settle(); v.box.pickable=false; v.setMode('groups'); checkBtn.disabled=true;
         const key=Box3D.GROUP_COLORS.map(c=>`<span class="key" style="background:${c}"></span>`).join('');
         banner.innerHTML=`<div class="wrong-banner"><div class="wb-head">Here are the 3 directions: ${key}</div><div class="wb-why">Every edge of the box runs one of these 3 ways. One edge of each color has been picked for you (the solid ones). Turn the box to see the rest.</div></div>`;
         els.feedback.className='feedback show bad'; els.feedback.textContent='';

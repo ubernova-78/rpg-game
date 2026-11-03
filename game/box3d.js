@@ -149,15 +149,21 @@ const Box3D = (function () {
       let drag = null;
       svg.addEventListener('pointerdown', e => {
         const B = svg._box3d; if (!B) return;
+        // One finger / the main button only: a second finger used to take
+        // over the gesture and make the box jump, and a right-click picked.
+        if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
         const dismiss = B.box.mode === 'wrong';
         const edge = B.box.pickable && B.box.mode === 'solid' && e.target.dataset ? e.target.dataset.e : undefined;
-        drag = { x: e.clientX, y: e.clientY, moved: false, edge, dismiss };
+        // A finger wobbles more than a mouse: under this many px it's still
+        // a tap, so a jittery tap on a touchscreen doesn't turn into a drag
+        // and silently lose the pick.
+        drag = { x: e.clientX, y: e.clientY, moved: false, edge, dismiss, slop: e.pointerType === 'mouse' ? 5 : 10 };
         try { svg.setPointerCapture(e.pointerId); } catch (err) { /* old browsers */ }
       });
       svg.addEventListener('pointermove', e => {
-        const B = svg._box3d; if (!drag || !B) return;
+        const B = svg._box3d; if (!drag || !B || !e.isPrimary) return;
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-        if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+        if (!drag.moved && Math.hypot(dx, dy) < drag.slop) return;
         drag.moved = true; svg.classList.add('dragging');
         // About the screen's own axes, so the box follows the pointer
         // whatever way up it already is.
@@ -165,7 +171,8 @@ const Box3D = (function () {
         drag.x = e.clientX; drag.y = e.clientY;
         B.render();
       });
-      svg.addEventListener('pointerup', () => {
+      svg.addEventListener('pointerup', e => {
+        if (!e.isPrimary) return;
         const B = svg._box3d, d = drag; drag = null; svg.classList.remove('dragging');
         if (!d || !B || d.moved) return;
         if (d.dismiss) { B.onDismiss(); return; }
