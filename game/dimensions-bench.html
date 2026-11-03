@@ -157,13 +157,17 @@
   // are ONE edge from EACH group -- any edge of the group, at any corner.
   // So the check is only "three different directions", never which edges.
   //
-  // The box is solid and shaded, as a real one is: back edges can't be seen
-  // or clicked until it's turned.  It goes see-through only to explain --
-  // on a wrong answer (the repeated direction's 4 edges glow) and a right one
-  // (all 12 edges colored by direction).  Dashed hidden edges were
-  // considered and dropped: not what you see in real life, and a see-through
-  // outline box flips in the eye (the Necker cube), the last thing a student
-  // confused about direction needs.
+  // The box is always solid and shaded, as a real one is: back edges can't be
+  // seen or clicked until it's turned, and it can be turned while an answer
+  // is being explained too.  Dashed hidden edges were considered and dropped
+  // (not what you see in real life; an outline box flips in the eye), and so
+  // was going see-through to explain an answer: Nick, 2026-11-03, "too
+  // confusing for my kids".
+  //
+  // Explaining uses color on the visible edges.  A direction's edges are
+  // drawn in its color: SOLID where the student picked it, DASHED over the
+  // black edge where they didn't.  (A thick and a thin line of the same color
+  // were too alike to tell apart.)
   const GOAL=120, BOXES=12, POINTS=10, PERIODS=['2','6','7'];
   let S={ score:0, idx:0, startTime:0, boxes:[] };
   let player={ name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
@@ -232,7 +236,11 @@
 
   // Group colors for the explanation views.
   const GROUP_COLORS=['#e63946','#1d6fd6','#e0a800'];
-  const BOX_COLORS=['#c8a165','#7fb3d5','#9bc49b','#e59866','#bb8fce','#9fd8cb','#a3a3a3','#e6a0a8'];
+  const WRONG_COLOR='#ff6a00';
+  // Pale, muted box colors, so every edge color shows against them: the
+  // purple of a pick, the orange of a wrong direction, and the red / blue /
+  // gold of the answer.  A purple box once hid the purple picks.
+  const BOX_COLORS=['#d9d2c3','#c5d0c0','#cad3dc','#e6dccb','#c9c2b8','#d3cbd8','#bfcbc6','#dcd0bd'];
 
   // Very different shapes on purpose: each catches a different mistake.
   //   flat   the thin edge is the one that gets forgotten (a book)
@@ -280,32 +288,32 @@
     }
     const normal=f=>{ const n=[0,0,0]; n[f.axis]=f.sign?1:-1; return apply(B.R,n); };
     const facing=FACES.map(f=>normal(f)[2]>1e-6);
-    const see=B.mode!=='solid';
     let out='';
-    if(see) out+='<defs><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
-    // Faces: only the ones facing us when solid; all of them, faint, when see-through.
+    // Faces: only the ones facing us.
     FACES.forEach((f,k)=>{
-      if(!facing[k]&&!see) return;
+      if(!facing[k]) return;
       const n=normal(f), lit=0.62+0.38*Math.max(0,n[0]*LIGHT[0]+n[1]*LIGHT[1]+n[2]*LIGHT[2]);
       const pts=f.corners.map(i=>P[i].map(x=>x.toFixed(1)).join(',')).join(' ');
-      out+=`<polygon class="face" points="${pts}" fill="${shadeHex(B.color,lit)}" fill-opacity="${see?0.16:1}" stroke="none"/>`;
+      out+=`<polygon class="face" points="${pts}" fill="${shadeHex(B.color,lit)}" stroke="none"/>`;
     });
     // Edges, back ones first so front ones draw over them.
     const order=EDGES.slice().sort((e1,e2)=>(Z[e1.a]+Z[e1.b])-(Z[e2.a]+Z[e2.b]));
     for(const e of order){
       const visible=edgeFaces(e).some(f=>facing[FACES.indexOf(f)]);
-      if(!visible&&!see) continue;
+      if(!visible) continue;
       const [x1,y1]=P[e.a], [x2,y2]=P[e.b], sel=B.sel.has(e.id);
       const line=(cls,stroke,w,extra)=>`<line class="${cls}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${stroke}" stroke-width="${w}"${extra||''}/>`;
+      // Picked: solid in the color.  Not picked: the black edge with the
+      // color dashed over it.
+      const colored=c=>sel?line('edge-vis',c,7):line('edge-vis','#2b2b2b',2.5)+line('edge-vis',c,5,' stroke-dasharray="9 7" stroke-linecap="butt"');
       if(B.mode==='solid'){
         out+=`<line class="edge-hit" data-e="${e.id}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
         out+=sel?line('edge-vis','#6f2dbd',8):line('edge-vis plain','#2b2b2b',2.5);
-      } else if(B.mode==='glow'){
-        if(e.axis===B.glowAxis) out+=line('edge-vis','#ff5a00',sel?9:6,' filter="url(#glow)"');
-        else out+=line('edge-vis',sel?'#6f2dbd':'#555',sel?8:2,visible?'':' stroke-opacity="0.55"');
-        if(sel&&e.axis===B.glowAxis) out+=line('edge-vis','#6f2dbd',3);
+      } else if(B.mode==='glow'){ // wrong: the repeated direction in orange, the other pick as it was
+        if(e.axis===B.glowAxis) out+=colored(WRONG_COLOR);
+        else out+=sel?line('edge-vis','#6f2dbd',8):line('edge-vis','#2b2b2b',2.5);
       } else { // 'groups': every edge in its direction's color
-        out+=line('edge-vis',GROUP_COLORS[e.axis],sel?9:5,visible?'':' stroke-opacity="0.7"');
+        out+=colored(GROUP_COLORS[e.axis]);
       }
     }
     els.svg.innerHTML=out;
@@ -322,8 +330,11 @@
     // A finished box can still be turned, to look at the colored directions,
     // but not picked.
     let edge=B.locked?undefined:(e.target.dataset?e.target.dataset.e:undefined);
-    if(B.mode==='glow'){ endGlow(); edge=undefined; } // this click just closes the explanation
-    drag={ x:e.clientX, y:e.clientY, moved:false, edge };
+    // While a wrong answer is explained, dragging turns the box to look round
+    // it; a plain click closes the explanation (and picks nothing).
+    const dismiss=B.mode==='glow';
+    if(dismiss) edge=undefined;
+    drag={ x:e.clientX, y:e.clientY, moved:false, edge, dismiss };
     try{ els.svg.setPointerCapture(e.pointerId); }catch(err){}
   });
   els.svg.addEventListener('pointermove',e=>{
@@ -340,6 +351,7 @@
   const endDrag=()=>{
     if(!drag) return;
     const d=drag; drag=null; els.svg.classList.remove('dragging');
+    if(!d.moved&&d.dismiss){ endGlow(); return; }
     if(!d.moved&&d.edge!==undefined) toggleEdge(Number(d.edge));
   };
   els.svg.addEventListener('pointerup',endDrag);
@@ -368,12 +380,12 @@
     B.glowAxis=counts.indexOf(Math.max(...counts));
     B.firstWrong=B.firstWrong||(Math.max(...counts)===3?'all 3 edges the same way':'2 edges the same way');
     if(B.wrongs>=TRIES){ finishBox('shown'); return; }
-    // See-through, with the repeated direction's 4 edges glowing.
+    // The repeated direction's edges in orange: solid where picked.
     B.mode='glow';
     const head=Math.max(...counts)===3?'All three of your edges go the same way.':'Two of your edges go the same way.';
     els.banner.innerHTML=`<div class="wrong-banner"><div class="wb-head">✗ ${head}</div>`
-      +`<div class="wb-why">The 4 glowing edges all run in that direction, so they're all the same dimension. Measuring two of them is measuring it twice. `
-      +`Un-pick one (click it again) and choose an edge that goes a different way.</div></div>`;
+      +`<div class="wb-why">The orange edges all run in that direction, so they're all the same dimension. Solid orange is what you picked: measuring two of them is measuring it twice. `
+      +`Turn the box to see them all. Then un-pick one (click it again) and choose an edge that goes a different way.</div></div>`;
     els.feedback.className='feedback show bad';
     els.feedback.innerHTML=`${FixLoop.triesText(TRIES-B.wrongs)}. `;
     const ok=document.createElement('button'); ok.className='btn'; ok.textContent='Try again'; ok.style.marginLeft='8px';
@@ -389,8 +401,8 @@
     els.progress.style.width=`${((S.idx+1)/BOXES)*100}%`;
     const key=GROUP_COLORS.map(c=>`<span class="key" style="background:${c}"></span>`).join('');
     els.banner.innerHTML = status==='shown'
-      ? `<div class="wrong-banner"><div class="wb-head">Here are the 3 directions: ${key}</div><div class="wb-why">Every edge of the box runs one of these 3 ways. The 3 dimensions are one edge of each color, any one.</div></div>`
-      : `<div class="right-banner">✓ One edge in each direction: ${key}<br>Every edge of a box runs one of these 3 ways. Any one edge of each color would be right.</div>`;
+      ? `<div class="wrong-banner"><div class="wb-head">Here are the 3 directions: ${key}</div><div class="wb-why">Every edge of the box runs one of these 3 ways. The 3 dimensions are one edge of each color, any one. Solid lines are the ones you picked. Turn the box to see the rest.</div></div>`
+      : `<div class="right-banner">✓ One edge in each direction: ${key}<br>Every edge of a box runs one of these 3 ways. Solid lines are the ones you picked; any one edge of each color would be right. Turn the box to see the rest.</div>`;
     render();
     const last=S.idx+1>=BOXES;
     Review.show(els.feedback,{
