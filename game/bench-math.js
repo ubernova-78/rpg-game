@@ -75,7 +75,9 @@ const BenchMath = (function () {
   // rounded yet. Callers show `reason` and let the student try again
   // without spending an attempt.
   function parseHundredths(raw) {
-    const s = String(raw).trim();
+    // ".6" is how students write 0.6; it used to fail the digit check and come
+    // back "Type a number", which read as marked wrong (Nick, 2026-11-03).
+    const s = String(raw).trim().replace(/^(-?)\./, '$10.');
     if (s === '') return { ok: false, reason: 'empty' };
     if (!/^-?\d+(\.\d+)?$/.test(s)) return { ok: false, reason: 'notANumber' };
     const dot = s.indexOf('.');
