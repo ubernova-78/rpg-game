@@ -55,6 +55,10 @@
   .caliper-wrap svg{max-width:100%;height:auto;}
   .convert-note{max-width:560px;margin:4px auto 0;padding:8px 12px;background:#fff7d6;border:2px solid var(--gold);
     border-radius:8px;font-size:0.92rem;text-align:center;}
+  .wrong-banner{background:#f8d7da;border:2px solid #dc3545;border-left-width:8px;border-radius:8px;
+    padding:10px 14px;margin:0 0 12px;color:#721c24;}
+  .wrong-banner .wb-head{font-size:1.1rem;font-weight:800;}
+  .wrong-banner .wb-why{font-weight:600;margin-top:4px;}
   .tool-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;text-align:center;}
 
   /* Ruler — the class names and geometry MeasureShared.buildRulerDOM renders
@@ -879,9 +883,15 @@
     const i=T.fix.pending()[0], r=T.readings[i];
     els.body.innerHTML=''; clearFeedback();
     updateHud(r.label);
-    const hint=T.firstHints[i]&&T.fix.items[i].fixes===0?' '+T.firstHints[i]:'';
-    els.qtext.innerHTML=`${T.title}: ${lead?lead+hint+' ':''}${r.again} `
+    els.qtext.innerHTML=`${T.title}: ${r.again} `
       +`<span style="font-weight:400;color:var(--dim)">(${FixLoop.triesText(T.fix.triesLeft(i))})</span>`;
+    // In red above the tool, not in the black question line: in the
+    // question it read as just more instructions and the miss went unnoticed.
+    // Every fix screen gets one, including the second wrong reading of a set.
+    const ban=document.createElement('div'); ban.className='wrong-banner';
+    ban.innerHTML=`<div class="wb-head">✗ ${esc(lead||`The ${r.label.toLowerCase()} isn't right.`)}</div>`
+      +(T.firstHints[i]?`<div class="wb-why">${esc(T.firstHints[i])}</div>`:'');
+    els.body.appendChild(ban);
     readingLog(T.readings.length>1?T.readings.length:0,i);
     r.render(els.body);
     let settled=false;
