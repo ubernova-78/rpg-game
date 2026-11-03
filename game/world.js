@@ -382,7 +382,7 @@ const INTERIOR_SIZES = {
   caveDeep: { cols: 11, rows: 9 },
   dojo: { cols: 13, rows: 10 },
   elapsed: { cols: 9, rows: 7 },
-  mvd: { cols: 13, rows: 7 },
+  mvd: { cols: 17, rows: 7 },
 };
 const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg, mvd: floorImg };
 // A light, warm overlay tinting the normal floor texture toward a boxing-mat look for the
@@ -480,12 +480,14 @@ const INTERIOR_OBJECTS = {
     { id: 'simpleBench', kind: 'workbench', img: workbenchImg, col: 2, row: 1, label: 'Simple Elapsed Time Work Bench', shortLabel: 'Simple Elapsed', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'simple' },
     { id: 'startstopBench', kind: 'workbench', img: workbenchImg, col: 6, row: 1, label: 'Start & Stop Time Work Bench', shortLabel: 'Start & Stop', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'startstop' },
   ],
-  // Three benches 4 tiles apart along the top wall (see the note on `red` for why one
-  // row), so the room is 13 wide: 4 per bench plus a margin.
+  // Four benches 4 tiles apart along the top wall (see the note on `red` for why one
+  // row), so the room is 17 wide: 4 per bench plus a margin. Dimensions sits before
+  // Volume: picking the 3 directions is the step before measuring them.
   mvd: [
     { id: 'massBench',    kind: 'workbench', img: workbenchImg, col: 2,  row: 1, label: 'Mass Work Bench',    shortLabel: 'Mass',    src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'mass' },
-    { id: 'volumeBench',  kind: 'workbench', img: workbenchImg, col: 6,  row: 1, label: 'Volume Work Bench',  shortLabel: 'Volume',  src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'volume' },
-    { id: 'densityBench', kind: 'workbench', img: workbenchImg, col: 10, row: 1, label: 'Density Work Bench', shortLabel: 'Density', src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'density' },
+    { id: 'dimsBench',    kind: 'workbench', img: workbenchImg, col: 6,  row: 1, label: 'Find the 3 Dimensions Work Bench', shortLabel: 'Dimensions', src: 'dimensions-bench.html', messageType: 'dmb-login' },
+    { id: 'volumeBench',  kind: 'workbench', img: workbenchImg, col: 10, row: 1, label: 'Volume Work Bench',  shortLabel: 'Volume',  src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'volume' },
+    { id: 'densityBench', kind: 'workbench', img: workbenchImg, col: 14, row: 1, label: 'Density Work Bench', shortLabel: 'Density', src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'density' },
   ],
   dojo: [],
 };
