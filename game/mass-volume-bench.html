@@ -423,18 +423,26 @@
 
   // ---------- The Density lock ----------
   // Density opens once the student has had 120 at some point on Mass, Find
-  // the 3 Dimensions and Volume (Nick, 2026-11-03).  The teacher login and
-  // demo mode skip it.  If the scores can't be read (no connection), it
-  // opens rather than lock a class out mid-lesson.
+  // the 3 Dimensions and Volume (Nick, 2026-11-03).  The teacher login skips
+  // it.  Demo mode is always locked (Nick, same day): a demo has no account
+  // and no saved scores, so it can never reach 120 -- and it must not fall
+  // through to the "couldn't read the scores" opening below.  If a real
+  // student's scores can't be read (no connection), it opens rather than lock
+  // a class out mid-lesson.
   const LOCK_BENCHES=[['mass','Mass'],['dimensions','Find the 3 Dimensions'],['volume','Volume']];
   const IN_GAME=window.parent!==window;
   function setStart(enabled,label){ els.btnStart.disabled=!enabled; els.btnStart.textContent=label||'Start Practice'; }
   async function checkLock(){
     const lock=$('start-lock'); $('start-best').style.display='none';
+    if(player.demo){
+      setStart(false,'🔒 Locked'); lock.style.display='';
+      lock.innerHTML='<h3>🔒 Locked in demo mode</h3>Log in to your own account to unlock Density: get <strong>120</strong> on Mass, Find the 3 Dimensions and Volume.';
+      return;
+    }
     if(!realStudent()){
       setStart(true);
       lock.style.display=player.loggedIn?'':'none';
-      lock.innerHTML='<strong>Teacher / demo:</strong> open for you. Students unlock this bench by getting 120 on Mass, Find the 3 Dimensions and Volume.';
+      lock.innerHTML='<strong>Teacher:</strong> open for you. Students unlock this bench by getting 120 on Mass, Find the 3 Dimensions and Volume.';
       return;
     }
     setStart(false,'Checking…'); lock.style.display=''; lock.textContent='Checking your scores…';
