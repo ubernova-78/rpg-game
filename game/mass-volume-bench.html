@@ -97,6 +97,9 @@
   /* Readings so far */
   .meas-log{margin:0 0 12px;padding:8px 12px;background:#fff;border:2px solid var(--line);border-radius:8px;}
   .meas-log .entry{display:inline-block;padding:4px 10px;margin:3px 4px;border-radius:6px;font-weight:700;font-family:monospace;font-size:0.95rem;background:#e3eef9;color:#1f4e79;}
+  .meas-log .log-line{display:flex;flex-wrap:wrap;align-items:center;padding:2px 0;}
+  .meas-log .log-line+.log-line{border-top:1px solid #eee;}
+  .meas-log .log-title{font-weight:800;width:110px;flex:none;}
   .meas-log .entry.calc{background:#fff3c4;color:#7a5b00;}
 
   /* Summary table */
@@ -810,22 +813,31 @@
   }
 
   // Readings so far, as chips above the tool.
+  // One line each: the mass, the dimensions, then anything calculated --
+  // the density bench's mass got lost among the three lengths on one line.
   function readingLog(upTo,current){
     if(!T.readings.length||upTo<=0) return;
     const log=document.createElement('div'); log.className='meas-log';
-    log.innerHTML='<strong>Your measurements:</strong> ';
+    const lines={};
+    const line=title=>{
+      if(!lines[title]){ const d=document.createElement('div'); d.className='log-line';
+        d.innerHTML=`<span class="log-title">${title}:</span>`; log.appendChild(d); lines[title]=d; }
+      return lines[title];
+    };
     T.readings.slice(0,upTo).forEach((r,i)=>{
       const it=T.fix.items[i], sp=document.createElement('span'); sp.className='entry';
+      const isMass=r.unit==='g';
+      const name=isMass?'':`${r.label}: `;   // "Mass:" is already the line's title
       let txt;
-      if(it.status===null&&T.fix.allRecorded()){ txt=`${r.label}: ${fmtDec(it.first,r.dec)} ${r.unit} ✗`;
+      if(it.status===null&&T.fix.allRecorded()){ txt=`${name}${fmtDec(it.first,r.dec)} ${r.unit} ✗`;
         sp.style.outline=i===current?'2px solid var(--miss)':'1px dashed var(--miss)'; }
-      else txt=`${r.label}: ${fmtDec(it.final,r.dec)} ${r.unit}${T.fix.allRecorded()?' ✓':''}`;
-      sp.textContent=txt; log.appendChild(sp);
+      else txt=`${name}${fmtDec(it.final,r.dec)} ${r.unit}${T.fix.allRecorded()?' ✓':''}`;
+      sp.textContent=txt; line(isMass?'Mass':'Dimensions').appendChild(sp);
     });
     T.calcs.forEach((c,j)=>{
       const cs=T.calcState[j]; if(cs.status===null) return;
       const sp=document.createElement('span'); sp.className='entry calc';
-      sp.textContent=`${c.label}: ${BenchMath.fmt2(cs.correct)} ${c.unit}`; log.appendChild(sp);
+      sp.textContent=`${c.label}: ${BenchMath.fmt2(cs.correct)} ${c.unit}`; line('Calculated').appendChild(sp);
     });
     els.body.appendChild(log);
   }
