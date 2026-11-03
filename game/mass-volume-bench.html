@@ -277,6 +277,12 @@
   // (FixLoop's rules).  Calculations come after every reading is settled, so a
   // wrong volume is the arithmetic, never a misread.
   const GOAL = 120, PERIODS = ['2','6','7'];
+  // Round objects (they roll off a bare pan) and the bowl to stop them.
+  // Switched off for now -- Nick, 2026-11-03: weighing is only things that
+  // don't roll, and he may bring these back later.  Everything for them
+  // (rolling, bowl + TARE, the "includes the bowl" hint) is still here;
+  // true brings it all back.
+  const ROLLING = false;
   const BENCHES = {
     mass:    { title:'Mass Work Bench',    badge:'MASS',    tasks:12, points:10, noun:'Item' },
     volume:  { title:'Volume Work Bench',  badge:'VOLUME',  tasks:4,  points:30, noun:'Prism' },
@@ -317,8 +323,8 @@
           <li><strong>Kitchen scale</strong>: write the mass as a <strong>whole number</strong>.</li>
           <li><strong>Pocket scale</strong>: write the mass to the <strong>hundredth</strong> (two decimal places).</li>
           <li>Turn the scale on and check it shows <strong>g</strong>. If it doesn't, press UNIT or MODE until it does.</li>
-          <li>A scale reads 0 for whatever is on it when it's turned on. Turn it on with nothing on it (or just the bowl), so it reads 0 before the object goes on.</li>
-          <li><strong>Round things roll!</strong> Put the bowl on the scale, press TARE so it reads 0, then put the object in the bowl.</li>
+          <li>A scale reads 0 for whatever is on it when it's turned on. Turn it on with nothing on it${ROLLING?' (or just the bowl)':''}, so it reads 0 before the object goes on.</li>
+          ${ROLLING?'<li><strong>Round things roll!</strong> Put the bowl on the scale, press TARE so it reads 0, then put the object in the bowl.</li>':''}
         </ul>
         If a mass is wrong you'll be told, and you weigh it again. After two more tries the answer is shown.`,
       points:'10 points for each mass that is right the first time. 120 points possible.',
@@ -412,10 +418,12 @@
       <path d="M40 14 L60 14 L60 22 Q72 26 72 38 L72 92 Q72 98 64 98 L36 98 Q28 98 28 92 L28 38 Q28 26 40 22 Z" fill="#bfe3fb" stroke="#5a9bd1" stroke-width="2" opacity="0.95"/>
       <rect x="28" y="50" width="44" height="22" fill="#4aa3df"/><text x="50" y="66" font-size="11" text-anchor="middle" font-weight="bold" fill="#fff">WATER</text>`),
     paperclip: emo('📎'), pencil: emo('✏️'), key: emo('🔑'), scissors: emo('✂️'), phone: emo('📱'),
+    sponge: emo('🧽'), toothbrush: emo('🪥'), magnet: emo('🧲'), notebook: emo('📓'), juicebox: emo('🧃'), banana: emo('🍌'), brick: emo('🧱'),
     orange: emo('🍊'), baseball: emo('⚾'), softball: emo('🥎'), textbook: emo('📘'), mug: emo('☕'), sneaker: emo('👟'),
   };
 
-  // The 20 objects.  Masses are in grams; each run picks a value in the range
+  // The objects: 20 that stay put, plus 7 round ones that only appear when
+  // ROLLING is on.  Masses are in grams; each run picks a value in the range
   // at the scale's precision.  `round` objects roll off a bare pan.
   // Pocket scale capacity is 200 g, so every pocket object (plus its bowl)
   // stays under that.  `px` is the drawing size on that scale's pan.
@@ -440,6 +448,14 @@
     { id:'waterbottle', name:'water bottle',    scale:'kitchen', round:false, min:505,   max:530,   px:130 },
     { id:'mug',         name:'coffee mug',      scale:'kitchen', round:false, min:280,   max:380,   px:104 },
     { id:'sneaker',     name:'sneaker',         scale:'kitchen', round:false, min:280,   max:460,   px:124 },
+    // Added 2026-11-03 so there are still 20 with the round ones switched off.
+    { id:'sponge',      name:'sponge',          scale:'pocket',  round:false, min:8.00,  max:15.00, px:64 },
+    { id:'toothbrush',  name:'toothbrush',      scale:'pocket',  round:false, min:15.00, max:24.00, px:64 },
+    { id:'magnet',      name:'magnet',          scale:'pocket',  round:false, min:20.00, max:60.00, px:56 },
+    { id:'notebook',    name:'notebook',        scale:'kitchen', round:false, min:180,   max:320,   px:120 },
+    { id:'juicebox',    name:'juice box',       scale:'kitchen', round:false, min:215,   max:260,   px:100 },
+    { id:'banana',      name:'banana',          scale:'kitchen', round:false, min:110,   max:150,   px:110 },
+    { id:'brick',       name:'brick',           scale:'kitchen', round:false, min:1900,  max:2400,  px:130 },
   ];
   // A value on the scale's own resolution, as integer hundredths of a gram.
   function genMassH(o){
@@ -448,8 +464,8 @@
   // 12 of the 20, with at least 3 that roll and at least 4 on each scale.
   function pickObjects(){
     for(;;){
-      const c=shuffle(OBJECTS.slice()).slice(0,BENCHES.mass.tasks);
-      if(c.filter(o=>o.round).length>=3 && c.filter(o=>o.scale==='pocket').length>=4 && c.filter(o=>o.scale==='kitchen').length>=4) return c;
+      const c=shuffle(OBJECTS.filter(o=>ROLLING||!o.round)).slice(0,BENCHES.mass.tasks);
+      if((!ROLLING||c.filter(o=>o.round).length>=3) && c.filter(o=>o.scale==='pocket').length>=4 && c.filter(o=>o.scale==='kitchen').length>=4) return c;
     }
   }
 
@@ -528,7 +544,7 @@
     const inBowl=bowlEl.querySelector('.in-bowl');
     const itemEl=document.createElement('div'); itemEl.className='obj item-obj'; itemEl.tabIndex=0;
     itemEl.innerHTML=`${item.art}<div class="obj-name">${esc(item.name)}</div>`;
-    slots.appendChild(itemEl); slots.appendChild(bowlEl);
+    slots.appendChild(itemEl); if(ROLLING) slots.appendChild(bowlEl);
 
     function say(text,info){ msg.textContent=text||''; msg.className='scale-msg'+(info?' info':''); }
     const loadH=()=>(st.bowlOn?bowlH:0)+(st.itemOn?item.massH:0);
