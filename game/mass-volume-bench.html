@@ -141,6 +141,8 @@
   .fl-table .fl-num{font-family:'Courier New',monospace;font-weight:700;}
   .fl-table .fl-after{color:var(--dim);font-size:0.88rem;}
   .fl-table tr.fl-calc td{background:#fffbea;}
+  .fl-table .fl-pts{text-align:right;font-family:'Courier New',monospace;font-weight:800;white-space:nowrap;}
+  .fl-table .fl-of{color:var(--dim);font-weight:400;}
   .fl-ok{color:var(--good);font-weight:800;} .fl-bad{color:var(--miss);font-weight:800;}
 
   /* ---------- Scales ---------- */
@@ -353,7 +355,7 @@
           ${ROLLING?'<li><strong>Round things roll!</strong> Put the bowl on the scale, press TARE so it reads 0, then put the object in the bowl.</li>':''}
         </ul>
         If a mass is wrong you'll be told, and you weigh it again. After two more tries the answer is shown.`,
-      points:'10 points for each mass that is right the first time. 120 points possible.',
+      points:'Each object: 8 points for the mass and 2 for its unit, if right the first time. 120 points possible. Get 100 or more here (and on Find the 3 Dimensions and Volume) to unlock Density.',
     },
     volume: {
       title:'Find the Volume',
@@ -365,7 +367,7 @@
           <li>Then calculate the <strong>volume</strong>, rounded to the nearest hundredth. Use your notes if you need to.</li>
         </ul>
         If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.`,
-      points:'Each prism is worth 30 points if every step (the pick, the three measurements, the volume and its unit) is right the first time. 120 points possible.',
+      points:'Each prism is worth 30 points: 10 for the volume, and 4 each for the pick, the three measurements and the unit, if right the first time. 120 points possible. Get 100 or more to help unlock Density.',
     },
     density: {
       title:'Find the Density',
@@ -376,7 +378,7 @@
           <li>Calculate the <strong>volume</strong>, then the <strong>density</strong>, and choose the density's unit. Use your notes if you need to.</li>
         </ul>
         Round volume and density to the nearest hundredth. If a measurement is wrong you'll be told which one, and you measure it again.`,
-      points:'Each block is worth 40 points if every step is right the first time. 120 points possible.',
+      points:'Each block is worth 40 points: 10 for the density, 6 for the volume, and 4 each for the mass, the pick, the three measurements and the unit, if right the first time. 120 points possible.',
     },
   };
   // Only the Density bench has a leaderboard (Nick, 2026-11-03): practice
@@ -418,42 +420,44 @@
     if(!realStudent()){ box.style.display='none'; return; }
     const b=await myBests();
     if(!b||!b[bench]){ box.style.display='none'; return; }
-    box.textContent=`Your best: ${b[bench]} of 120`+(b[bench]>=120?' ✓':''); box.style.display='';
+    box.textContent=`Your best: ${b[bench]} of 120`+(b[bench]>=100?' ✓ enough for Density':''); box.style.display='';
   }
 
   // ---------- The Density lock ----------
-  // Density opens once the student has had 120 at some point on Mass, Find
-  // the 3 Dimensions and Volume (Nick, 2026-11-03).  The teacher login skips
+  // Density opens once the student has had UNLOCK_AT or more at some point on
+  // Mass, Find the 3 Dimensions and Volume (Nick, 2026-11-03: 120 at first,
+  // 100 once partial credit came in).  The teacher login skips
   // it.  Demo mode is always locked (Nick, same day): a demo has no account
   // and no saved scores, so it can never reach 120 -- and it must not fall
   // through to the "couldn't read the scores" opening below.  If a real
   // student's scores can't be read (no connection), it opens rather than lock
   // a class out mid-lesson.
   const LOCK_BENCHES=[['mass','Mass'],['dimensions','Find the 3 Dimensions'],['volume','Volume']];
+  const UNLOCK_AT=100;
   const IN_GAME=window.parent!==window;
   function setStart(enabled,label){ els.btnStart.disabled=!enabled; els.btnStart.textContent=label||'Start Practice'; }
   async function checkLock(){
     const lock=$('start-lock'); $('start-best').style.display='none';
     if(player.demo){
       setStart(false,'🔒 Locked'); lock.style.display='';
-      lock.innerHTML='<h3>🔒 Locked in demo mode</h3>Log in to your own account to unlock Density: get <strong>120</strong> on Mass, Find the 3 Dimensions and Volume.';
+      lock.innerHTML='<h3>🔒 Locked in demo mode</h3>Log in to your own account to unlock Density: get <strong>100 or more</strong> on Mass, Find the 3 Dimensions and Volume.';
       return;
     }
     if(!realStudent()){
       setStart(true);
       lock.style.display=player.loggedIn?'':'none';
-      lock.innerHTML='<strong>Teacher:</strong> open for you. Students unlock this bench by getting 120 on Mass, Find the 3 Dimensions and Volume.';
+      lock.innerHTML='<strong>Teacher:</strong> open for you. Students unlock this bench by getting 100 or more on Mass, Find the 3 Dimensions and Volume.';
       return;
     }
     setStart(false,'Checking…'); lock.style.display=''; lock.textContent='Checking your scores…';
     const b=await myBests();
     if(!b){ setStart(true); lock.style.display='none'; return; }
-    const open=LOCK_BENCHES.every(([k])=>b[k]>=120);
+    const open=LOCK_BENCHES.every(([k])=>b[k]>=UNLOCK_AT);
     setStart(open,open?'':'🔒 Locked');
     els.btnViewLb.style.display='';
     if(open){ lock.style.display='none'; if(b.density){ $('start-best').textContent=`Your best: ${b.density} of 120`; $('start-best').style.display=''; } return; }
-    lock.innerHTML='<h3>🔒 Locked</h3>Get <strong>120</strong> on all three of these benches to unlock Density:'
-      +'<table>'+LOCK_BENCHES.map(([k,name])=>`<tr><td>${name}</td><td class="${b[k]>=120?'done':'todo'}">${b[k]>=120?'120 ✓':`best ${b[k]} of 120`}</td></tr>`).join('')+'</table>';
+    lock.innerHTML=`<h3>🔒 Locked</h3>Get <strong>${UNLOCK_AT} or more</strong> on all three of these benches to unlock Density:`
+      +'<table>'+LOCK_BENCHES.map(([k,name])=>`<tr><td>${name}</td><td class="${b[k]>=UNLOCK_AT?'done':'todo'}">best ${b[k]} of 120${b[k]>=UNLOCK_AT?' ✓':''}</td></tr>`).join('')+'</table>';
   }
 
   // ---------- Firebase ----------
@@ -911,6 +915,10 @@
     S.score=0; S.taskIdx=0; S.startTime=Date.now(); S.locked=false;
     Review.reset();
     S.tasks = bench==='mass'?buildMassTasks():bench==='volume'?buildVolumeTasks():buildDensityTasks();
+    // The weights must add up to what an item is worth, or 120 is unreachable.
+    { const W=STEP_POINTS[bench], t=S.tasks[0];
+      const sum=(t.prism?W.pick:0)+t.readings.length*W.reading+t.calcs.reduce((a,c)=>a+W[c.label],0)+(t.unitQ?W.unit:0);
+      if(sum!==BENCHES[bench].points) console.error(`STEP_POINTS for ${bench} add up to ${sum}, not ${BENCHES[bench].points}`); }
     els.endLeaderboard.style.display='none'; $('end-best').style.display='none';
     updateHud(); showScreen(els.game); startTask();
   });
@@ -926,6 +934,26 @@
   }
   function clearFeedback(){ els.feedback.className='feedback'; els.feedback.innerHTML=''; }
 
+  // Points per step, first try only.  Partial credit with the final answer
+  // worth the most (Nick, 2026-11-03; it had been all-or-nothing per item,
+  // as on Measure & Average, which stays that way).  Each bench's steps must
+  // add up to its per-item total -- checked at load.
+  const STEP_POINTS={
+    mass:    { reading:8, unit:2 },                                  // 10 an item
+    volume:  { pick:4, reading:4, Volume:10, unit:4 },               // 4+3x4+10+4 = 30 a prism
+    density: { reading:4, pick:4, Volume:6, Density:10, unit:4 },    // 4+4+3x4+6+10+4 = 40 a block
+  };
+  // Every scored step of the task in progress: { label, ok, pts }.
+  function taskSteps(){
+    const W=STEP_POINTS[bench], out=[];
+    T.readings.forEach((r,i)=>{
+      if(T.pick&&r.edge===0) out.push({ label:'Edges picked', ok:T.pick.firstOK===true, pts:W.pick });
+      out.push({ label:r.label, ok:!!T.fix.items[i].firstOK, pts:W.reading });
+    });
+    T.calcs.forEach((c,j)=>out.push({ label:c.label, ok:!!T.calcState[j].firstOK, pts:W[c.label] }));
+    if(T.unitQ) out.push({ label:'Unit', ok:T.unitQ.firstOK===true, pts:W.unit });
+    return out;
+  }
   let T=null; // the task in progress
   // " g", or "" while a final answer's unit is still to be asked for.
   const us=st=>st.hideUnit&&!(T&&T.unitDone)?'':' '+st.unit;
@@ -1251,24 +1279,26 @@
   function renderTaskSummary(){
     const mark=ok=>ok?'<span class="fl-ok">✓ right</span>':'<span class="fl-bad">✗ wrong</span>';
     const after=(ok,status,correct)=>ok?'':status==='shown'?'answer shown: '+correct:'fixed';
-    let rows='<tr><th></th><th>First answer</th><th></th><th></th></tr>';
+    let rows='<tr><th></th><th>First answer</th><th></th><th></th><th style="text-align:right">Points</th></tr>';
+    const steps=taskSteps(); let si=0;
+    const ptsCell=()=>{ const st=steps[si++]; return `<td class="fl-pts">${st.ok?'+'+st.pts:'0'} <span class="fl-of">/ ${st.pts}</span></td>`; };
     const pickRow=()=>{ const P=T.pick;
       rows+=`<tr><td>Edges picked</td><td class="fl-num">${P.firstOK?'3 different directions':esc(P.firstWrong)}</td><td>${mark(P.firstOK)}</td>`
-        +`<td class="fl-after">${P.firstOK?'':P.status==='shown'?'answer shown':'fixed'}</td></tr>`; };
+        +`<td class="fl-after">${P.firstOK?'':P.status==='shown'?'answer shown':'fixed'}</td>${ptsCell()}</tr>`; };
     T.readings.forEach((r,i)=>{
       if(T.pick&&r.edge===0) pickRow();
       const it=T.fix.items[i];
       rows+=`<tr><td>${r.label}</td><td class="fl-num">${fmtDec(it.first,r.dec)} ${r.unit}</td><td>${mark(it.firstOK)}</td>`
-        +`<td class="fl-after">${after(it.firstOK,it.status,fmtDec(it.correct,r.dec)+' '+r.unit)}</td></tr>`;
+        +`<td class="fl-after">${after(it.firstOK,it.status,fmtDec(it.correct,r.dec)+' '+r.unit)}</td>${ptsCell()}</tr>`;
     });
     T.calcs.forEach((c,j)=>{
       const cs=T.calcState[j];
       rows+=`<tr class="fl-calc"><td>${c.label}</td><td class="fl-num">${BenchMath.fmt2(cs.first)} ${c.unit}</td><td>${mark(cs.firstOK)}</td>`
-        +`<td class="fl-after">${after(cs.firstOK,cs.status,BenchMath.fmt2(cs.correct)+' '+c.unit)}</td></tr>`;
+        +`<td class="fl-after">${after(cs.firstOK,cs.status,BenchMath.fmt2(cs.correct)+' '+c.unit)}</td>${ptsCell()}</tr>`;
     });
     if(T.unitQ){ const U=T.unitQ;
       rows+=`<tr class="fl-calc"><td>Unit</td><td class="fl-num">${esc(U.first)}</td><td>${mark(U.firstOK)}</td>`
-        +`<td class="fl-after">${after(U.firstOK,U.status,U.correct)}</td></tr>`; }
+        +`<td class="fl-after">${after(U.firstOK,U.status,U.correct)}</td>${ptsCell()}</tr>`; }
     const table=document.createElement('table'); table.className='summary-table fl-table'; table.innerHTML=rows;
     els.body.appendChild(table);
   }
@@ -1281,7 +1311,8 @@
     const unitOK=!T.unitQ||T.unitQ.firstOK===true;
     const pickOK=!T.pick||T.pick.firstOK===true;
     const ok=readOK&&calcOK&&unitOK&&pickOK;
-    if(ok) S.score=Math.min(GOAL,S.score+pts);
+    const earned=taskSteps().reduce((a,st)=>a+(st.ok?st.pts:0),0);
+    S.score=Math.min(GOAL,S.score+earned);
     updateHud();
     els.progressfill.style.width=`${((S.taskIdx+1)/S.tasks.length)*100}%`;
     const last=S.taskIdx+1>=S.tasks.length;
@@ -1311,7 +1342,7 @@
       } else if(single){ const r=T.readings[0]; yours=correct=fmtDec(r.correct,r.dec)+' '+r.unit; }
       else { yours=correct=`${T.calcs[T.calcs.length-1].label}: ${BenchMath.fmt2(T.calcState[T.calcState.length-1].correct)} ${T.calcs[T.calcs.length-1].unit}`; }
     }
-    if(!ok&&!single) note=(note?note+' ':'')+`A ${BENCHES[bench].noun.toLowerCase()} needs every step right the first time. The table shows which ones weren't.`;
+    if(!ok&&!single) note=(note?note+' ':'')+'Points are for first tries. The table shows what each step scored.';
     if(!ok&&single) note=(note?note+' ':'')+'Points are for first tries only.';
 
     // A single weighing keeps its scale on screen to look back at; a prism
@@ -1323,7 +1354,7 @@
     }
     Review.show(els.feedback,{
       ok, yours, correct, note,
-      headline: ok?`Correct! +${pts} points`:`Not quite. This ${BENCHES[bench].noun.toLowerCase()} was worth ${pts} points.`,
+      headline: ok?`Correct! +${pts} points`:`+${earned} of ${pts} points`,
       autoMs: single?1400:2400,
       nextLabel: last?'See results →':`Next ${BENCHES[bench].noun.toLowerCase()} →`,
       onNext: ()=>{ S.taskIdx++; startTask(); },
@@ -1352,7 +1383,7 @@
         // This run counts even if the read back hasn't caught up with it.
         const b=await myBests(), best=Math.max(S.score,b?b[bench]:0);
         const eb=$('end-best'); eb.className='best-box end';
-        eb.textContent=`Your best on this bench: ${best} of 120`+(best>=120?' ✓':''); eb.style.display='';
+        eb.textContent=`Your best on this bench: ${best} of 120`+(best>=100?' ✓ enough for Density':''); eb.style.display='';
       }
     }
   }

@@ -108,7 +108,7 @@
         <li>Press <strong>Check</strong>.</li>
       </ul>
       If it's wrong you'll be shown why, and you try again. After two more tries the answer is shown.</div>
-    <p style="font-size:0.9rem;color:var(--dim);">12 boxes, 10 points each if you pick the right 3 edges the first time. 120 points possible.</p>
+    <p style="font-size:0.9rem;color:var(--dim);">12 boxes, 10 points each if you pick the right 3 edges the first time. 120 points possible. Get 100 or more here (and on Mass and Volume) to unlock Density.</p>
     <div id="start-best" class="best-box" style="display:none;"></div>
     <button class="primary" id="btn-start">Start Practice</button>
     <button class="primary" id="btn-view-lb" style="background:#555;margin-top:10px;">View leaderboard</button>
@@ -229,7 +229,7 @@
     if(!realStudent()){ box.style.display='none'; return; }
     const b=await myBest();
     if(!b){ box.style.display='none'; return; }
-    box.textContent=`Your best: ${b} of 120`+(b>=120?' ✓':''); box.style.display='';
+    box.textContent=`Your best: ${b} of 120`+(b>=100?' ✓ enough for Density':''); box.style.display='';
   }
   $('btn-back-from-lb').addEventListener('click',()=>showScreen(els.start));
 
@@ -355,7 +355,7 @@
         if(rows.length){ renderLbTable(rows,els.endLb,player.period); els.endLb.style.display='block'; }
       } else {
         const b=await myBest(), best=Math.max(S.score,b||0); // this run counts even if the read lags
-        $('end-best').textContent=`Your best on this bench: ${best} of 120`+(best>=120?' ✓':''); $('end-best').style.display='';
+        $('end-best').textContent=`Your best on this bench: ${best} of 120`+(best>=100?' ✓ enough for Density':''); $('end-best').style.display='';
       }
     }
   }
