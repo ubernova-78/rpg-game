@@ -300,7 +300,8 @@
         <ul>
           <li><strong>Kitchen scale</strong>: write the mass to the <strong>whole gram</strong>.</li>
           <li><strong>Pocket scale</strong>: write the mass to the <strong>hundredth of a gram</strong> (0.01 g).</li>
-          <li>Turn the scale on first, and check it shows <strong>g</strong>. If it doesn't, press UNIT or MODE until it does.</li>
+          <li>Turn the scale on and check it shows <strong>g</strong>. If it doesn't, press UNIT or MODE until it does.</li>
+          <li>A scale reads 0 for whatever is on it when it's turned on. Turn it on with nothing on it (or just the bowl), so it reads 0 before the object goes on.</li>
           <li><strong>Round things roll!</strong> Put the bowl on the scale, press TARE so it reads 0, then put the object in the bowl.</li>
         </ul>
         If a mass is wrong you'll be told, and you weigh it again. After two more tries the answer is shown.`,
@@ -456,9 +457,9 @@
   //   kitchen  whole grams.  Buttons UNIT and TARE; TARE also turns it on,
   //            the way the classroom kitchen scale's one button does.
   //   pocket   0.01 g, 200 g capacity.  Buttons TARE, MODE and ON/OFF.
-  // Nothing can go on a scale that is off, so the order is always: turn it
-  // on, (bowl + TARE for round things), then the object.  Each scale starts
-  // off, and sometimes in a unit other than grams.
+  // Things can go on a scale that is off, as in class -- and, as in class,
+  // turning it on zeroes whatever is already on it, so an object put on first
+  // reads 0.  Each scale starts off, and sometimes in a unit other than grams.
   const UNITS = { kitchen:['g','oz','lb'], pocket:['g','oz','ct','gn'] };
   const UNIT_WORDS = { g:'grams', oz:'ounces', lb:'pounds', ct:'carats', gn:'grains' };
   function displayValue(loadH,unit,type){
@@ -544,13 +545,11 @@
     }
     stage.querySelectorAll('.sbtn').forEach(b=>b.addEventListener('click',()=>act(b.dataset.act)));
 
-    const turnOnFirst=()=>say(`Turn the scale on first${type==='kitchen'?' (press TARE)':' (press ON/OFF)'}.`);
     function clickItem(e){
       e.stopPropagation();
       if(st.rolling) return;
       say('');
       if(st.itemOn){ st.itemOn=false; slots.insertBefore(itemEl,slots.firstChild); render(); return; }
-      if(!st.on||st.booting){ turnOnFirst(); return; }
       if(item.round&&!st.bowlOn){
         // It rolls off: shown on the pan, then off the edge, then back on the bench.
         st.rolling=true; pan.appendChild(itemEl); itemEl.classList.add('rolling');
@@ -570,7 +569,6 @@
         if(st.itemOn&&itemEl.parentElement===inBowl){ st.itemOn=false; slots.insertBefore(itemEl,slots.firstChild); }
         st.bowlOn=false; slots.appendChild(bowlEl); render(); return;
       }
-      if(!st.on||st.booting){ turnOnFirst(); return; }
       if(st.itemOn){ say(`Take the ${item.name} off first, then put the bowl on.`); return; }
       pan.appendChild(bowlEl); st.bowlOn=true; render();
     }
@@ -589,11 +587,15 @@
   // Names the mistake without giving the number.
   function massHint(scale,name,h){
     const s=scale.snapshot();
-    if(!s.on) return `The scale was off. Turn it on, then put the ${name} on it.`;
+    if(!s.on) return `The scale was off. Turn it on, check it reads 0, then put the ${name} on it.`;
     if(!s.itemOn) return `The ${name} wasn't on the scale.`;
     if(s.unit!=='g') return `The scale was showing ${UNIT_WORDS[s.unit]}, not grams. Press ${scale.unitBtn} until it shows g.`;
     if(s.readingH!==s.itemH){
       if(s.bowlOn&&s.readingH>s.itemH) return `That mass includes the bowl. Put the bowl on, press TARE so it reads 0, then put the ${name} in.`;
+      // Less than the object: the scale was turned on (or tared) with the
+      // object already on it, so it counts the object as zero.
+      if(s.readingH<s.itemH) return `The scale was zeroed with the ${name} already on it, so it isn't counting the ${name}. `
+        +`Take the ${name} off${s.bowlOn?' (leave the bowl on)':''}, press TARE so it reads 0, then put it back.`;
       return `The scale wasn't zeroed. Take everything off, press TARE so it reads 0, then weigh again.`;
     }
     return scale.type==='pocket' ? 'Read the display again carefully, and write both decimal places.' : 'Read the display again carefully.';
