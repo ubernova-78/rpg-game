@@ -11,6 +11,7 @@
 <script src="bench-math.js"></script>
 <script src="answer-review.js"></script>
 <script src="fix-loop.js"></script>
+<script src="box3d.js"></script>
 <style>
   :root{
     --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
@@ -64,6 +65,19 @@
   .unit-btn:hover{background:#e3eef9;}
   .unit-btn.wrong{background:#f8d7da;border-color:#dc3545;color:#721c24;text-decoration:line-through;cursor:default;}
   .unit-btn.right{background:#d4edda;border-color:#28a745;color:#155724;}
+  .stage3d{background:radial-gradient(circle at 50% 40%,#ffffff 0%,#e4e0d6 100%);border:2px solid #cfc8b8;border-radius:12px;
+    display:flex;justify-content:center;margin:0 0 8px;}
+  .stage3d svg{width:100%;max-width:460px;height:auto;cursor:grab;display:block;}
+  .stage3d svg.dragging{cursor:grabbing;}
+  .edge-hit{stroke:transparent;stroke-width:20;stroke-linecap:round;cursor:pointer;}
+  .edge-vis{pointer-events:none;stroke-linecap:round;}
+  .edge-hit:hover + .edge-vis.plain{stroke:#f6c90e;stroke-width:6;}
+  .face{pointer-events:none;}
+  .pick-controls{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;}
+  .pick-controls .picked{font-weight:800;min-width:120px;text-align:center;}
+  .submit-btn.ghost{background:#fff;color:var(--ink);border:2px solid #ccc;}
+  .submit-btn:disabled{background:#aab;cursor:default;filter:none;}
+  .key{display:inline-block;width:22px;height:6px;border-radius:3px;vertical-align:middle;margin:0 4px 0 8px;}
   .wrong-banner{background:#f8d7da;border:2px solid #dc3545;border-left-width:8px;border-radius:8px;
     padding:10px 14px;margin:0 0 12px;color:#721c24;}
   .wrong-banner .wb-head{font-size:1.1rem;font-weight:800;}
@@ -331,21 +345,22 @@
     },
     volume: {
       title:'Find the Volume',
-      sub:`Measure 4 rectangular prisms: length, width and height in centimeters. Then calculate each volume and choose its unit.
+      sub:`Find the volume of 4 rectangular prisms.
         <ul>
+          <li>First <strong>pick 3 edges</strong> to measure, one for each dimension. Drag the box to turn it. They become edges A, B and C.</li>
           <li>Small prisms are measured with <strong>calipers</strong>, which read in <strong>millimeters</strong>. Convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
           <li>Big prisms are measured with a <strong>ruler</strong> in centimeters, to the tenth. Each small tick is 1 mm, which is 0.1 cm.</li>
           <li>Then calculate the <strong>volume</strong>, rounded to the nearest hundredth. Use your notes if you need to.</li>
         </ul>
         If a measurement is wrong you'll be told which one, and you measure it again. After two more tries the answer is shown.`,
-      points:'Each prism is worth 30 points if all three measurements and the volume are right the first time. 120 points possible.',
+      points:'Each prism is worth 30 points if every step (the pick, the three measurements, the volume and its unit) is right the first time. 120 points possible.',
     },
     density: {
       title:'Find the Density',
       sub:`Find the density of 3 blocks. For each one:
         <ul>
           <li>Weigh it on the <strong>pocket scale</strong>, to the hundredth of a gram (0.01 g).</li>
-          <li>Measure its length, width and height with <strong>calipers</strong>. They read in <strong>millimeters</strong>, so convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
+          <li><strong>Pick 3 edges</strong> to measure, one for each dimension (drag the block to turn it), then measure them with <strong>calipers</strong>. They read in <strong>millimeters</strong>, so convert to centimeters: divide by 10 (37 mm = 3.7 cm).</li>
           <li>Calculate the <strong>volume</strong>, then the <strong>density</strong>, and choose the density's unit. Use your notes if you need to.</li>
         </ul>
         Round volume and density to the nearest hundredth. If a measurement is wrong you'll be told which one, and you measure it again.`,
@@ -633,48 +648,34 @@
   }
 
   // ---------- Prisms ----------
-  const DIM_NAMES={L:'Length',W:'Width',H:'Height'};
-  const PRISM_COLORS=['#4f8fd6','#e07a5f','#81b29a','#e9c46a','#9b72cf','#c8a165'];
+  // Each prism is the turnable 3D box from box3d.js.  The student picks 3
+  // edges, one per direction, and they become edges A, B and C to measure --
+  // no length/width/height names (Nick, 2026-11-03: letters, so there are no
+  // extra numbers to confuse them).  Box x/y/z carry the prism's L/H/W.
+  const AX_KEY=['L','H','W'];
+  const boxDims=p=>[p.L/10,p.H/10,p.W/10];
   function shade(hex,f){ // f>0 lighter, f<0 darker
     const n=parseInt(hex.slice(1),16); let r=n>>16,g=(n>>8)&255,b=n&255;
     const t=f>0?255:0, p=Math.abs(f);
     r=Math.round(r+(t-r)*p); g=Math.round(g+(t-g)*p); b=Math.round(b+(t-b)*p);
     return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
   }
-  // A box in oblique view: L across, H up, W going back.  The edge being
-  // measured is drawn thick and gold with its name; no numbers, which would
-  // give the answer away.  dims in tenths of a cm.
-  function prismSVG(p,highlight,maxW,maxH){
-    maxW=maxW||260; maxH=maxH||150;
-    const L=p.L/10,W=p.W/10,H=p.H/10, kx=0.6, ky=0.45;
-    const s=Math.min(maxW/(L+kx*W),maxH/(H+ky*W));
-    const dx=kx*W*s, dy=ky*W*s, ox=70, oy=24+dy+H*s;
-    const x1=ox+L*s, yT=oy-H*s;
-    const c=p.color;
-    const face=`<polygon points="${ox},${oy} ${x1},${oy} ${x1},${yT} ${ox},${yT}" fill="${c}" stroke="#333" stroke-width="1.5"/>`;
-    const top=`<polygon points="${ox},${yT} ${x1},${yT} ${x1+dx},${yT-dy} ${ox+dx},${yT-dy}" fill="${shade(c,0.35)}" stroke="#333" stroke-width="1.5"/>`;
-    const side=`<polygon points="${x1},${oy} ${x1+dx},${oy-dy} ${x1+dx},${yT-dy} ${x1},${yT}" fill="${shade(c,-0.25)}" stroke="#333" stroke-width="1.5"/>`;
-    const edges={
-      L:{x1:ox,y1:oy,x2:x1,y2:oy, lx:(ox+x1)/2, ly:oy+18, anchor:'middle'},
-      H:{x1:ox,y1:oy,x2:ox,y2:yT, lx:ox-8, ly:(oy+yT)/2+5, anchor:'end'},
-      W:{x1:x1,y1:oy,x2:x1+dx,y2:oy-dy, lx:x1+dx/2+10, ly:oy-dy/2+14, anchor:'start'},
-    };
-    let marks='';
-    for(const k of ['L','W','H']){
-      const e=edges[k], on=k===highlight;
-      if(on) marks+=`<line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="#f6c90e" stroke-width="6" stroke-linecap="round"/>`;
-      marks+=`<text x="${e.lx}" y="${e.ly}" font-size="${on?15:12}" font-weight="${on?800:600}" fill="${on?'#1a1a2e':'#8a8a99'}" text-anchor="${e.anchor}" font-family="Verdana">${DIM_NAMES[k]}</text>`;
-    }
-    const w=Math.ceil(x1+dx+90), h=Math.ceil(oy+28);
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${face}${top}${side}${marks}</svg>`;
+  // The box on screen for this task.  Its turn (R) carries over from one
+  // step to the next, so the box stays the way the student left it.
+  function showBox(body,p,opts){
+    const wrap=document.createElement('div'); wrap.className='stage3d';
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); wrap.appendChild(svg); body.appendChild(wrap);
+    if(T.view) p.R=T.view.box.R;
+    T.view=Box3D.create(svg,Object.assign({ dims:boxDims(p), R:p.R, color:p.color, size:0.9, letters:true, width:460, height:260 },opts||{}));
+    if(T.picks) T.view.box.sel=T.picks.slice();
+    return T.view;
   }
   // The tool for one edge.  Calipers read 0-80 mm and are numbered in mm,
   // like the classroom ones, but every answer is in cm: converting is part of
   // the task (Nick, 2026-10-30), so the reminder sits right under the tool.
   // The ruler takes anything longer and reads in cm directly.
   const CALIPER_MAX_MM=80;
-  function renderDimTool(body,p,key){
-    const mm=p[key]; // tenths of a cm are whole mm
+  function renderDimTool(body,p,mm){ // tenths of a cm are whole mm
     if(p.tool==='calipers'){
       const lbl=document.createElement('p'); lbl.className='tool-label';
       lbl.textContent='Calipers: numbered marks = 10 mm · small ticks = 1 mm';
@@ -697,20 +698,22 @@
       if(bar){ bar.style.background=p.color; bar.style.borderColor=shade(p.color,-0.4); }
     }
   }
-  function dimReading(p,key,noun){
-    const name=DIM_NAMES[key];
-    const cal=p.tool==='calipers';
-    return { label:name, unit:'cm', dec:1, correct:p[key]*10,
+  // Edge k (A, B or C) of the student's pick.  Its right value isn't known
+  // until the pick is made (setEdgeCorrects).
+  function edgeReading(p,k){
+    const letter=Box3D.LETTERS[k], cal=p.tool==='calipers';
+    const r={ label:`Edge ${letter}`, unit:'cm', dec:1, correct:0, edge:k,
       prompt: cal
-        ? `Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the calipers in millimeters, then <strong>convert to centimeters</strong>.`
-        : `Measure the <strong>${name.toLowerCase()}</strong> of the ${noun} with the ruler, to the nearest tenth of a centimeter.`,
-      again:`Measure the ${name.toLowerCase()} again.`,
+        ? `Measure edge <strong>${letter}</strong> (gold) with the calipers in millimeters, then <strong>convert to centimeters</strong>.`
+        : `Measure edge <strong>${letter}</strong> (gold) with the ruler, to the nearest tenth of a centimeter.`,
+      again:`Measure edge ${letter} again.`,
       // Typing the caliper's mm reading straight in is the mistake to expect.
-      hint: cal ? h=>h===p[key]*100 ? `That's the reading in millimeters. Divide by 10 to change it to centimeters.` : '' : null,
+      hint: cal ? h=>h===r.correct*10 ? `That's the reading in millimeters. Divide by 10 to change it to centimeters.` : '' : null,
       render(body){
-        const pw=document.createElement('div'); pw.className='prism-wrap'; pw.innerHTML=prismSVG(p,key); body.appendChild(pw);
-        renderDimTool(body,p,key);
+        const v=showBox(body,p,{}); v.box.pickable=false; v.box.measuring=T.picks[k]; v.render();
+        renderDimTool(body,p,r.correct/10);
       } };
+    return r;
   }
   // hide: this is the bench's final answer, so its unit is asked for after
   // and must not be named before then (see showUnitQ).
@@ -758,27 +761,29 @@
     retry:'Check your notes for how to find the volume, then round to the nearest hundredth.',
     compute:t=>volumeH(t.prism) };
   function buildVolumeTasks(){
-    const colors=shuffle(PRISM_COLORS.slice());
+    const colors=shuffle(Box3D.BOX_COLORS.slice());
     return shuffle(['small','small','large','large']).map((size,i)=>{
-      const p=genPrism(size); p.color=colors[i];
+      const p=genPrism(size); p.color=colors[i]; p.R=Box3D.startRotation(i>=2);
       return { title:`Prism ${i+1} of 4`, prism:p,
-        readings:['L','W','H'].map(k=>dimReading(p,k,'prism')), calcs:[{...volumeCalc, hideUnit:true}],
+        readings:[0,1,2].map(k=>edgeReading(p,k)), calcs:[{...volumeCalc, hideUnit:true}],
         unitQ:{ correct:'cm³', quantity:'volume' } };
     });
   }
   // Real densities (g/cm3, as hundredths) so a block's answer comes out near
   // its material's.  Mass = density x volume, kept under the pocket scale's 200 g.
+  // Blocks are drawn in the box colors, not their material's: a copper or
+  // brass block would hide the orange and gold edges.
   const MATERIALS=[
-    { dH:60,  color:'#c8a165' },  // pine
-    { dH:118, color:'#5aa9e6' },  // acrylic
-    { dH:270, color:'#b8bec6' },  // aluminum
-    { dH:785, color:'#7d8590' },  // steel
-    { dH:850, color:'#d4af37' },  // brass
-    { dH:896, color:'#c87533' },  // copper
+    { dH:60  },  // pine
+    { dH:118 },  // acrylic
+    { dH:270 },  // aluminum
+    { dH:785 },  // steel
+    { dH:850 },  // brass
+    { dH:896 },  // copper
   ];
   function genBlock(mat){
     for(;;){
-      const p={ L:randInt(20,79), W:0, H:randInt(8,50), tool:'calipers', color:mat.color };
+      const p={ L:randInt(20,79), W:0, H:randInt(8,50), tool:'calipers' };
       p.W=randInt(10,p.L-5);
       if(p.L===p.W||p.W===p.H||p.L===p.H) continue;
       const massH=BenchMath.hundredthsFromFraction(mat.dH*p.L*p.W*p.H,100000);
@@ -797,12 +802,12 @@
       <polygon points="${x1},${oy} ${x1+dx},${oy-dy} ${x1+dx},${yT-dy} ${x1},${yT}" fill="${shade(c,-0.25)}" stroke="#333" stroke-width="1.5"/></svg>`;
   }
   function buildDensityTasks(){
-    const bowlH=randInt(1500,2500);
+    const bowlH=randInt(1500,2500), colors=shuffle(Box3D.BOX_COLORS.slice());
     return shuffle(MATERIALS.slice()).slice(0,3).map((m,i)=>{
-      const p=genBlock(m);
+      const p=genBlock(m); p.color=colors[i]; p.R=Box3D.startRotation(i>=1);
       const spec={ name:'block', art:blockArt(p), massH:p.massH, round:false };
       return { title:`Block ${i+1} of 3`, prism:p,
-        readings:[massReading(spec,'pocket',bowlH)].concat(['L','W','H'].map(k=>dimReading(p,k,'block'))),
+        readings:[massReading(spec,'pocket',bowlH)].concat([0,1,2].map(k=>edgeReading(p,k))),
         calcs:[volumeCalc,
           { label:'Density', unit:'g/cm³', hideUnit:true,
             // No formula on screen, as with volume (Nick, 2026-11-03).
@@ -843,6 +848,8 @@
     T.fix=FixLoop.create(T.readings.map(r=>r.correct));
     T.calcState=T.calcs.map(()=>({ first:null, firstOK:null, fixes:0, status:null, correct:null }));
     T.firstHints=[];
+    T.view=null; T.picks=null;
+    T.pick=T.prism?{ firstOK:null, wrongs:0, status:null, firstWrong:'' }:null;
     S.locked=false;
     showReading(0);
   }
@@ -901,6 +908,7 @@
   // First pass: every reading in order, recorded without being judged.
   function showReading(i){
     const r=T.readings[i];
+    if(r.edge!==undefined&&!T.picks){ showPick(()=>showReading(i)); return; }
     els.body.innerHTML=''; clearFeedback();
     updateHud(r.label);
     els.qtext.innerHTML=`${T.title}: ${r.prompt}`;
@@ -917,6 +925,73 @@
     });
     // Not on a weighing step: the student starts at the scale, not the box.
     if(r.label!=='Mass') setTimeout(()=>inp.focus(),80);
+  }
+
+  // ---------- Pick the 3 edges to measure ----------
+  // As on the Find the 3 Dimensions bench: checked before any measuring, a
+  // wrong pick explained in orange (solid = picked, dashed = the rest going
+  // that way), two more tries, then shown.  The pick is a step like the
+  // others: wrong the first time and the prism doesn't score.
+  const PICK_TRIES=FixLoop.MAX_FIXES+1;
+  function setEdgeCorrects(){
+    T.readings.forEach((r,i)=>{ if(r.edge===undefined) return;
+      r.correct=T.prism[AX_KEY[Box3D.EDGES[T.picks[r.edge]].axis]]*10;
+      T.fix.items[i].correct=r.correct; });
+  }
+  function showPick(done){
+    const P=T.pick;
+    els.body.innerHTML=''; clearFeedback();
+    updateHud('Pick edges');
+    els.qtext.innerHTML=`${T.title}: Pick the <strong>3 edges</strong> you'll measure, one for each dimension. Drag the box to turn it.`;
+    readingLog(T.readings.findIndex(r=>r.edge!==undefined),-1);
+    const banner=document.createElement('div'); els.body.appendChild(banner);
+    const ctr=document.createElement('div'); ctr.className='pick-controls';
+    ctr.innerHTML='<span class="picked">Picked 0 of 3</span><button class="submit-btn ghost">Clear</button><button class="submit-btn">Check</button>';
+    const nudge=document.createElement('div'); nudge.className='scale-msg';
+    const [pickedEl,clearBtn,checkBtn]=ctr.children;
+    let v;
+    const sync=()=>{ const n=v.box.sel.length; pickedEl.textContent=`Picked ${n} of 3`; checkBtn.disabled=n!==3||v.box.mode!=='solid'; };
+    const endWrong=()=>{ v.setMode('solid'); banner.innerHTML=''; clearFeedback(); sync(); };
+    v=showBox(els.body,T.prism,{ onChange:()=>{ nudge.textContent=''; sync(); }, onDismiss:endWrong, onNudge:m=>{ nudge.textContent=m; } });
+    els.body.append(ctr,nudge);
+    clearBtn.addEventListener('click',()=>{ if(v.box.mode==='wrong') endWrong(); v.clear(); });
+    const proceed=()=>{ T.picks=v.picks(); setEdgeCorrects(); done(); };
+    checkBtn.addEventListener('click',()=>{
+      if(v.box.sel.length!==3||v.box.mode!=='solid') return;
+      const res=v.check();
+      if(P.firstOK===null) P.firstOK=res.right;
+      if(res.right){
+        P.status=P.wrongs?'fixed':'right';
+        checkBtn.disabled=true; v.box.pickable=false; v.render();
+        els.feedback.textContent='✓ Three different directions. Now measure edges A, B and C.';
+        els.feedback.className='feedback show good';
+        setTimeout(proceed,1500);
+        return;
+      }
+      P.wrongs++;
+      P.firstWrong=P.firstWrong||(res.allSame?'all 3 edges the same way':'2 edges the same way');
+      if(P.wrongs>=PICK_TRIES){
+        // Shown: the directions in color, and one edge of each picked for them.
+        P.status='shown'; v.pickOnePerDirection(); v.box.pickable=false; v.setMode('groups'); checkBtn.disabled=true;
+        const key=Box3D.GROUP_COLORS.map(c=>`<span class="key" style="background:${c}"></span>`).join('');
+        banner.innerHTML=`<div class="wrong-banner"><div class="wb-head">Here are the 3 directions: ${key}</div><div class="wb-why">Every edge of the box runs one of these 3 ways. One edge of each color has been picked for you (the solid ones). Turn the box to see the rest.</div></div>`;
+        els.feedback.className='feedback show bad'; els.feedback.textContent='';
+        const next=document.createElement('button'); next.className='submit-btn'; next.textContent='Measure them →';
+        next.addEventListener('click',()=>{ v.setMode('solid'); proceed(); }); els.feedback.appendChild(next);
+        return;
+      }
+      v.setMode('wrong',res.glowAxis);
+      const head=res.allSame?'All three of your edges go the same way.':'Two of your edges go the same way.';
+      banner.innerHTML=`<div class="wrong-banner"><div class="wb-head">✗ ${head}</div>`
+        +`<div class="wb-why">The orange edges all run in that direction, so they're all the same dimension. Solid orange is what you picked: measuring two of them is measuring it twice. `
+        +`Turn the box to see them all. Then un-pick one (click it again) and choose an edge that goes a different way.</div></div>`;
+      els.feedback.className='feedback show bad';
+      els.feedback.textContent=`${FixLoop.triesText(PICK_TRIES-P.wrongs)}. `;
+      const again=document.createElement('button'); again.className='submit-btn'; again.textContent='Try again'; again.style.marginLeft='8px';
+      again.addEventListener('click',endWrong); els.feedback.appendChild(again);
+      sync();
+    });
+    sync();
   }
 
   // All readings in: check them together, then fix the wrong ones one at a time.
@@ -1083,7 +1158,11 @@
     const mark=ok=>ok?'<span class="fl-ok">✓ right</span>':'<span class="fl-bad">✗ wrong</span>';
     const after=(ok,status,correct)=>ok?'':status==='shown'?'answer shown: '+correct:'fixed';
     let rows='<tr><th></th><th>First answer</th><th></th><th></th></tr>';
+    const pickRow=()=>{ const P=T.pick;
+      rows+=`<tr><td>Edges picked</td><td class="fl-num">${P.firstOK?'3 different directions':esc(P.firstWrong)}</td><td>${mark(P.firstOK)}</td>`
+        +`<td class="fl-after">${P.firstOK?'':P.status==='shown'?'answer shown':'fixed'}</td></tr>`; };
     T.readings.forEach((r,i)=>{
+      if(T.pick&&r.edge===0) pickRow();
       const it=T.fix.items[i];
       rows+=`<tr><td>${r.label}</td><td class="fl-num">${fmtDec(it.first,r.dec)} ${r.unit}</td><td>${mark(it.firstOK)}</td>`
         +`<td class="fl-after">${after(it.firstOK,it.status,fmtDec(it.correct,r.dec)+' '+r.unit)}</td></tr>`;
@@ -1106,7 +1185,8 @@
     const pts=BENCHES[bench].points;
     const readOK=T.fix.items.every(it=>it.firstOK), calcOK=T.calcState.every(cs=>cs.firstOK);
     const unitOK=!T.unitQ||T.unitQ.firstOK===true;
-    const ok=readOK&&calcOK&&unitOK;
+    const pickOK=!T.pick||T.pick.firstOK===true;
+    const ok=readOK&&calcOK&&unitOK&&pickOK;
     if(ok) S.score=Math.min(GOAL,S.score+pts);
     updateHud();
     els.progressfill.style.width=`${((S.taskIdx+1)/S.tasks.length)*100}%`;
@@ -1116,7 +1196,12 @@
     let yours, correct, note='';
     const k=T.fix.items.findIndex(it=>!it.firstOK);
     const single=T.readings.length===1&&!T.calcs.length;
-    if(k!==-1){
+    // A wrong pick comes first: every edge after it was measured from a fixed pick.
+    const massWrong=k!==-1&&T.readings[k].edge===undefined;
+    if(!pickOK&&!massWrong){
+      yours=T.pick.firstWrong; correct='3 different directions';
+      note='Two edges that go the same way are the same dimension. Pick one edge in each direction.';
+    } else if(k!==-1){
       const r=T.readings[k], it=T.fix.items[k];
       const pre=single?'':r.label+': ';
       yours=pre+fmtDec(it.first,r.dec)+' '+r.unit; correct=pre+fmtDec(it.correct,r.dec)+' '+r.unit;

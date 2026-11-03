@@ -9,6 +9,7 @@
 <script src="shared-student.js"></script>
 <script src="answer-review.js"></script>
 <script src="fix-loop.js"></script>
+<script src="box3d.js"></script>
 <style>
   :root{
     --bench:#1a1a2e; --bench2:#16213e; --bench3:#0f3460;
@@ -157,17 +158,8 @@
   // are ONE edge from EACH group -- any edge of the group, at any corner.
   // So the check is only "three different directions", never which edges.
   //
-  // The box is always solid and shaded, as a real one is: back edges can't be
-  // seen or clicked until it's turned, and it can be turned while an answer
-  // is being explained too.  Dashed hidden edges were considered and dropped
-  // (not what you see in real life; an outline box flips in the eye), and so
-  // was going see-through to explain an answer: Nick, 2026-11-03, "too
-  // confusing for my kids".
-  //
-  // Explaining uses color on the visible edges.  A direction's edges are
-  // drawn in its color: SOLID where the student picked it, DASHED over the
-  // black edge where they didn't.  (A thick and a thin line of the same color
-  // were too alike to tell apart.)
+  // How the box is drawn and why (always solid; picked solid, the rest
+  // dashed) is in box3d.js, shared with the Volume and Density benches.
   const GOAL=120, BOXES=12, POINTS=10, PERIODS=['2','6','7'];
   let S={ score:0, idx:0, startTime:0, boxes:[] };
   let player={ name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
@@ -212,37 +204,8 @@
   $('btn-view-lb').addEventListener('click',()=>{ showScreen(els.lb); showLeaderboard(player.period||PERIODS[0]); });
   $('btn-back-from-lb').addEventListener('click',()=>showScreen(els.start));
 
-  // ---------- 3D: a box as 8 corners, 12 edges, 6 faces ----------
-  // Corner i has bit 0/1/2 set for +x/+y/+z.  An edge joins two corners that
-  // differ in one bit, and that bit is its direction (0, 1 or 2) -- the
-  // group it belongs to.  Faces are the corners sharing one bit's value.
-  const EDGES=[]; // {id, axis, a, b}
-  for(let axis=0;axis<3;axis++) for(let i=0;i<8;i++) if(!(i&(1<<axis))) EDGES.push({ id:EDGES.length, axis, a:i, b:i|(1<<axis) });
-  const FACES=[]; // {axis, sign, corners (in order round the face)}
-  for(let axis=0;axis<3;axis++) for(const sign of [0,1]){
-    const p=(axis+1)%3, q=(axis+2)%3, base=sign<<axis;
-    FACES.push({ axis, sign, corners:[[0,0],[1,0],[1,1],[0,1]].map(([u,v])=>base|(u<<p)|(v<<q)) });
-  }
-  // The two faces an edge lies between: those of the other two axes, on the
-  // side the edge's corners share.
-  function edgeFaces(e){ return FACES.filter(f=>f.axis!==e.axis&&(((e.a>>f.axis)&1)===f.sign)); }
-
-  const mul=(A,B)=>A.map((r,i)=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
-  const rotX=t=>[[1,0,0],[0,Math.cos(t),-Math.sin(t)],[0,Math.sin(t),Math.cos(t)]];
-  const rotY=t=>[[Math.cos(t),0,Math.sin(t)],[0,1,0],[-Math.sin(t),0,Math.cos(t)]];
-  const rotZ=t=>[[Math.cos(t),-Math.sin(t),0],[Math.sin(t),Math.cos(t),0],[0,0,1]];
-  const apply=(R,v)=>[0,1,2].map(i=>R[i][0]*v[0]+R[i][1]*v[1]+R[i][2]*v[2]);
-  const deg=d=>d*Math.PI/180;
-
-  // Group colors for the explanation views.
-  const GROUP_COLORS=['#e63946','#1d6fd6','#e0a800'];
-  const WRONG_COLOR='#ff6a00';
-  // Box colors are greens, teals and a light grey only: hues no edge uses.
-  // Edges are black, purple (a pick), orange (a wrong direction) and red /
-  // blue / gold (the answer), and Nick wants the box entirely unlike all of
-  // them (2026-11-03).  A purple box once hid the purple picks.
-  const BOX_COLORS=['#b7e1a1','#a3dcc2','#c9dcb3','#9ed6cf','#cfe8c2','#d6d6d6','#b5d8c0','#bfe0d6'];
-
+  // ---------- The box (box3d.js) ----------
+  const GROUP_COLORS=Box3D.GROUP_COLORS;
   // Very different shapes on purpose: each catches a different mistake.
   //   flat   the thin edge is the one that gets forgotten (a book)
   //   long   two dimensions look alike (a pencil box)
@@ -260,142 +223,51 @@
   };
   function buildBoxes(){
     const kinds=shuffle(['flat','flat','flat','long','long','tall','tall','cube','cube','box','box','box']);
-    const colors=shuffle(BOX_COLORS.slice());
+    const colors=shuffle(Box3D.BOX_COLORS.slice());
+    // The first four sit upright; later ones start turned at odd angles.
     return kinds.map((k,i)=>{
       let d=SHAPES[k](); if(k!=='tall') d=shuffle(d);
-      // The first four sit upright, seen from a little above; later ones are
-      // turned at odd angles, so "up" stops being a clue.
-      const yaw=deg(rand(25,65))*(Math.random()<0.5?1:-1), pitch=deg(rand(15,32));
-      let R=mul(rotX(pitch),rotY(yaw));
-      if(i>=4) R=mul(rotZ(deg(rand(25,155))*(Math.random()<0.5?1:-1)),mul(rotX(deg(rand(-50,50))),R));
-      return { kind:k, dims:d, R, color:colors[i%colors.length], size:rand(0.72,1) };
+      return { kind:k, dims:d, R:Box3D.startRotation(i>=4), color:colors[i%colors.length], size:rand(0.72,1) };
     });
   }
 
-  // ---------- Drawing ----------
-  const W=460, H=360, LIGHT=(()=>{ const v=[-0.45,0.65,0.62], n=Math.hypot(...v); return v.map(x=>x/n); })();
-  let B=null; // the box in play: {dims, R, color, size, sel:Set, mode, wrongs, firstOK, status, glowAxis}
-  function shadeHex(hex,f){
-    const n=parseInt(hex.slice(1),16); let r=n>>16,g=(n>>8)&255,b=n&255;
-    r=Math.round(r*f); g=Math.round(g*f); b=Math.round(b*f);
-    const c=x=>Math.max(0,Math.min(255,x)).toString(16).padStart(2,'0'); return '#'+c(r)+c(g)+c(b);
+  let B=null;    // this box's state: { wrongs, firstOK, status, locked, firstWrong }
+  let view=null; // its Box3D
+  function syncControls(){
+    const n=view.box.sel.length;
+    els.picked.textContent=`Picked ${n} of 3`;
+    els.check.disabled=n!==3||view.box.mode!=='solid'||B.locked;
   }
-  function render(){
-    const [a,b,c]=B.dims, half=Math.hypot(a,b,c)/2, s=(Math.min(W,H)*0.5*B.size)/half;
-    const P=[], Z=[];
-    for(let i=0;i<8;i++){
-      const v=apply(B.R,[(i&1?1:-1)*a/2,(i&2?1:-1)*b/2,(i&4?1:-1)*c/2]);
-      P.push([W/2+v[0]*s, H/2-v[1]*s]); Z.push(v[2]);
-    }
-    const normal=f=>{ const n=[0,0,0]; n[f.axis]=f.sign?1:-1; return apply(B.R,n); };
-    const facing=FACES.map(f=>normal(f)[2]>1e-6);
-    let out='';
-    // Faces: only the ones facing us.
-    FACES.forEach((f,k)=>{
-      if(!facing[k]) return;
-      const n=normal(f), lit=0.78+0.22*Math.max(0,n[0]*LIGHT[0]+n[1]*LIGHT[1]+n[2]*LIGHT[2]);
-      const pts=f.corners.map(i=>P[i].map(x=>x.toFixed(1)).join(',')).join(' ');
-      out+=`<polygon class="face" points="${pts}" fill="${shadeHex(B.color,lit)}" stroke="none"/>`;
-    });
-    // Edges, back ones first so front ones draw over them.
-    const order=EDGES.slice().sort((e1,e2)=>(Z[e1.a]+Z[e1.b])-(Z[e2.a]+Z[e2.b]));
-    for(const e of order){
-      const visible=edgeFaces(e).some(f=>facing[FACES.indexOf(f)]);
-      if(!visible) continue;
-      const [x1,y1]=P[e.a], [x2,y2]=P[e.b], sel=B.sel.has(e.id);
-      const line=(cls,stroke,w,extra)=>`<line class="${cls}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${stroke}" stroke-width="${w}"${extra||''}/>`;
-      // Picked: solid in the color.  Not picked: the black edge with the
-      // color dashed over it.
-      const colored=c=>sel?line('edge-vis',c,7):line('edge-vis','#2b2b2b',2.5)+line('edge-vis',c,5,' stroke-dasharray="9 7" stroke-linecap="butt"');
-      if(B.mode==='solid'){
-        out+=`<line class="edge-hit" data-e="${e.id}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
-        out+=sel?line('edge-vis','#6f2dbd',8):line('edge-vis plain','#2b2b2b',2.5);
-      } else if(B.mode==='glow'){ // wrong: the repeated direction in orange, the other pick as it was
-        if(e.axis===B.glowAxis) out+=colored(WRONG_COLOR);
-        else out+=sel?line('edge-vis','#6f2dbd',8):line('edge-vis','#2b2b2b',2.5);
-      } else { // 'groups': every edge in its direction's color
-        out+=colored(GROUP_COLORS[e.axis]);
-      }
-    }
-    els.svg.innerHTML=out;
-    els.picked.textContent=`Picked ${B.sel.size} of 3`;
-    els.check.disabled=B.sel.size!==3||B.mode!=='solid'||B.locked;
-  }
-
-  // ---------- Turning and picking ----------
-  // One pointer gesture is either a drag (turns the box) or a click (picks
-  // the edge under it), told apart by how far it moved.
-  let drag=null;
-  els.svg.addEventListener('pointerdown',e=>{
-    if(!B) return;
-    // A finished box can still be turned, to look at the colored directions,
-    // but not picked.
-    let edge=B.locked?undefined:(e.target.dataset?e.target.dataset.e:undefined);
-    // While a wrong answer is explained, dragging turns the box to look round
-    // it; a plain click closes the explanation (and picks nothing).
-    const dismiss=B.mode==='glow';
-    if(dismiss) edge=undefined;
-    drag={ x:e.clientX, y:e.clientY, moved:false, edge, dismiss };
-    try{ els.svg.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  els.svg.addEventListener('pointermove',e=>{
-    if(!drag) return;
-    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
-    if(!drag.moved&&Math.hypot(dx,dy)<5) return;
-    drag.moved=true; els.svg.classList.add('dragging');
-    // Turn about the screen's own axes, so the box follows the pointer
-    // whatever way up it already is.
-    B.R=mul(mul(rotY(dx*0.011),rotX(dy*0.011)),B.R);
-    drag.x=e.clientX; drag.y=e.clientY;
-    render();
-  });
-  const endDrag=()=>{
-    if(!drag) return;
-    const d=drag; drag=null; els.svg.classList.remove('dragging');
-    if(!d.moved&&d.dismiss){ endGlow(); return; }
-    if(!d.moved&&d.edge!==undefined) toggleEdge(Number(d.edge));
-  };
-  els.svg.addEventListener('pointerup',endDrag);
-  els.svg.addEventListener('pointercancel',()=>{ drag=null; els.svg.classList.remove('dragging'); });
-
-  function toggleEdge(id){
-    els.nudge.textContent='';
-    if(B.sel.has(id)) B.sel.delete(id);
-    else if(B.sel.size>=3){ els.nudge.textContent='You have 3 picked. Click one of them to un-pick it first.'; return; }
-    else B.sel.add(id);
-    render();
-  }
-  els.clear.addEventListener('click',()=>{ if(!B||B.locked) return; if(B.mode==='glow') endGlow(); B.sel.clear(); els.nudge.textContent=''; render(); });
+  els.clear.addEventListener('click',()=>{ if(!B||B.locked) return; if(view.box.mode==='wrong') endWrong(); view.clear(); els.nudge.textContent=''; });
 
   // ---------- Checking ----------
-  function endGlow(){ B.mode='solid'; els.banner.innerHTML=''; els.feedback.className='feedback'; els.feedback.innerHTML=''; render(); }
+  function endWrong(){ view.setMode('solid'); els.banner.innerHTML=''; els.feedback.className='feedback'; els.feedback.innerHTML=''; syncControls(); }
   const TRIES=FixLoop.MAX_FIXES+1; // the first try plus two more, as elsewhere
   els.check.addEventListener('click',()=>{
-    if(!B||B.locked||B.sel.size!==3) return;
-    const axes=[...B.sel].map(id=>EDGES[id].axis);
-    const right=new Set(axes).size===3;
-    if(B.firstOK===null) B.firstOK=right;
-    if(right){ finishBox(B.wrongs?'fixed':'right'); return; }
+    if(!B||B.locked||view.box.sel.length!==3) return;
+    const res=view.check();
+    if(B.firstOK===null) B.firstOK=res.right;
+    if(res.right){ finishBox(B.wrongs?'fixed':'right'); return; }
     B.wrongs++;
-    const counts=[0,0,0]; axes.forEach(x=>counts[x]++);
-    B.glowAxis=counts.indexOf(Math.max(...counts));
-    B.firstWrong=B.firstWrong||(Math.max(...counts)===3?'all 3 edges the same way':'2 edges the same way');
+    B.firstWrong=B.firstWrong||(res.allSame?'all 3 edges the same way':'2 edges the same way');
     if(B.wrongs>=TRIES){ finishBox('shown'); return; }
-    // The repeated direction's edges in orange: solid where picked.
-    B.mode='glow';
-    const head=Math.max(...counts)===3?'All three of your edges go the same way.':'Two of your edges go the same way.';
+    // The repeated direction's edges in orange: solid where picked.  The box
+    // can be turned to see them; a plain click on it closes this.
+    view.setMode('wrong',res.glowAxis);
+    const head=res.allSame?'All three of your edges go the same way.':'Two of your edges go the same way.';
     els.banner.innerHTML=`<div class="wrong-banner"><div class="wb-head">✗ ${head}</div>`
       +`<div class="wb-why">The orange edges all run in that direction, so they're all the same dimension. Solid orange is what you picked: measuring two of them is measuring it twice. `
       +`Turn the box to see them all. Then un-pick one (click it again) and choose an edge that goes a different way.</div></div>`;
     els.feedback.className='feedback show bad';
     els.feedback.innerHTML=`${FixLoop.triesText(TRIES-B.wrongs)}. `;
     const ok=document.createElement('button'); ok.className='btn'; ok.textContent='Try again'; ok.style.marginLeft='8px';
-    ok.addEventListener('click',endGlow); els.feedback.appendChild(ok);
-    render();
+    ok.addEventListener('click',endWrong); els.feedback.appendChild(ok);
+    syncControls();
   });
 
   function finishBox(status){
-    B.locked=true; B.status=status; B.mode='groups';
+    // Still turnable, to look at the colored directions, but not pickable.
+    B.locked=true; B.status=status; view.box.pickable=false; view.setMode('groups'); syncControls();
     const ok=B.firstOK===true;
     if(ok) S.score=Math.min(GOAL,S.score+POINTS);
     els.hudScore.textContent=`${S.score} of ${GOAL} points`;
@@ -404,7 +276,6 @@
     els.banner.innerHTML = status==='shown'
       ? `<div class="wrong-banner"><div class="wb-head">Here are the 3 directions: ${key}</div><div class="wb-why">Every edge of the box runs one of these 3 ways. The 3 dimensions are one edge of each color, any one. Solid lines are the ones you picked. Turn the box to see the rest.</div></div>`
       : `<div class="right-banner">✓ One edge in each direction: ${key}<br>Every edge of a box runs one of these 3 ways. Solid lines are the ones you picked; any one edge of each color would be right. Turn the box to see the rest.</div>`;
-    render();
     const last=S.idx+1>=BOXES;
     Review.show(els.feedback,{
       ok,
@@ -421,11 +292,15 @@
   // ---------- Game flow ----------
   function nextBox(){
     if(S.idx>=BOXES){ finishGame(); return; }
-    B=Object.assign({}, S.boxes[S.idx], { sel:new Set(), mode:'solid', wrongs:0, firstOK:null, status:null, locked:false, firstWrong:'' });
+    B={ wrongs:0, firstOK:null, status:null, locked:false, firstWrong:'' };
+    const spec=S.boxes[S.idx];
+    view=Box3D.create(els.svg,{ dims:spec.dims, R:spec.R, color:spec.color, size:spec.size,
+      onChange:()=>{ els.nudge.textContent=''; syncControls(); }, onDismiss:endWrong,
+      onNudge:m=>{ els.nudge.textContent=m; } });
     els.hudRound.textContent=`Box ${S.idx+1} / ${BOXES}`;
     els.qtext.textContent=`Box ${S.idx+1} of ${BOXES}: Pick 3 edges, one for each dimension. Drag the box to turn it.`;
     els.banner.innerHTML=''; els.nudge.textContent=''; els.feedback.className='feedback'; els.feedback.innerHTML='';
-    render();
+    syncControls();
   }
   $('btn-start').addEventListener('click',()=>{
     S.score=0; S.idx=0; S.startTime=Date.now(); S.boxes=buildBoxes();
