@@ -83,18 +83,18 @@ function initWanderer(m) {
 const WORLD_MONSTER_DEFS = [
   {
     id: 'pinecoon', name: 'Pinecoon', sprite: 'pinecoon', maxHp: 2, exp: 15, gold: 5,
-    homeCol: TOWN_OFFSET_COL + TOWN_COLS + 7, homeRow: TOWN_OFFSET_ROW + Math.floor(TOWN_ROWS / 2) - 2,
-    range: 3,
+    homeCol: WORLD_SPOTS.pinecoon[0], homeRow: WORLD_SPOTS.pinecoon[1],
+    range: WORLD_SPOTS.pinecoon[2],
   },
   {
     id: 'meadowWasp', name: 'Meadow Wasp', sprite: 'wasp', maxHp: 1, exp: 10, gold: 3,
-    homeCol: TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2) - 2, homeRow: TOWN_OFFSET_ROW + TOWN_ROWS + 5,
-    range: 3,
+    homeCol: WORLD_SPOTS.meadowWasp[0], homeRow: WORLD_SPOTS.meadowWasp[1],
+    range: WORLD_SPOTS.meadowWasp[2],
   },
   {
     id: 'grassSnake', name: 'Grass Snake', sprite: 'snake', maxHp: 3, exp: 20, gold: 8,
-    homeCol: TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2) + 3, homeRow: TOWN_OFFSET_ROW + TOWN_ROWS + 6,
-    range: 3,
+    homeCol: WORLD_SPOTS.grassSnake[0], homeRow: WORLD_SPOTS.grassSnake[1],
+    range: WORLD_SPOTS.grassSnake[2],
   },
 ];
 WORLD_MONSTER_DEFS.forEach(initWanderer);
@@ -130,24 +130,26 @@ function updateMonsters(dt) {
   }
 }
 
-function drawMonsters() {
+function monsterDrawables() {
   const size = FRAME * SCALE * 0.7;
+  const out = [];
   for (const m of WORLD_MONSTER_DEFS) {
     if (!m.alive) continue;
     const dx = m.x - camera.x, dy = m.y - camera.y;
     if (dx > mapCanvas.width || dx + size < 0 || dy > mapCanvas.height || dy + size < 0) continue;
-    drawMonsterShape(mapCtx, m, Math.round(dx), Math.round(dy), size);
+    out.push({ y: m.y + size * 0.85, draw: () => drawMonsterShape(mapCtx, m, Math.round(dx), Math.round(dy), size) });
   }
+  return out;
 }
-// Called from drawInterior() (gameplay.js) while already inside its translate(ox,oy), so
+// For drawInterior() (gameplay.js), which draws these inside its translate(ox,oy), so
 // coordinates here are interior-local, same as furniture/objFootprint rendering.
-function drawCaveMonsters() {
-  if (!caveMonstersActive()) return;
+function caveMonsterDrawables() {
+  if (!caveMonstersActive()) return [];
   const size = FRAME * SCALE * 0.7;
-  for (const m of CAVE_MONSTER_DEFS) {
-    if (!m.alive) continue;
-    drawMonsterShape(mapCtx, m, Math.round(m.x), Math.round(m.y), size);
-  }
+  return CAVE_MONSTER_DEFS.filter(m => m.alive).map(m => ({
+    y: m.y + size * 0.85,
+    draw: () => drawMonsterShape(mapCtx, m, Math.round(m.x), Math.round(m.y), size),
+  }));
 }
 
 function nearbyMonster(x, y) {

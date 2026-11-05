@@ -77,46 +77,45 @@ function buildStaticSheet(spec) {
 const NPC_DEFS = [
   {
     id: 'forest', name: 'Forest Ranger',
-    homeCol: TOWN_OFFSET_COL + TOWN_COLS + 6, homeRow: TOWN_OFFSET_ROW + Math.floor(TOWN_ROWS / 2),
-    range: 3,
+    homeCol: WORLD_SPOTS.ranger[0], homeRow: WORLD_SPOTS.ranger[1],
+    range: WORLD_SPOTS.ranger[2],
     spec: { head: 'head3', hair: 'hair7', top: 'top8', bottom: 'bottom6', skinTone: 1 },
     message: "You could get much better by training at the archery range! Hit the monster to win a Hunter's Bow — but you'll need to measure your accuracy in meters.",
     game: { src: 'archery-range.html', messageType: 'archery-login', label: 'Archery Range' },
   },
   {
     id: 'lake', name: 'Lake Watcher',
-    homeCol: TOWN_OFFSET_COL + 7, homeRow: TOWN_OFFSET_ROW - 2,
-    range: 2,
+    homeCol: WORLD_SPOTS.lakeWatcher[0], homeRow: WORLD_SPOTS.lakeWatcher[1],
+    range: WORLD_SPOTS.lakeWatcher[2],
     spec: { head: 'head5', hair: 'hair3', top: 'top4', bottom: 'bottom2', skinTone: 0 },
     message: 'The currents whisper that great challenges are coming. Keep training!',
   },
   {
     id: 'rocky', name: 'Stone Warden',
-    // West of the cave's entrance (not right on top of it) — the door sits at
-    // CAVE_COL+2, so this keeps the Warden's wander radius clear of anyone walking up
-    // to go inside.
-    homeCol: CAVE_COL - 3, homeRow: CAVE_ROW + 1,
-    range: 2,
+    // South-west of the cave, off the path up to its mouth, so the Warden's wander
+    // radius stays clear of anyone walking up to go inside.
+    homeCol: WORLD_SPOTS.warden[0], homeRow: WORLD_SPOTS.warden[1],
+    range: WORLD_SPOTS.warden[2],
     spec: { head: 'head7', hair: 'hair10', top: 'top10', bottom: 'bottom8', skinTone: 2 },
     message: "These old stones have seen many heroes rise. Keep at your training — we'll need you soon.",
   },
   {
     id: 'grassland', name: 'Field Guide',
-    homeCol: TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2), homeRow: TOWN_OFFSET_ROW + TOWN_ROWS + 5,
-    range: 3,
+    homeCol: WORLD_SPOTS.fieldGuide[0], homeRow: WORLD_SPOTS.fieldGuide[1],
+    range: WORLD_SPOTS.fieldGuide[2],
     spec: { head: 'head1', hair: 'hair5', top: 'top3', bottom: 'bottom3', skinTone: 3 },
     message: "Follow the path south, past the flowers, to the old Rune Circle. Stand on the stake in the middle, hook your tape measure on it, and find out how far away each rune is.",
   },
   {
     id: 'shopkeeper', name: 'Potion Seller', isShop: true,
-    homeCol: TOWN_OFFSET_COL + 6, homeRow: TOWN_OFFSET_ROW + 1,
-    range: 1,
+    homeCol: WORLD_SPOTS.shop[0], homeRow: WORLD_SPOTS.shop[1],
+    range: WORLD_SPOTS.shop[2],
     spec: { head: 'head2', hair: 'hair8', top: 'top6', bottom: 'bottom4', skinTone: 1 },
   },
   {
     id: 'potionmaster', name: 'Potion Master',
-    homeCol: CLEARING_COL, homeRow: CLEARING_ROW,
-    range: 2,
+    homeCol: WORLD_SPOTS.potionMaster[0], homeRow: WORLD_SPOTS.potionMaster[1],
+    range: WORLD_SPOTS.potionMaster[2],
     spec: {
       head: 'head4', hair: 'hair9', top: 'top12', bottom: 'bottom7',
       hat: 'hat5', weapon: 'spear1_c2', skinTone: 0,
@@ -127,8 +126,8 @@ const NPC_DEFS = [
   },
   {
     id: 'woodsman', name: 'Woodsman',
-    homeCol: CLEARING_COL - 2, homeRow: CLEARING_ROW + 4,
-    range: 2,
+    homeCol: WORLD_SPOTS.woodsman[0], homeRow: WORLD_SPOTS.woodsman[1],
+    range: WORLD_SPOTS.woodsman[2],
     spec: {
       head: 'head6', hair: 'hair2', top: 'top5', bottom: 'bottom5',
       hat: 'hat2', weapon: 'axe1', skinTone: 2,
@@ -182,16 +181,20 @@ function updateNPCs(dt) {
   }
 }
 
-function drawNPCs() {
+function npcDrawables() {
   const size = FRAME * SCALE;
+  const out = [];
   for (const npc of NPC_DEFS) {
     const col = npc.moving ? PING_PONG[npc.walkFrame] : WALK_COLS[1];
     const row = DIR_ROW[npc.dir];
     const sx = col * FRAME, sy = row * FRAME;
     const dx = npc.x - camera.x, dy = npc.y - camera.y;
     if (dx > mapCanvas.width || dx + size < 0 || dy > mapCanvas.height || dy + size < 0) continue;
-    mapCtx.drawImage(npc.sheet, sx, sy, FRAME, FRAME, Math.round(dx), Math.round(dy), size, size);
+    // Same feet point as the player's (playerSortY in gameplay.js).
+    out.push({ y: npc.y + size * 0.84, draw: () =>
+      mapCtx.drawImage(npc.sheet, sx, sy, FRAME, FRAME, Math.round(dx), Math.round(dy), size, size) });
   }
+  return out;
 }
 
 function nearbyNpc(x, y) {
@@ -302,7 +305,6 @@ function loop(t) {
     updateMonsters(dt);
     if (scene.mode === 'world') updateCamera();
     drawMap();
-    drawPlayer();
   } catch (e) {
     if (!loopErrorLogged) { loopErrorLogged = true; console.error('[Physics Quest] error in frame loop', e); }
   }

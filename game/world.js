@@ -9,18 +9,71 @@ mapCtx.imageSmoothingEnabled = false;
 const VIEWPORT_COLS = mapCanvas.width / TILE;
 const VIEWPORT_ROWS = mapCanvas.height / TILE;
 
-// The world is much bigger than the screen now, so the camera follows the player.
-// The original town (built when the world WAS the whole screen) keeps every one of its
-// existing tile coordinates — it's just placed inside the bigger world at this offset,
-// which every town coordinate below gets shifted by in one pass rather than by hand.
-// WORLD_ROWS was 30. Rows 30-39 are the Rune Circle meadow (see RUNE_CIRCLE below):
-// the old south grassland is the wasp's and snake's wander range from edge to edge,
-// and a battle starting halfway through a graded measurement is not a fair test.
-// The rocky/forest/flower scatter loops all run to WORLD_ROWS, so the new strip
-// dresses itself.
-const WORLD_COLS = 55, WORLD_ROWS = 40;
-const TOWN_OFFSET_COL = 15, TOWN_OFFSET_ROW = 10;
-const TOWN_COLS = 15, TOWN_ROWS = 10; // the original town's own footprint, for biome zoning
+
+// The world is bigger than the screen, so the camera follows the player. It's drawn
+// from WORLD_MAP below: one character per 16px tile of ground, so the layout can be
+// read (and changed) at a glance. Buildings, trees and props stand on top of it.
+//
+// Rebuilt 2026-11-05 from the art packs (Nick asked for the town to look better and
+// spread out). The old layout was a 15x10 town placed at an offset; nothing outside
+// this file used its numbers except NPC and monster homes, which now come from
+// WORLD_SPOTS so they move with the map.
+const WORLD_COLS = 64, WORLD_ROWS = 48;
+
+// Ground:  .  grass      d  rocky dirt (the west)    =  dirt path
+//          #  cobbled street or plaza                 ~  lake
+// Dirt, paths and streets blend into the grass at their edges (autotiles, art.js).
+const WORLD_MAP = [
+  'ddddddddddddd...................................................',
+  'd...ddddddddd..............~~~~~~~~~~~~.........................',
+  '.....dddddddd.........~~~~~~~~~~~~~~~~~~~.......................',
+  '.....dddddddd........~~~~~~~~~~~~~~~~~~~~~~~....................',
+  '.....ddddddddd......~~~~~~~~~~~~~~~~~~~~~~~~~...................',
+  'd...ddddddddd.......~~~~~~~~~~~~~~~~~~~~~~~~~...................',
+  'ddddddd...d..........~~~~~~~~~~~~~~~~~~~~~~~....................',
+  'ddddddd...d...........~~~~~~~~~~~~~~~~~~~.......................',
+  'ddddddd...d...............~~~~~~~~~~~~~.........................',
+  'dddddddddd......................................................',
+  'dddddddddd.....................##...............................',
+  'dddddddddddd...................##...............................',
+  'd...ddddddddd..................##...............................',
+  'd...ddddddddd.............############..........................',
+  'd...ddddddddd............##############.........................',
+  'dddddddddddddd...........##############.........................',
+  'ddddddddddddd............##############.........................',
+  'ddddddd==dd..............##############.........................',
+  'ddddddd==dd..............##############.........................',
+  'ddddddd==dd.........#....##############......#..................',
+  'ddddddd==d..........#.....############.......#..................',
+  'ddddddd======######################################======.......',
+  'ddddddd======######################################======.......',
+  'ddddddddddddd..................##...............................',
+  'dddddddddddd...................##...............................',
+  '...dddddddddd..................##...............................',
+  '....dddddddddd.................##...............................',
+  '....ddddd...d..................##...............................',
+  '....ddddd......................##...............................',
+  '...dddddd..........#.......#...##.....#........#................',
+  'dddddddddddd...#####################################............',
+  'dddddd.ddd.....#####################################............',
+  'ddddd...dd.....................==...............................',
+  'dddd.....dd....................==...............................',
+  'ddddd...dddd...................==...............................',
+  'dddddd.ddddd...................==...............................',
+  'ddddddddddddd..................==...............................',
+  'dddddddddddddd.................==...............................',
+  'dddddddddddddd.................==...............................',
+  'dd...ddddddd...................==...............................',
+  'd.....dddddd...................==...............................',
+  'd.....dddddd....................................................',
+  'd.....dddd......................................................',
+  'dd...ddddd......................................................',
+  'dddddddd........................................................',
+  'dddddddd...d....................................................',
+  'dddddddd...d....................................................',
+  'dddddddddddd....................................................',
+];
+
 
 const camera = { x: 0, y: 0 };
 function updateCamera() {
@@ -31,8 +84,6 @@ function updateCamera() {
   camera.y = Math.max(0, Math.min(WORLD_ROWS * TILE - mapCanvas.height, targetY));
 }
 
-const grassImg = loadImage('tiles/grass.png');
-const pathImg = loadImage('tiles/path.png');
 const floorImg = loadImage('tiles/floor_interior.png');
 const workbenchImg = loadImage('tiles/workbench.png');
 const bedImg = loadImage('tiles/home/bed.png');
@@ -41,235 +92,150 @@ const mirrorImg = loadImage('tiles/home/mirror.png');
 const kitchenImg = loadImage('tiles/home/kitchen_counter.png');
 const backpackImg = loadImage('tiles/home/backpack_stub.png');
 const caveFloorImg = loadImage('tiles/cave_floor.png');
-const sealedDoorImg = loadImage('tiles/sealed_door.png');
 const chestImg = loadImage('tiles/chest.png');
-const waterImg = loadImage('tiles/water.png');
-const rockyGroundImg = loadImage('tiles/rocky_ground.png');
 const boulderImg = loadImage('tiles/decor/boulder.png');
 
-// A connected path: a vertical spine from the entrance up to a junction,
-// with branches running to each house's door-approach tile.
-const pathTiles = new Set();
-function addPathLine(c0, r0, c1, r1) {
-  if (c0 === c1) {
-    for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++) pathTiles.add(`${c0},${r}`);
-  } else {
-    for (let c = Math.min(c0, c1); c <= Math.max(c0, c1); c++) pathTiles.add(`${c},${r0}`);
-  }
+function groundAt(c, r) {
+  if (r < 0 || r >= WORLD_ROWS || c < 0 || c >= WORLD_COLS) return null;
+  return WORLD_MAP[r][c];
 }
-addPathLine(7, 4, 7, 9);   // vertical spine: entrance (7,9) up to the top junction
-addPathLine(4, 4, 7, 4);   // branch west to the red house approach (4,4)
-addPathLine(7, 8, 11, 8);  // branch east to the blue house approach (11,8)
-addPathLine(2, 9, 7, 9);   // branch west along the bottom row to the home approach (2,9)
+function isWaterTile(c, r) { return groundAt(c, r) === '~'; }
+const isDirtGround = ch => ch === 'd' || ch === '=';
 
-// ---------- Decoration (trees, plants, rocks) ----------
-// Each sits on one "base" tile for collision; the art can be taller/wider and overhangs visually.
-const DECOR_DEFS = [
-  { img: loadImage('tiles/decor/tree_pine.png'), baseCol: 12, baseRow: 1, solid: true },
-  { img: loadImage('tiles/decor/tree_round.png'), baseCol: 2, baseRow: 0, solid: true },
-  { img: loadImage('tiles/decor/tree_round.png'), baseCol: 13, baseRow: 3, solid: true },
-  { img: loadImage('tiles/decor/tree_round.png'), baseCol: 8, baseRow: 1, solid: true },
-  { img: loadImage('tiles/decor/tree_round.png'), baseCol: 0, baseRow: 2, solid: true },
-  { img: loadImage('tiles/decor/tree_thin.png'), baseCol: 6, baseRow: 1, solid: true },
-  { img: loadImage('tiles/decor/tree_thin.png'), baseCol: 9, baseRow: 2, solid: true },
-  { img: loadImage('tiles/decor/tree_thin.png'), baseCol: 1, baseRow: 9, solid: true },
-  { img: loadImage('tiles/decor/rock.png'), baseCol: 6, baseRow: 6, solid: false },
-  { img: loadImage('tiles/decor/rock.png'), baseCol: 13, baseRow: 9, solid: false },
-  { img: loadImage('tiles/decor/flowers.png'), baseCol: 9, baseRow: 9, solid: false },
-  { img: loadImage('tiles/decor/flowers.png'), baseCol: 2, baseRow: 9, solid: false },
-  { img: loadImage('tiles/decor/hedge.png'), baseCol: 0, baseRow: 9, solid: false },
-  { img: loadImage('tiles/decor/hedge.png'), baseCol: 14, baseRow: 6, solid: false },
-];
+// Where people and monsters live, and where things that must stay clear are. NPCs and
+// monsters wander a box of +/-range tiles round their spot and walk through anything,
+// so the scatter below keeps trees out of every box, and no box may touch a building
+// or the Rune Circle (validateWorld checks the buildings).
+const WORLD_SPOTS = {
+  spawn: [31, 19],                  // the plaza, just south of the statue
+  ranger: [54, 18, 2], lakeWatcher: [27, 11, 2], warden: [2, 20, 2], fieldGuide: [35, 34, 2],
+  shop: [27, 15, 1], potionMaster: [57, 22, 2], woodsman: [55, 26, 2],
+  pinecoon: [54, 12, 3], meadowWasp: [15, 36, 3], grassSnake: [46, 37, 3],
+};
+const CLEARING = { col: 57, row: 23, r: 5 }; // the Potion Master's glade in the east forest
 
-// Shift every town coordinate (paths, decor, buildings below) from the original
-// self-contained 15x10 layout into its place inside the bigger world, in one pass.
-(function shiftTownIntoWorld() {
-  const shiftedPath = new Set();
-  pathTiles.forEach(key => {
-    const [c, r] = key.split(',').map(Number);
-    shiftedPath.add(`${c + TOWN_OFFSET_COL},${r + TOWN_OFFSET_ROW}`);
-  });
-  pathTiles.clear();
-  shiftedPath.forEach(k => pathTiles.add(k));
-  for (const d of DECOR_DEFS) { d.baseCol += TOWN_OFFSET_COL; d.baseRow += TOWN_OFFSET_ROW; }
-})();
-
-// Outskirt decoration for the forest / rocky / grassland biomes, placed directly in
-// world coordinates (they're outside the town, so they don't go through the shift
-// above). A simple fixed-stride scatter, nudged with a small deterministic offset per
-// tile so it doesn't look like a grid.
-function nudge(i, amount) { return (i * 37) % amount; }
-// Tree circle clearing for the Potion Master — center at (46, 15), radius 4 tiles.
-// Auto-scatter skips this zone; the ring of trees is placed manually below.
-const CLEARING_COL = 46, CLEARING_ROW = 15, CLEARING_R = 4;
-function inClearing(c, r) {
-  const dx = c - CLEARING_COL, dy = r - CLEARING_ROW;
-  return dx * dx + dy * dy <= (CLEARING_R + 1) * (CLEARING_R + 1);
+// ---------- Props (Hometown pack, tileB_outside / tileB_town) ----------
+// solid: tiles that block, as [dc, dr] from the base tile (the bottom-middle tile the
+// art stands on). Only the base -- a trunk, a lamp foot -- ever blocks, so the player
+// walks behind tree tops and roofs of things. flat: drawn under everyone.
+const PROP = {
+  pine:     { img: sheetPiece('hBOut', 8, 7, 3, 5), solid: [[0, 0]] },
+  bigTree:  { img: sheetPiece('hBOut', 11, 7, 3, 5), solid: [[-1, 0], [0, 0], [1, 0]] },
+  thinTree: { img: sheetPiece('hBOut', 14, 7, 2, 3), solid: [[0, 0]] },
+  sapling:  { img: sheetPiece('hBOut', 14, 10, 1, 2), solid: [[0, 0]] },
+  sapling2: { img: sheetPiece('hBOut', 15, 10, 1, 2), solid: [[0, 0]] },
+  bush:     { img: sheetPiece('hBOut', 0, 15, 1, 1), solid: [[0, 0]] },
+  bushes:   { img: sheetPiece('hBOut', 4, 15, 2, 1), solid: [[0, 0]] },
+  berryHedge: { img: sheetPiece('hBOut', 8, 0, 2, 2), solid: [[0, 0]] },
+  tallGrass: { img: sheetPiece('hBOut', 14, 3, 2, 2), solid: [] },
+  greyRock: { img: sheetPiece('hBOut', 4, 8, 2, 1), solid: [[0, 0]] },
+  brownRock: { img: sheetPiece('hBOut', 6, 8, 2, 1), solid: [[0, 0]] },
+  stump:    { img: sheetPiece('hBOut', 6, 15, 1, 1), solid: [[0, 0]] },
+  pebbles:  { img: sheetPiece('hBOut', 0, 9, 1, 1), flat: true },
+  pebbles2: { img: sheetPiece('hBOut', 5, 9, 1, 1), flat: true },
+  flowersW: { img: sheetPiece('hBOut', 4, 6, 1, 1), flat: true },
+  flowersP: { img: sheetPiece('hBOut', 8, 6, 1, 1), flat: true },
+  flowersP2: { img: sheetPiece('hBOut', 9, 6, 1, 1), flat: true },
+  flowersY: { img: sheetPiece('hBOut', 6, 6, 1, 1), flat: true },
+  flowersB: { img: sheetPiece('hBOut', 5, 7, 1, 1), flat: true },
+  fence:    { img: sheetPiece('hBOut', 0, 3, 3, 1), solid: [[-1, 0], [0, 0], [1, 0]] },
+  lamp:     { img: sheetPiece('hBTown', 5, 6, 1, 3), solid: [[0, 0]] },
+  statue:   { img: sheetPiece('hBTown', 8, 8, 3, 3), solid: [[-1, 0], [0, 0], [1, 0], [-1, -1], [0, -1], [1, -1]] },
+  well:     { img: sheetPiece('hBTown', 11, 8, 3, 3), solid: [[-1, 0], [0, 0], [1, 0]] },
+  bench:    { img: sheetPiece('hBTown', 0, 12, 3, 2), solid: [[-1, 0], [0, 0], [1, 0]] },
+  planter:  { img: sheetPiece('hBTown', 4, 9, 2, 2), solid: [[0, 0]] },
+  crates:   { img: sheetPiece('hBTown', 0, 6, 2, 3), solid: [[0, 0]] },
+  barrel:   { img: sheetPiece('hBTown', 3, 7, 1, 2), solid: [[0, 0]] },
+  signpost: { img: sheetPiece('hBOut', 0, 1, 1, 1), solid: [[0, 0]] },
+};
+const DECOR_DEFS = [];
+function addProp(kind, c, r) {
+  const p = PROP[kind];
+  DECOR_DEFS.push({ img: p.img, baseCol: c, baseRow: r, kind, flat: !!p.flat, solidTiles: (p.solid || []).map(([dc, dr]) => [c + dc, r + dr]) });
 }
-for (let r = 0; r < WORLD_ROWS; r += 3) {
-  for (let c = TOWN_OFFSET_COL + TOWN_COLS + 1; c < WORLD_COLS; c += 3) {
-    const cc = c + nudge(r, 2), rr = r + nudge(c, 2);
-    if (cc >= WORLD_COLS || rr >= WORLD_ROWS) continue;
-    if (inClearing(cc, rr)) continue;
-    const kind = (c + r) % 3 === 0 ? 'tree_pine' : (c + r) % 3 === 1 ? 'tree_round' : 'tree_thin';
-    DECOR_DEFS.push({ img: loadImage(`tiles/decor/${kind}.png`), baseCol: cc, baseRow: rr, solid: true });
-  }
-}
-// Ring of trees around the clearing
+
+// The town, placed by hand: lamps along the streets, the plaza's statue, well, market
+// corner and benches, and planters and flowers by the doors.
 [
-  [CLEARING_COL - 3, CLEARING_ROW - 2],
-  [CLEARING_COL,     CLEARING_ROW - 3],
-  [CLEARING_COL + 3, CLEARING_ROW - 2],
-  [CLEARING_COL + 4, CLEARING_ROW],
-  [CLEARING_COL + 3, CLEARING_ROW + 2],
-  [CLEARING_COL,     CLEARING_ROW + 3],
-  [CLEARING_COL - 3, CLEARING_ROW + 2],
-  [CLEARING_COL - 4, CLEARING_ROW],
-].forEach(([c, r], i) => {
-  const kind = i % 3 === 0 ? 'tree_pine' : i % 3 === 1 ? 'tree_round' : 'tree_thin';
-  DECOR_DEFS.push({ img: loadImage(`tiles/decor/${kind}.png`), baseCol: c, baseRow: r, solid: true });
-});
-for (let r = 0; r < WORLD_ROWS; r += 3) {
-  for (let c = 0; c < TOWN_OFFSET_COL - 1; c += 3) {
-    const cc = c + nudge(r, 2), rr = r + nudge(c, 2);
-    if (cc < 0 || rr >= WORLD_ROWS) continue;
-    const solid = (c + r) % 2 === 0;
-    DECOR_DEFS.push({
-      img: loadImage(solid ? 'tiles/decor/boulder.png' : 'tiles/decor/rock.png'),
-      baseCol: cc, baseRow: rr, solid,
-    });
-  }
-}
-for (let c = TOWN_OFFSET_COL; c < TOWN_OFFSET_COL + TOWN_COLS; c += 3) {
-  for (let r = TOWN_OFFSET_ROW + TOWN_ROWS + 1; r < WORLD_ROWS; r += 3) {
-    const cc = c + nudge(r, 2), rr = r + nudge(c, 2);
-    DECOR_DEFS.push({ img: loadImage('tiles/decor/flowers.png'), baseCol: cc, baseRow: rr, solid: false });
-  }
-}
-
-// A couple of short dirt walkways out into the wilds, signposting the route to where
-// the wandering monsters roam (forest to the east, grassland to the south). These are
-// already in world coordinates, so — like the outskirt decor scatter above — they don't
-// go through the town shift.
-(function addWildWalkways() {
-  const forestRow = TOWN_OFFSET_ROW + Math.floor(TOWN_ROWS / 2);
-  for (let c = TOWN_OFFSET_COL + TOWN_COLS; c < CLEARING_COL; c++) {
-    pathTiles.add(`${c},${forestRow}`);
-  }
-  const grassCol = TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2);
-  for (let r = TOWN_OFFSET_ROW + TOWN_ROWS; r < TOWN_OFFSET_ROW + TOWN_ROWS + 7; r++) {
-    pathTiles.add(`${grassCol},${r}`);
-  }
-  // Clear any auto-scattered solid decor (trees/boulders) that landed on the new walkways.
-  for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-    if (pathTiles.has(`${DECOR_DEFS[i].baseCol},${DECOR_DEFS[i].baseRow}`)) DECOR_DEFS.splice(i, 1);
-  }
-})();
-
-function decorSolidTiles() {
-  const set = new Set();
-  for (const d of DECOR_DEFS) if (d.solid) set.add(`${d.baseCol},${d.baseRow}`);
-  return set;
-}
-// NOTE: DECOR_SOLID itself is computed further below, AFTER the cave/dojo decor-clearing
-// splices — it has to be, since it's a snapshot of whatever's left in DECOR_DEFS at the
-// moment it runs; computing it here (before those splices) would freeze in decor that
-// later gets removed, leaving stale "solid" tiles outside those buildings that nothing
-// ever clears (this was a real bug: it silently blocked the tile just past the Dojo's
-// exit until fixed).
+  ['statue', 31, 17], ['well', 36, 16], ['bench', 28, 19], ['bench', 35, 19],
+  ['crates', 25, 16], ['barrel', 26, 14], ['planter', 29, 13], ['planter', 34, 13],
+  ['lamp', 24, 20], ['lamp', 39, 20], ['lamp', 24, 13], ['lamp', 39, 13],
+  ['lamp', 14, 20], ['lamp', 30, 23], ['lamp', 33, 23], ['lamp', 49, 20],
+  ['lamp', 14, 29], ['lamp', 30, 32], ['lamp', 33, 32], ['lamp', 50, 29],
+  ['planter', 18, 19], ['planter', 22, 19], ['planter', 43, 19], ['planter', 47, 19],
+  ['flowersP', 17, 20], ['flowersW', 23, 20], ['flowersY', 42, 20], ['flowersP2', 48, 20],
+  ['berryHedge', 16, 15], ['berryHedge', 16, 17], ['thinTree', 25, 11], ['thinTree', 38, 11],
+  ['fence', 18, 12], ['fence', 21, 12], ['bushes', 24, 15],
+  ['flowersW', 18, 29], ['flowersP', 20, 29], ['flowersY', 26, 29], ['flowersB', 28, 29],
+  ['flowersP2', 37, 29], ['flowersW', 39, 29], ['flowersY', 46, 29], ['flowersP', 48, 29],
+  ['thinTree', 23, 26], ['thinTree', 43, 25], ['sapling', 33, 26], ['bush', 23, 28], ['bush', 43, 28],
+  ['signpost', 30, 33], ['signpost', 9, 20], ['signpost', 50, 23],
+  ['tallGrass', 12, 19], ['greyRock', 11, 24],
+].forEach(([k, c, r]) => addProp(k, c, r));
 
 // ---------- Buildings ----------
-// Each building sprite is (roofRows + wallRows) tiles tall, tilesWide tiles wide, at TILE_NATIVE=16px/tile.
-// doorCol/doorRow are tile-local coordinates (0-indexed) of the walkable door tile (the bottom-most door cell).
-const BUILDING_DEFS = [
-  {
-    id: 'red', img: loadImage('tiles/building_red.png'),
-    tileX: 2, tileY: 1, tilesWide: 4, tilesTall: 3, doorCol: 2, doorRow: 2,
-    name: 'Measure Distance Workshop', label: 'Measure Distance Workshop',
-  },
-  {
-    id: 'blue', img: loadImage('tiles/building_blue.png'),
-    tileX: 9, tileY: 5, tilesWide: 5, tilesTall: 3, doorCol: 2, doorRow: 2,
-    name: 'Place Value Workshop', label: 'Place Value Workshop',
-  },
-  {
-    id: 'home', img: loadImage('tiles/building_home.png'),
-    tileX: 0, tileY: 5, tilesWide: 4, tilesTall: 4, doorCol: 2, doorRow: 3,
-    name: 'Home', label: 'Home',
-  },
-];
-for (const b of BUILDING_DEFS) { b.tileX += TOWN_OFFSET_COL; b.tileY += TOWN_OFFSET_ROW; }
-
-// The cave sits out in the rocky west biome, so its coordinates are already in world
-// space and don't go through the town shift above.
-const CAVE_COL = 6, CAVE_ROW = 14;
-BUILDING_DEFS.push({
-  id: 'cave', img: loadImage('tiles/building_cave.png'),
-  tileX: CAVE_COL, tileY: CAVE_ROW, tilesWide: 4, tilesTall: 3, doorCol: 2, doorRow: 2,
-  name: 'Cave', label: 'Mystic Cave',
-});
-// Clear out any auto-scattered rocky decor that would overlap the cave or its approach.
-for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-  const d = DECOR_DEFS[i];
-  if (d.baseCol >= CAVE_COL - 1 && d.baseCol <= CAVE_COL + 4 && d.baseRow >= CAVE_ROW - 1 && d.baseRow <= CAVE_ROW + 4) {
-    DECOR_DEFS.splice(i, 1);
-  }
+// Each is drawn from the pack: a roof and a wall (A3 autotiles), a front gable over the
+// door, windows, a chimney and a shop sign. Doors face south and the door tile is the
+// building's bottom-middle tile: the walkable trigger. tilesWide is always odd so the
+// door sits dead center. Roof/wall/gable are sheet tiles (see buildingPiece).
+const ROOF = { brown: [0, 0], yellow: [2, 0], green: [4, 0], red: [6, 0], blue: [8, 0], dark: [10, 0] };
+const WALL = { stone: [0, 2], stoneTrim: [2, 2], brick: [8, 2], plaster: [0, 6], timber: [4, 6], wood: [8, 6], darkWood: [12, 6] };
+const GABLE = { brown: [8, 0], yellow: [11, 0], green: [8, 3], red: [11, 3] };
+const SIGN = { sword: [3, 0], shield: [4, 0], bag: [5, 0], bed: [6, 0], jug: [7, 0] };
+function buildingPiece(spec) {
+  const { w, roofRows: rh, wallRows: wh } = spec;
+  const mid = (w - 1) / 2;
+  const parts = [
+    ctx => drawWallAutotileRect(ctx, 'hA3', ...ROOF[spec.roof], 0, 0, w, rh),
+    ctx => drawWallAutotileRect(ctx, 'hA3', ...WALL[spec.wall], 0, rh, w, wh),
+    ['hBTown', 14, 0, 1, 2, 1, 0], // chimney
+  ];
+  if (spec.gable) parts.push(['hBTown', ...GABLE[spec.gable], 3, 2, mid - 1, rh - 2]);
+  parts.push(['hDoors1a', 1, 0, 1, 2, mid, rh + wh - 2]);
+  const winRow = rh + wh - 2;
+  for (const c of (w >= 9 ? [1, 2, w - 3, w - 2] : [1, w - 2])) parts.push(['hBTown', 14, 6, 1, 1, c, winRow]);
+  if (spec.sign) parts.push(['hBTown', ...SIGN[spec.sign], 1, 1, mid + 1, winRow]);
+  return makePiece(w, rh + wh, parts);
 }
-
-// The Dojo sits in the grassland southeast of town, near where the wandering monsters
-// roam, so a walk out to train doubles as a walk toward a possible duel. No dedicated
-// Dojo sprite exists in the licensed asset pack, so this reuses the Red House building
-// image — same placeholder approach taken with the monster art before real sprites were
-// sourced; swap DOJO_IMG's path below for a real asset later and nothing else changes.
-const DOJO_COL = TOWN_OFFSET_COL + TOWN_COLS + 3, DOJO_ROW = TOWN_OFFSET_ROW + TOWN_ROWS + 3;
-const DOJO_IMG = loadImage('tiles/building_red.png');
-BUILDING_DEFS.push({
-  id: 'dojo', img: DOJO_IMG,
-  tileX: DOJO_COL, tileY: DOJO_ROW, tilesWide: 4, tilesTall: 3, doorCol: 2, doorRow: 2,
-  name: 'Dojo', label: 'Dojo',
-});
-for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-  const d = DECOR_DEFS[i];
-  if (d.baseCol >= DOJO_COL - 1 && d.baseCol <= DOJO_COL + 4 && d.baseRow >= DOJO_ROW - 1 && d.baseRow <= DOJO_ROW + 4) {
-    DECOR_DEFS.splice(i, 1);
-  }
+const BUILDING_DEFS = [];
+function addBuilding(id, name, tileX, tileY, spec, img) {
+  const tall = spec.roofRows + spec.wallRows;
+  BUILDING_DEFS.push({
+    id, name, label: name, img: img || buildingPiece(spec),
+    tileX, tileY, tilesWide: spec.w, tilesTall: tall, doorCol: (spec.w - 1) / 2, doorRow: tall - 1,
+  });
 }
+// North of the main street, doors onto it:
+addBuilding('home', 'Home', 17, 14, { w: 7, roofRows: 3, wallRows: 2, roof: 'green', wall: 'plaster', gable: 'green', sign: 'bed' });
+addBuilding('red', 'Measure Distance Workshop', 41, 13, { w: 9, roofRows: 3, wallRows: 3, roof: 'red', wall: 'brick', gable: 'red', sign: 'shield' });
+// South of it, doors onto the south street:
+addBuilding('blue', 'Place Value Workshop', 16, 24, { w: 7, roofRows: 3, wallRows: 2, roof: 'blue', wall: 'stone', sign: 'bag' });
+addBuilding('elapsed', 'Elapsed Time Workshop', 24, 24, { w: 7, roofRows: 3, wallRows: 2, roof: 'yellow', wall: 'wood', gable: 'yellow' });
+addBuilding('mvd', 'Mass, Volume & Density Workshop', 34, 24, { w: 9, roofRows: 3, wallRows: 2, roof: 'brown', wall: 'stoneTrim', gable: 'brown', sign: 'jug' });
+addBuilding('dojo', 'Dojo', 44, 24, { w: 7, roofRows: 3, wallRows: 2, roof: 'dark', wall: 'darkWood', sign: 'sword' });
 
-// The Elapsed Time Workshop sits in the grassland southwest of town, near the south path.
-const ELAPSED_COL = TOWN_OFFSET_COL + 1, ELAPSED_ROW = TOWN_OFFSET_ROW + TOWN_ROWS + 3;
-BUILDING_DEFS.push({
-  id: 'elapsed', img: loadImage('tiles/building_blue.png'),
-  tileX: ELAPSED_COL, tileY: ELAPSED_ROW, tilesWide: 5, tilesTall: 3, doorCol: 2, doorRow: 2,
-  name: 'Elapsed Time Workshop', label: 'Elapsed Time Workshop',
-});
-// Path branch from the south grassland spine over to this building's door approach.
-const elapsedDoorCol = ELAPSED_COL + 2;
-const grasslandSpine = TOWN_OFFSET_COL + Math.floor(TOWN_COLS / 2);
-const elapsedDoorRow = ELAPSED_ROW + 2;
-addPathLine(elapsedDoorCol, elapsedDoorRow, grasslandSpine, elapsedDoorRow);
-for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-  const d = DECOR_DEFS[i];
-  const inBuilding = d.baseCol >= ELAPSED_COL - 1 && d.baseCol <= ELAPSED_COL + 5 && d.baseRow >= ELAPSED_ROW - 1 && d.baseRow <= ELAPSED_ROW + 4;
-  const onPath = d.baseRow === elapsedDoorRow && d.baseCol >= elapsedDoorCol && d.baseCol <= grasslandSpine;
-  if (inBuilding || onPath) DECOR_DEFS.splice(i, 1);
-}
-
-// The Mass, Volume & Density Workshop sits at the forest edge east of the Dojo. Not in
-// the south grassland between the Elapsed workshop and the Dojo, which looks emptier:
-// wandering monsters ignore collision, and the Grass Snake's range (cols 22-28, rows
-// 23-29) would have walked it straight across the building.
-const MVD_COL = DOJO_COL + 6, MVD_ROW = DOJO_ROW;
-BUILDING_DEFS.push({
-  id: 'mvd', img: loadImage('tiles/building_blue.png'),
-  tileX: MVD_COL, tileY: MVD_ROW, tilesWide: 5, tilesTall: 3, doorCol: 2, doorRow: 2,
-  name: 'Mass, Volume & Density Workshop', label: 'Mass, Volume & Density Workshop',
-});
-for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-  const d = DECOR_DEFS[i];
-  if (d.baseCol >= MVD_COL - 1 && d.baseCol <= MVD_COL + 5 && d.baseRow >= MVD_ROW - 1 && d.baseRow <= MVD_ROW + 4) {
-    DECOR_DEFS.splice(i, 1);
-  }
-}
+// The cave sits out in the rocky west. It's a grassy hill with the cave mouth in its
+// face (Hometown pack's A5 outside sheet), 7x5; the door is the bottom of the mouth.
+const CAVE_COL = 4, CAVE_ROW = 12;
+const CAVE_HILL_IMG = (() => {
+  const parts = [];
+  const row = (r, left, mid, right, mouth) => {
+    parts.push(['hOut', left[0], left[1], 1, 1, 0, r]);
+    for (let c = 1; c <= 5; c++) {
+      const t = (mouth && c === 3) ? mouth : mid;
+      parts.push(['hOut', t[0], t[1], 1, 1, c, r]);
+    }
+    parts.push(['hOut', right[0], right[1], 1, 1, 6, r]);
+  };
+  row(0, [1, 5], [2, 5], [3, 5]);
+  row(1, [1, 6], [1, 0], [3, 6]);
+  row(2, [1, 7], [2, 7], [3, 7]);
+  row(3, [1, 8], [2, 8], [3, 8], [4, 11]);
+  row(4, [1, 10], [2, 10], [3, 10], [4, 12]);
+  return makePiece(7, 5, parts);
+})();
+addBuilding('cave', 'Mystic Cave', CAVE_COL, CAVE_ROW, { w: 7, roofRows: 3, wallRows: 2 }, CAVE_HILL_IMG);
+BUILDING_DEFS.find(b => b.id === 'cave').name = 'Cave';
 
 // ---------- Rune Circle (south meadow) ----------
 // A stake with three standing stones around it. Students hook a tape on the stake,
@@ -283,14 +249,15 @@ for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
 //   Rune 3 (1 W, 3 S)  = 2*sqrt(10) =  6.32 m
 //   average 29.74 / 3 = 9.9133...  ->  9.91 m
 // Moving a stone changes the answer key; the comment above is the only other place
-// these numbers live.
+// these numbers live. Moving the whole circle (as the 2026-11-05 rebuild did) doesn't:
+// only the stones' offsets from the stake count.
 const RUNE_CIRCLE = {
-  stake: { col: TOWN_OFFSET_COL + 7, row: 35 },
+  stake: { col: 31, row: 41 },
   metersPerTile: 2,
   runes: [
-    { n: 1, col: TOWN_OFFSET_COL + 12, row: 33 },
-    { n: 2, col: TOWN_OFFSET_COL + 1,  row: 33 },
-    { n: 3, col: TOWN_OFFSET_COL + 6,  row: 38 },
+    { n: 1, col: 36, row: 39 },
+    { n: 2, col: 25, row: 39 },
+    { n: 3, col: 30, row: 44 },
   ],
 };
 for (const rune of RUNE_CIRCLE.runes) {
@@ -298,18 +265,70 @@ for (const rune of RUNE_CIRCLE.runes) {
   rune.hundredths = Math.round(Math.hypot(dc, dr) * RUNE_CIRCLE.metersPerTile * 100);
 }
 const RUNE_SOLID = new Set(RUNE_CIRCLE.runes.map(r => `${r.col},${r.row}`));
-// Carry the south path on down from the grassland to just above the stake.
-addPathLine(grasslandSpine, TOWN_OFFSET_ROW + TOWN_ROWS + 7, grasslandSpine, RUNE_CIRCLE.stake.row - 1);
-for (let i = DECOR_DEFS.length - 1; i >= 0; i--) {
-  const d = DECOR_DEFS[i];
-  const key = `${d.baseCol},${d.baseRow}`;
-  const onStake = Math.abs(d.baseCol - RUNE_CIRCLE.stake.col) <= 1 && Math.abs(d.baseRow - RUNE_CIRCLE.stake.row) <= 1;
-  const nearRune = RUNE_CIRCLE.runes.some(r => Math.abs(d.baseCol - r.col) <= 1 && Math.abs(d.baseRow - r.row) <= 1);
-  if (onStake || nearRune || pathTiles.has(key)) DECOR_DEFS.splice(i, 1);
-}
 
-// Computed here, after every decor-clearing pass above, so it correctly reflects what's
-// actually left in DECOR_DEFS (see the note by decorSolidTiles()'s definition).
+// ---------- Trees and rocks, scattered ----------
+// A jittered grid, the same on every machine (tileHash), with every candidate thrown
+// out if it would land on or beside ground that isn't grass (or dirt, in the west), in
+// a building or the strip in front of it, in someone's wander box, in the glade, or in
+// the Rune Circle. That's what keeps a tree off a path or a doorstep.
+const keepClear = [];   // [c0, r0, c1, r1] tile boxes
+for (const b of BUILDING_DEFS) keepClear.push([b.tileX - 1, b.tileY - 1, b.tileX + b.tilesWide, b.tileY + b.tilesTall + 1]);
+for (const [c, r, range] of Object.values(WORLD_SPOTS)) { const k = (range || 0) + 1; keepClear.push([c - k, r - k, c + k, r + k]); }
+keepClear.push([RUNE_CIRCLE.stake.col - 8, RUNE_CIRCLE.stake.row - 4, RUNE_CIRCLE.stake.col + 7, RUNE_CIRCLE.stake.row + 4]);
+const inKeepClear = (c, r) => keepClear.some(([c0, r0, c1, r1]) => c >= c0 && c <= c1 && r >= r0 && r <= r1);
+const inClearing = (c, r) => (c - CLEARING.col) ** 2 + (r - CLEARING.row) ** 2 <= CLEARING.r ** 2;
+function groundAround(c, r, ok) {
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const g = groundAt(c + dc, r + dr);
+    if (g !== null && !ok(g)) return false;
+  }
+  return true;
+}
+const takenBase = new Set(DECOR_DEFS.map(d => `${d.baseCol},${d.baseRow}`));
+function scatter(zone, step, pick, groundOk) {
+  for (let r = 0; r < WORLD_ROWS; r += step) {
+    for (let c = 0; c < WORLD_COLS; c += step) {
+      const cc = c + Math.floor(tileHash(c, r) * step), rr = r + Math.floor(tileHash(r + 99, c) * step);
+      if (cc >= WORLD_COLS || rr >= WORLD_ROWS || !zone(cc, rr)) continue;
+      if (inKeepClear(cc, rr) || inClearing(cc, rr) || takenBase.has(`${cc},${rr}`)) continue;
+      if (!groundAround(cc, rr, groundOk)) continue;
+      const kind = pick(tileHash(cc * 7, rr * 13));
+      if (!kind) continue;
+      takenBase.add(`${cc},${rr}`);
+      addProp(kind, cc, rr);
+    }
+  }
+}
+const grassOnly = g => g === '.';
+// The east forest, the woods north-east of the lake, and a strip north-west of it:
+// dense, mostly pines, some big broad trees.
+scatter((c, r) => c >= 52 || (c >= 45 && r <= 11) || (c >= 13 && c <= 19 && r <= 11),
+  2, x => x < 0.62 ? 'pine' : x < 0.84 ? 'bigTree' : x < 0.94 ? 'thinTree' : 'sapling', grassOnly);
+// A ring of trees round the glade, so it reads as a clearing.
+for (let i = 0; i < 12; i++) {
+  const a = i / 12 * Math.PI * 2;
+  const c = Math.round(CLEARING.col + Math.cos(a) * (CLEARING.r + 1)), r = Math.round(CLEARING.row + Math.sin(a) * (CLEARING.r + 1));
+  if (!inKeepClear(c, r) && groundAround(c, r, grassOnly) && !takenBase.has(`${c},${r}`)) { takenBase.add(`${c},${r}`); addProp(i % 3 ? 'pine' : 'bigTree', c, r); }
+}
+// The rocky west: boulders, a few hardy pines, loose stones.
+scatter((c, r) => groundAt(c, r) === 'd', 2,
+  x => x < 0.14 ? 'greyRock' : x < 0.22 ? 'brownRock' : x < 0.3 ? 'pine' : x < 0.38 ? 'stump' : x < 0.5 ? 'pebbles' : x < 0.6 ? 'pebbles2' : null, isDirtGround);
+// ...and its grassy hollows: trees and bushes, so the patches read as shelter.
+scatter((c, r) => c <= 13 && groundAt(c, r) === '.', 2,
+  x => x < 0.3 ? 'pine' : x < 0.42 ? 'bigTree' : x < 0.6 ? 'bush' : x < 0.75 ? 'tallGrass' : null, grassOnly);
+// The south meadow: flowers everywhere, the odd tree near its edges.
+scatter((c, r) => r >= 33 && c >= 13, 3,
+  x => x < 0.18 ? 'flowersW' : x < 0.32 ? 'flowersP' : x < 0.44 ? 'flowersY' : x < 0.52 ? 'flowersB' : x < 0.58 ? 'tallGrass' : null, grassOnly);
+scatter((c, r) => (r >= 44 || c >= 49) && r >= 33 && c >= 13, 3,
+  x => x < 0.4 ? 'thinTree' : x < 0.6 ? 'bigTree' : x < 0.75 ? 'bush' : null, grassOnly);
+// Along the lake shore and the town's grass edges.
+scatter((c, r) => r >= 9 && r <= 12 && c >= 20 && c <= 44, 3, x => x < 0.3 ? 'bush' : x < 0.5 ? 'flowersW' : null, grassOnly);
+
+function decorSolidTiles() {
+  const set = new Set();
+  for (const d of DECOR_DEFS) for (const [c, r] of d.solidTiles) set.add(`${c},${r}`);
+  return set;
+}
 const DECOR_SOLID = decorSolidTiles();
 
 function buildingDoorTile(b) {
@@ -336,26 +355,88 @@ function doorAt(c, r) {
   return null;
 }
 
-// ---------- Biomes ----------
-// Column bands split the world into west (rocky) / town-middle / east (forest); within
-// the middle band, row picks lake (north) / town / grassland (south).
-function biomeAt(c, r) {
-  if (c < TOWN_OFFSET_COL) return 'rocky';
-  if (c >= TOWN_OFFSET_COL + TOWN_COLS) return 'forest';
-  if (r >= 2 && r < TOWN_OFFSET_ROW - 2) return 'lake'; // rows 0-1 and just above town stay as grass "shore"
-  if (r >= TOWN_OFFSET_ROW + TOWN_ROWS) return 'grassland';
-  return 'town';
+// ---------- Ground ----------
+// The whole map's ground, drawn once into three canvases (one per frame of the lake's
+// ripple) and then copied to the screen each frame: grass picked from the sheet's
+// variants, with dirt, streets and water laid over it as autotiles.
+const GRASS_VARIANTS = [[40, 1, 0], [30, 2, 0], [30, 3, 0], [22, 4, 0], [22, 5, 0], [12, 6, 0], [12, 7, 0],
+  [2, 1, 1], [2, 3, 1], [2, 5, 1], [3, 1, 2], [2, 3, 2]];
+const GROUND_SHEETS = ['hOut', 'hA2', 'hA1'];
+const WATER_FRAMES = [0, 1, 2, 1];
+const groundFrames = [];
+function buildGround() {
+  if (groundFrames.length) return groundFrames;
+  if (!sheetsReady(GROUND_SHEETS)) return null;
+  const sameAs = (col, r, test) => (dc, dr) => { const n = groundAt(col + dc, r + dr); return n === null || test(n); };
+  for (let f = 0; f < 3; f++) {
+    const cv = document.createElement('canvas');
+    cv.width = WORLD_COLS * 16; cv.height = WORLD_ROWS * 16;
+    const ctx = cv.getContext('2d');
+    for (let r = 0; r < WORLD_ROWS; r++) {
+      for (let col = 0; col < WORLD_COLS; col++) {
+        const x = col * 16, y = r * 16;
+        const [sx, sy] = pickVariant(GRASS_VARIANTS, col, r);
+        blit(ctx, 'hOut', sx, sy, 1, 1, x, y);
+        const g = WORLD_MAP[r][col];
+        if (isDirtGround(g)) drawAutotile(ctx, 'hA2', 2, 0, sameAs(col, r, isDirtGround), x, y);
+        else if (g === '#') drawAutotile(ctx, 'hA2', 6, 0, sameAs(col, r, n => n === '#'), x, y);
+        else if (g === '~') drawAutotile(ctx, 'hA1', f * 2, 3, sameAs(col, r, n => n === '~'), x, y);
+      }
+    }
+    groundFrames.push(cv);
+  }
+  return groundFrames;
 }
-function groundImageFor(c, r) {
-  if (pathTiles.has(`${c},${r}`)) return pathImg;
-  const biome = biomeAt(c, r);
-  if (biome === 'lake') return waterImg;
-  if (biome === 'rocky') return rockyGroundImg;
-  return grassImg; // town, forest, and grassland all use the grass floor
+function drawGround() {
+  const frames = buildGround();
+  if (!frames) return;
+  const img = frames[WATER_FRAMES[Math.floor(Date.now() / 500) % WATER_FRAMES.length]];
+  // Copy from a whole source pixel and shift the result, so the ground moves in step
+  // with the sprites instead of snapping every 3 screen pixels.
+  const sx = Math.floor(camera.x / SCALE), sy = Math.floor(camera.y / SCALE);
+  const sw = Math.ceil(mapCanvas.width / SCALE) + 1, sh = Math.ceil(mapCanvas.height / SCALE) + 1;
+  mapCtx.drawImage(img, sx, sy, sw, sh, sx * SCALE - camera.x, sy * SCALE - camera.y, sw * SCALE, sh * SCALE);
 }
-function isWaterTile(c, r) {
-  return biomeAt(c, r) === 'lake';
-}
+
+// ---------- Checks ----------
+// Every door, person and the Rune Circle must be reachable on foot from the spawn, and
+// no building may sit on water or another building, nor any wander box on a building.
+// Failures go to the console as errors; nothing here changes the map.
+(function validateWorld() {
+  const key = (c, r) => `${c},${r}`;
+  const seen = new Set([key(...WORLD_SPOTS.spawn)]);
+  const queue = [WORLD_SPOTS.spawn];
+  while (queue.length) {
+    const [c, r] = queue.shift();
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (nc < 0 || nr < 0 || nc >= WORLD_COLS || nr >= WORLD_ROWS || seen.has(key(nc, nr))) continue;
+      if (isSolidBuildingTile(nc, nr)) continue;
+      seen.add(key(nc, nr)); queue.push([nc, nr]);
+    }
+  }
+  const problems = [];
+  for (const b of BUILDING_DEFS) {
+    const d = buildingDoorTile(b);
+    if (!seen.has(key(d.c, d.r))) problems.push(`${b.id}'s door (${d.c},${d.r}) can't be reached`);
+    for (let r = b.tileY; r < b.tileY + b.tilesTall; r++) for (let c = b.tileX; c < b.tileX + b.tilesWide; c++) {
+      if (isWaterTile(c, r)) problems.push(`${b.id} stands in the lake at (${c},${r})`);
+      for (const o of BUILDING_DEFS) if (o !== b && c >= o.tileX && c < o.tileX + o.tilesWide && r >= o.tileY && r < o.tileY + o.tilesTall) problems.push(`${b.id} overlaps ${o.id}`);
+    }
+  }
+  for (const [name, [c, r, range]] of Object.entries(WORLD_SPOTS)) {
+    if (!seen.has(key(c, r))) problems.push(`spot ${name} (${c},${r}) can't be reached`);
+    const k = range || 0;
+    for (const b of BUILDING_DEFS) {
+      if (c + k + 1 > b.tileX && c - k < b.tileX + b.tilesWide && r + k + 1 > b.tileY && r - k < b.tileY + b.tilesTall) problems.push(`spot ${name}'s wander box touches ${b.id}`);
+    }
+  }
+  const st = RUNE_CIRCLE.stake;
+  if (!seen.has(key(st.col, st.row + 1)) && !seen.has(key(st.col, st.row - 1))) problems.push('the Rune Circle stake can\'t be reached');
+  for (const rn of RUNE_CIRCLE.runes) if (![[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dc, dr]) => seen.has(key(rn.col + dc, rn.row + dr)))) problems.push(`rune ${rn.n} can't be reached`);
+  if (problems.length) console.error('[world] map problems:\n  ' + [...new Set(problems)].join('\n  '));
+})();
+
 
 // ---------- Scene state ----------
 const scene = {
@@ -389,7 +470,8 @@ const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: c
 // Dojo — there's no dedicated light-colored floor tile in the licensed art pack, so this
 // tints the same floor_interior.png tile everything else uses rather than needing new art.
 const INTERIOR_FLOOR_TINT = { dojo: 'rgba(232,201,138,0.4)' };
-const INTERIOR_BG = { cave: '#050608', caveDeep: '#050608' }; // darker than the default room background
+const INTERIOR_BG = { cave: '#050608', caveDeep: '#050608' };
+const INTERIOR_NAMES = { caveDeep: 'Deep Cave' }; // rooms with no building of their own // darker than the default room background
 const INTERIORS = {};
 for (const [id, size] of Object.entries(INTERIOR_SIZES)) {
   INTERIORS[id] = {
@@ -403,6 +485,110 @@ function interiorFor(buildingId) {
   return INTERIORS[buildingId];
 }
 
+// ---------- Room art (walls and floors from the packs) ----------
+// A styled room gets a back wall drawn ABOVE row 0 and its floor drawn from the
+// sheet's own variants, all composed once into one canvas (buildRoomBackground).
+// The wall sits outside the room's grid on purpose: every object, exit and spawn
+// keeps the row it had, so nothing a student walks to moves.
+//   wall:  sheet + the face, wallRows tall from sheet row `top` (cols midA..midB repeat; left/right ends curve
+//          away into the dark past the floor's edges)
+//   floor: weighted variants [weight, sheetCol, sheetRow]
+//   wallDecor: [sheet, sx, sy, w, h, col, row] drawn onto the wall (row < 0)
+//   lights: [col, row, radius in tiles] holes in the room's darkness
+const ROOM_STYLE = {
+  cave: {
+    sheet: 'cMoss', wallRows: 3, side: 2, dark: 0.42,
+    wall: { top: 10, mid: [2, 3, 4, 5], left: [0, 1], right: [6, 7] },
+    floor: [[14, 1, 0], [14, 2, 0], [14, 3, 0], [10, 4, 0], [6, 5, 0], [3, 4, 1], [3, 5, 1], [2, 6, 2]],
+    wallDecor: [
+      ['cB1', 0, 7, 1, 2, 1, -2], ['cB1', 2, 7, 1, 2, 8, -3], ['cB1', 1, 8, 1, 2, 9, -2],
+      ['cB2', 14, 14, 2, 2, -1, -2],
+    ],
+    lights: [[5, -0.5, 2.2], [2, 1, 3], [9, 4, 3], [5, 8.5, 3.5]],
+  },
+  caveDeep: {
+    sheet: 'cStone', wallRows: 3, side: 2, dark: 0.55,
+    wall: { top: 10, mid: [2, 3, 4, 5], left: [0, 1], right: [6, 7] },
+    floor: [[14, 1, 0], [14, 2, 0], [14, 3, 0], [8, 4, 0], [5, 5, 1], [4, 4, 1], [4, 1, 1], [2, 2, 1]],
+    wallDecor: [
+      ['cB2', 8, 14, 2, 2, 0, -2], ['cB2', 14, 14, 2, 2, 9, -2],
+      ['cB2', 13, 12, 1, 1, 3, -1], ['cB2', 15, 13, 1, 1, 7, -1],
+    ],
+    lights: [[0, 3, 2.5], [10, 3, 2.5], [1, 7, 2.5], [9, 7, 2.5], [5, 8.5, 3]],
+  },
+};
+
+// The workshops and the home (Hometown pack's A5 inside sheet): a 3-tall wall of
+// wood, plaster, brick or stone, and a plank or flagstone floor.
+const WOOD_FLOOR = [[10, 1, 0], [10, 2, 0], [10, 3, 0]];
+const STONE_FLOOR = [[10, 4, 1], [10, 5, 1], [6, 6, 1]];
+const indoorRoom = (wallCols, floor) => ({
+  sheet: 'hInA5', wallRows: 3, side: 0, frame: true,
+  wall: { top: 11, mid: wallCols }, floor, wallDecor: [], lights: [],
+});
+Object.assign(ROOM_STYLE, {
+  red: indoorRoom([2, 3], WOOD_FLOOR),
+  blue: indoorRoom([0, 1], STONE_FLOOR),
+  home: indoorRoom([0, 1], WOOD_FLOOR),
+  dojo: indoorRoom([2, 3], [[10, 0, 1], [10, 1, 1]]),
+  elapsed: indoorRoom([4, 5], WOOD_FLOOR),
+  mvd: indoorRoom([6, 7], STONE_FLOOR),
+});
+
+const roomBackgrounds = {};
+function buildRoomBackground(id) {
+  if (roomBackgrounds[id]) return roomBackgrounds[id];
+  const st = ROOM_STYLE[id];
+  const it = INTERIORS[id];
+  const keys = [st.sheet, ...st.wallDecor.map(d => d[0])];
+  if (!sheetsReady(keys)) return null;
+  const cols = it.cols + st.side * 2, rows = it.rows + st.wallRows;
+  const c = document.createElement('canvas');
+  c.width = cols * 16; c.height = rows * 16;
+  const ctx = c.getContext('2d');
+  const ox = st.side, oy = st.wallRows; // canvas tile of room (0,0)
+  for (let r = 0; r < it.rows; r++) {
+    for (let col = 0; col < it.cols; col++) {
+      const [sx, sy] = pickVariant(st.floor, col, r);
+      blit(ctx, st.sheet, sx, sy, 1, 1, (col + ox) * 16, (r + oy) * 16);
+    }
+  }
+  // Back wall: the repeating middle across the floor's width, and the two curved
+  // ends just past it, so the rock bends away into the dark at the corners.
+  const w = st.wall;
+  for (let k = 0; k < st.wallRows; k++) {
+    const y = k * 16, sy = w.top + k;
+    for (let col = 0; col < it.cols; col++) blit(ctx, st.sheet, w.mid[col % w.mid.length], sy, 1, 1, (col + ox) * 16, y);
+    if (!w.left) continue;
+    blit(ctx, st.sheet, w.left[0], sy, 1, 1, (ox - 2) * 16, y);
+    blit(ctx, st.sheet, w.left[1], sy, 1, 1, (ox - 1) * 16, y);
+    blit(ctx, st.sheet, w.right[0], sy, 1, 1, (ox + it.cols) * 16, y);
+    blit(ctx, st.sheet, w.right[1], sy, 1, 1, (ox + it.cols + 1) * 16, y);
+  }
+  for (const [k, sx, sy, dw, dh, col, row] of st.wallDecor) blit(ctx, k, sx, sy, dw, dh, (col + ox) * 16, (row + oy) * 16);
+  // Soft shadow where the floor meets the dark at the sides and front.
+  const shade = (x0, y0, x1, y1, w0, h0) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), w0, h0);
+  };
+  const fx = ox * 16, fy = oy * 16, fw = it.cols * 16, fh = it.rows * 16;
+  if (st.frame) {
+    // A dark wooden skirting round the sides and front, where the old rooms had a border.
+    ctx.fillStyle = '#3d2b1f';
+    ctx.fillRect(0, 0, 2, c.height); ctx.fillRect(c.width - 2, 0, 2, c.height); ctx.fillRect(0, c.height - 2, c.width, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(0, fy, c.width, 3);
+    roomBackgrounds[id] = { canvas: c, ox: st.side, oy: st.wallRows };
+    return roomBackgrounds[id];
+  }
+  shade(fx, 0, fx + 12, 0, 12, fy + fh);
+  shade(fx + fw, 0, fx + fw - 12, 0, 12, fy + fh);
+  shade(0, fy + fh, 0, fy + fh - 10, fx * 2 + fw, 10);
+  roomBackgrounds[id] = { canvas: c, ox: st.side, oy: st.wallRows };
+  return roomBackgrounds[id];
+}
+
 // Every non-floor thing inside a room — workbenches, the closet, decor, pickups — is one
 // of these. `col`/`row` is the tile the object's bottom-center sits on; the solid
 // footprint and the interact-trigger tile (just south of it) are both derived from the
@@ -413,6 +599,33 @@ function interiorFor(buildingId) {
 //   'pickup'    -> one-time item grant (currently just the backpack)
 //   'chest'     -> the place-value quest chest (see openChest)
 //   'decor'     -> solid, but nothing happens when you approach it
+// Cave props, from the Caves & Mines pack's object sheets (cB1, cB2 = tileB_cave1/2).
+const CAVE_ART = {
+  tunnel: sheetPiece('cMoss', 5, 13, 1, 2),
+  lampPost: sheetPiece('cB2', 5, 4, 1, 1),
+  crates: sheetPiece('cB1', 8, 0, 1, 3),
+  barrel: sheetPiece('cB1', 10, 0, 1, 2),
+  pots: sheetPiece('cB1', 15, 1, 1, 1),
+  mossRock: sheetPiece('cB1', 3, 10, 2, 2),
+  bigRock: sheetPiece('cB1', 4, 14, 2, 2),
+  stalagmite: sheetPiece('cB1', 7, 12, 1, 2),
+  mushrooms: sheetPiece('cB1', 5, 7, 1, 1),
+  mushroomsRed: sheetPiece('cB1', 6, 7, 1, 1),
+  fern: sheetPiece('cB1', 1, 6, 1, 1),
+  pebbles: sheetPiece('cB1', 0, 12, 1, 1),
+  skull: sheetPiece('cB1', 9, 7, 1, 1),
+  bones: sheetPiece('cB1', 8, 7, 1, 1),
+  crystalBlue: sheetPiece('cB2', 15, 13, 1, 1),
+  crystalGreen: sheetPiece('cB2', 13, 13, 1, 1),
+  crystalRed: sheetPiece('cB2', 11, 13, 1, 1),
+  crystalSmall: sheetPiece('cB2', 9, 12, 1, 1),
+  crystalSmallBlue: sheetPiece('cB2', 14, 12, 1, 1),
+  oreGold: sheetPiece('cB2', 15, 10, 1, 1),
+  orePile: sheetPiece('cB2', 15, 6, 1, 1),
+  cartOre: sheetPiece('cB2', 12, 3, 1, 2),
+  pickaxe: sheetPiece('cB2', 8, 8, 1, 1),
+};
+
 const INTERIOR_OBJECTS = {
   // Eight stations in a wide 25×10 scrolling room. The camera follows the player
   // like the overworld when the room is wider than the viewport.
@@ -454,11 +667,12 @@ const INTERIOR_OBJECTS = {
   cave: [
     // Once the boulders clear (see objectsFor below), this becomes a real door leading to
     // a separate cave room where the monsters actually live — not this room, so the chest
-    // area stays a safe place to come back and stock up.
-    { id: 'blockedDoor', kind: 'caveDoor', img: sealedDoorImg, col: 5, row: 1 },
-    { id: 'boulder1', kind: 'decor', img: boulderImg, col: 4, row: 2 },
-    { id: 'boulder2', kind: 'decor', img: boulderImg, col: 5, row: 2 },
-    { id: 'boulder3', kind: 'decor', img: boulderImg, col: 6, row: 2 },
+    // area stays a safe place to come back and stock up. The door is a dark tunnel in the
+    // back wall (row 0); the rubble sits on its trigger tile (row 1) until then.
+    { id: 'blockedDoor', kind: 'caveDoor', img: CAVE_ART.tunnel, col: 5, row: 0 },
+    { id: 'boulder1', kind: 'decor', img: boulderImg, col: 4, row: 1 },
+    { id: 'boulder2', kind: 'decor', img: boulderImg, col: 5, row: 1 },
+    { id: 'boulder3', kind: 'decor', img: boulderImg, col: 6, row: 1 },
     {
       id: 'swordChest', kind: 'chest', img: chestImg, col: 8, row: 5, label: 'Old Chest', claimed: false,
       reward: {
@@ -466,15 +680,35 @@ const INTERIOR_OBJECTS = {
         manifestIndex: MANIFEST.weapon.findIndex(e => e.id === 'sword1'), variantIndex: 0,
       },
     },
+    // Dressing, all around the edges: the walk from the entrance to the chest and on
+    // up to the tunnel stays open floor.
+    { id: 'cvLamp', kind: 'decor', img: CAVE_ART.lampPost, col: 2, row: 1, solidRows: 1 },
+    { id: 'cvCrates', kind: 'decor', img: CAVE_ART.crates, col: 0, row: 2, solidRows: 1 },
+    { id: 'cvBarrel', kind: 'decor', img: CAVE_ART.barrel, col: 1, row: 2, solidRows: 1 },
+    { id: 'cvRock1', kind: 'decor', img: CAVE_ART.mossRock, col: 10, row: 1, solidRows: 1 },
+    { id: 'cvRock2', kind: 'decor', img: CAVE_ART.bigRock, col: 0, row: 7, solidRows: 1 },
+    { id: 'cvMite', kind: 'decor', img: CAVE_ART.stalagmite, col: 10, row: 7, solidRows: 1 },
+    { id: 'cvPots', kind: 'decor', img: CAVE_ART.pots, col: 9, row: 5, solidRows: 1 },
+    { id: 'cvShroom1', kind: 'decor', img: CAVE_ART.mushrooms, col: 1, row: 5, solid: false },
+    { id: 'cvShroom2', kind: 'decor', img: CAVE_ART.mushroomsRed, col: 8, row: 2, solid: false },
+    { id: 'cvVine', kind: 'decor', img: CAVE_ART.fern, col: 3, row: 7, solid: false },
+    { id: 'cvPebbles', kind: 'decor', img: CAVE_ART.pebbles, col: 7, row: 7, solid: false },
   ],
   // The deeper cave room — monsters wander here (see battle.js's CAVE_MONSTER_DEFS), not
-  // in the chest room. A few scattered boulders for atmosphere; none block the room's
-  // middle, where the monsters roam and the exit path runs.
+  // in the chest room. Crystals and ore in the four corners where the boulders were;
+  // none block the room's middle, where the monsters roam and the exit path runs.
   caveDeep: [
-    { id: 'deepBoulder1', kind: 'decor', img: boulderImg, col: 1, row: 1 },
-    { id: 'deepBoulder2', kind: 'decor', img: boulderImg, col: 9, row: 1 },
-    { id: 'deepBoulder3', kind: 'decor', img: boulderImg, col: 1, row: 7 },
-    { id: 'deepBoulder4', kind: 'decor', img: boulderImg, col: 9, row: 7 },
+    { id: 'deepBoulder1', kind: 'decor', img: CAVE_ART.crystalBlue, col: 1, row: 1, solidRows: 1 },
+    { id: 'deepBoulder2', kind: 'decor', img: CAVE_ART.crystalGreen, col: 9, row: 1, solidRows: 1 },
+    { id: 'deepBoulder3', kind: 'decor', img: CAVE_ART.oreGold, col: 1, row: 7, solidRows: 1 },
+    { id: 'deepBoulder4', kind: 'decor', img: CAVE_ART.crystalRed, col: 9, row: 7, solidRows: 1 },
+    { id: 'dpCart', kind: 'decor', img: CAVE_ART.cartOre, col: 0, row: 4, solidRows: 1 },
+    { id: 'dpOre', kind: 'decor', img: CAVE_ART.orePile, col: 10, row: 4, solidRows: 1 },
+    { id: 'dpPick', kind: 'decor', img: CAVE_ART.pickaxe, col: 0, row: 5, solid: false },
+    { id: 'dpSkull', kind: 'decor', img: CAVE_ART.skull, col: 3, row: 6, solid: false },
+    { id: 'dpBones', kind: 'decor', img: CAVE_ART.bones, col: 7, row: 5, solid: false },
+    { id: 'dpSmallC1', kind: 'decor', img: CAVE_ART.crystalSmall, col: 2, row: 8, solid: false },
+    { id: 'dpSmallC2', kind: 'decor', img: CAVE_ART.crystalSmallBlue, col: 8, row: 8, solid: false },
   ],
   elapsed: [
     { id: 'simpleBench', kind: 'workbench', img: workbenchImg, col: 2, row: 1, label: 'Simple Elapsed Time Work Bench', shortLabel: 'Simple Elapsed', src: 'elapsed-time-bench.html', messageType: 'etb-login', bench: 'simple' },
@@ -515,16 +749,21 @@ function objFootprint(obj) {
   const dy = (obj.row + 1) * TILE - dh;
   const colStart = Math.floor(dx / TILE), colEnd = Math.floor((dx + dw - 1) / TILE);
   const rowStart = Math.floor(dy / TILE), rowEnd = Math.floor((dy + dh - 1) / TILE);
+  // Tall props block only at their base (solidRows), so the player can walk behind
+  // the top; solid: false is floor dressing that blocks nothing.
+  const solid = obj.solid !== false;
+  const solidRowStart = obj.solidRows ? Math.max(rowStart, rowEnd - obj.solidRows + 1) : rowStart;
   return {
-    dx, dy, dw, dh, colStart, colEnd, rowStart, rowEnd,
+    dx, dy, dw, dh, colStart, colEnd, rowStart, rowEnd, solid, solidRowStart,
     triggerCol: obj.triggerC !== undefined ? obj.triggerC : Math.round((colStart + colEnd) / 2),
     triggerRow: obj.triggerR !== undefined ? obj.triggerR : rowEnd + 1,
   };
 }
 
 const player = {
-  x: TOWN_OFFSET_COL * TILE + TOWN_COLS * TILE / 2 - FRAME * SCALE / 2,
-  y: TOWN_OFFSET_ROW * TILE + TOWN_ROWS * TILE / 2 - FRAME * SCALE / 2,
+  // Feet on the spawn tile's center (the same point placeFeetAtTile solves for).
+  x: WORLD_SPOTS.spawn[0] * TILE + TILE / 2 - FRAME * SCALE / 2,
+  y: WORLD_SPOTS.spawn[1] * TILE + TILE / 2 - FRAME * SCALE * 0.84,
   dir: 'south',
   moving: false,
   animT: 0,       // ms accumulator
@@ -644,7 +883,7 @@ function exitCaveDeepRoom() {
   scene.buildingId = 'cave';
   scene.wasOnDoor = true; scene.wasOnExit = false; scene.activeObjectId = null;
   scene.wasOnCaveMonsterId = null;
-  // Land clearly SOUTH of the door's own trigger tile (row 2), not on it — landing right
+  // Land clearly SOUTH of the door's own trigger tile (row 1), not on it — landing right
   // back on the trigger tile immediately re-fired the door and bounced the player straight
   // back into caveDeep.
   const spawn = placeFeetAtTile(5, 3);
