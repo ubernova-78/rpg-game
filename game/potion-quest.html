@@ -562,9 +562,6 @@
       <label style="margin:0;font-weight:400;font-size:0.85rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
         <input type="checkbox" id="chk-demo"> Demo mode
       </label>
-      <label style="margin:0;font-weight:400;font-size:0.85rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
-        <input type="checkbox" id="chk-teacher"> Teacher account
-      </label>
     </div>
 
     <button class="primary" id="btn-start" disabled>Start Quest</button>
@@ -813,7 +810,6 @@ function initEls(){
   els.loginError    = $('login-error');
   els.diffRow       = $('diff-row');
   els.chkDemo       = $('chk-demo');
-  els.chkTeacher    = $('chk-teacher');
   els.btnStart      = $('btn-start');
   els.recipeCard    = $('recipe-card');
   els.btnEnterForest= $('btn-enter-forest');
@@ -1473,7 +1469,6 @@ async function startGame(){
   const pin = els.ppin.value.trim();
   const period = els.period.value;
   const demo = state.demo || els.chkDemo.checked;
-  const teacher = state.teacher || els.chkTeacher.checked;
 
   if(!demo){
     if(!name){ showLoginError('Enter your name.'); return; }
@@ -1498,7 +1493,6 @@ async function startGame(){
     state.pin = pin;
     state.period = period;
     state.demo = false;
-    state.teacher = teacher;
 
     const result = await loadOrCreateStudent(name, pin, period);
     if(!result.ok){
@@ -1508,7 +1502,9 @@ async function startGame(){
     }
     state.nameKey = result.nameKey;
     state.record = result.record;
-    if(teacher) state.record.isTeacher = true;
+    // Teacher comes from the account (ticked on the teacher dashboard), or from the
+    // town's login message; there's no checkbox for it any more.
+    state.teacher = state.teacher || !!result.record.isTeacher;
   }
 
   paintLevelUI(state.record.totalEXP, state.record.coins);

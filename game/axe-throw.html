@@ -247,7 +247,7 @@
 
   // ---------- Firebase ----------
   const DB_PATH='axe_scores';
-  async function saveScore(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){}}
+  async function saveScore(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){console.warn('[axe] score not saved',e);}}
   async function loadScores(period){
     if(!Shared.DB_OK)return[];
     try{const r=[];
@@ -672,7 +672,7 @@
         name:state.name,nameKey:state.nameKey,period:String(state.period),
         avgMiss:actualAvg,bestMiss:Math.round(best*100)/100,
         expEarned:state.roundEXP,timestamp:Date.now()
-      });}catch(e){}
+      });}catch(e){console.warn('[axe] score not saved',e);}
       // Save to student record
       if(state.record&&state.nameKey){
         state.record.totalEXP=(state.record.totalEXP||0)+state.roundEXP;
@@ -701,7 +701,7 @@
     }
     const result=await Shared.loadOrCreateStudent(d.name,d.pin,d.period);
     if(result.ok){state.nameKey=result.nameKey;state.record=result.record;state.teacher=!!d.teacher;
-      try{await Shared.saveStudent(state.nameKey,state.record);}catch(e){}}
+      try{await Shared.saveStudent(state.nameKey,state.record);}catch(e){console.warn('[axe] student not saved',e);}}
   });
 
   showScreen(els.start);

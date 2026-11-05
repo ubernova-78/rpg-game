@@ -184,7 +184,7 @@
 
   // ---------- Firebase ----------
   const DB_PATH='dimension_scores';
-  async function saveRun(rec){ if(!Shared.DB_OK) return; try{ await Shared.DB.ref(DB_PATH).push(rec); }catch(e){} }
+  async function saveRun(rec){ if(!Shared.DB_OK) return; try{ await Shared.DB.ref(DB_PATH).push(rec); }catch(e){ console.warn('[dimensions] score not saved', e); } }
   async function loadRuns(period){
     if(!Shared.DB_OK) return [];
     try{ const r=[]; const s=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');

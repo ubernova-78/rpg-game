@@ -921,7 +921,7 @@
         state.record = result.record;
         state.nameKey = result.nameKey;
         if(!state.demo){
-          try{ await Shared.saveStudent(state.nameKey, state.record); }catch(e){ /* ignore */ }
+          try{ await Shared.saveStudent(state.nameKey, state.record); }catch(e){ console.warn('[archery] student not saved', e); }
         }
       }
     }
@@ -1813,7 +1813,7 @@
           expEarned: state.roundEXP,
           timestamp: Date.now()
         });
-      }catch(e){ /* ignore */ }
+      }catch(e){ console.warn('[archery] score not saved', e); }
       // Show post-game leaderboard
       renderEndArcheryLb(String(state.period));
     }

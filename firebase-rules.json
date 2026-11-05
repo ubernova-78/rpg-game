@@ -53,7 +53,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','bench','timeSec','ts'])",
         "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -70,7 +70,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -85,7 +85,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -100,7 +100,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -115,7 +115,7 @@
       ".read": true,
       ".indexOn": ["period", "nameKey"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -135,7 +135,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -151,7 +151,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','bench','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -167,7 +167,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','score','timeSec','ts'])",
         "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -182,12 +182,14 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','period','bestMiss','expEarned'])",
         "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },
         "period":     { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
         "bestMiss":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "avgMiss":    { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "shotCount":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20" },
         "expEarned":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
         "timestamp":  { ".validate": "newData.isNumber()" },
         "$other":     { ".validate": false }
@@ -197,7 +199,7 @@
       ".read": true,
       ".indexOn": ["period"],
       "$id": {
-        ".write": true,
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
         ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','avgMiss'])",
         "name":       { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
         "nameKey":    { ".validate": "newData.isString() && newData.val().length <= 40" },

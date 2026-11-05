@@ -114,9 +114,17 @@
   function status(msg,ok){ const s=$('status'); s.textContent=msg||''; s.className='status '+(ok===false?'bad':ok?'ok':''); }
   // Every write says whether it worked: a write the rules refuse doesn't
   // throw anywhere else, it just doesn't happen.
+  // Firebase never settles a write while the laptop is offline, and the switch
+  // re-renders from the local copy straight away, so say "Saving…" until the
+  // server answers, and say so plainly if it's taking a while.
+  let writeSeq=0;
   async function write(what,fn){
-    try{ await fn(); status(`Saved: ${what}.`,true); }
+    const me=++writeSeq;
+    status(`Saving: ${what}…`);
+    const slow=setTimeout(()=>{ if(me===writeSeq) status(`Still saving (${what})… check the Wi-Fi. It will save when the connection comes back.`,false); },4000);
+    try{ await fn(); clearTimeout(slow); if(me===writeSeq) status(`Saved: ${what}.`,true); }
     catch(e){
+      clearTimeout(slow);
       console.warn('[teacher] write failed',what,e);
       status(/permission/i.test(String(e&&(e.code||e.message)))
         ? `Couldn't save (${what}): permission denied. Are the new Firebase rules published, and are you signed in as the teacher account?`

@@ -223,7 +223,7 @@
 
   // ---------- Firebase ----------
   const DB_PATH='measure_average_scores';
-  async function saveRun(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){}}
+  async function saveRun(rec){if(!Shared.DB_OK)return;try{await Shared.DB.ref(DB_PATH).push(rec);}catch(e){console.warn('[measure-average] score not saved',e);}}
   async function loadRuns(period){
     if(!Shared.DB_OK)return [];
     try{

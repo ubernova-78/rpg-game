@@ -861,7 +861,7 @@
       state.record = result.record;
       state.nameKey = result.nameKey;
       if(!state.demo){
-        try{ await saveRecord(state.nameKey, state.record); }catch(e){ /* ignore */ }
+        try{ await saveRecord(state.nameKey, state.record); }catch(e){ console.warn('[measure] student not saved', e); }
       }
     }
     } // end non-embedded branch
