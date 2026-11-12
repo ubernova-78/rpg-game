@@ -704,7 +704,12 @@ const INTERIOR_OBJECTS = {
     { id: 'deepBoulder4', kind: 'decor', img: CAVE_ART.crystalRed, col: 9, row: 7, solidRows: 1 },
     { id: 'dpCart', kind: 'decor', img: CAVE_ART.cartOre, col: 0, row: 4, solidRows: 1 },
     { id: 'dpOre', kind: 'decor', img: CAVE_ART.orePile, col: 10, row: 4, solidRows: 1 },
-    { id: 'dpPick', kind: 'decor', img: CAVE_ART.pickaxe, col: 0, row: 5, solid: false },
+    // The Minesweeper easter egg (minesweeper.html): stepping onto the old pickaxe
+    // opens it. Only the Density bench's end screen hints at it. kind 'secret', not
+    // 'workbench', so it carries no label on the floor and isn't on the teacher
+    // dashboard. It triggers on its own tile rather than the one south of it.
+    { id: 'dpPick', kind: 'secret', img: CAVE_ART.pickaxe, col: 0, row: 5, solid: false, triggerC: 0, triggerR: 5,
+      label: 'The Old Mine', src: 'minesweeper.html', messageType: 'mine-login' },
     { id: 'dpSkull', kind: 'decor', img: CAVE_ART.skull, col: 3, row: 6, solid: false },
     { id: 'dpBones', kind: 'decor', img: CAVE_ART.bones, col: 7, row: 5, solid: false },
     { id: 'dpSmallC1', kind: 'decor', img: CAVE_ART.crystalSmall, col: 2, row: 8, solid: false },

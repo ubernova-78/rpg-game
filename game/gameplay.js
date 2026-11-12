@@ -92,6 +92,7 @@ function updatePlayer(dt) {
         else if (touched.kind === 'storageChest') openStorageChest();
         else if (touched.kind === 'bed') openBedRest(touched);
         else if (touched.kind === 'caveDoor') enterCaveDeepRoom();
+        else if (touched.kind === 'secret') openGameOverlay(touched);
         else if (touched.kind === 'pickup' && !touched.claimed) {
           touched.claimed = true;
           grantBackpack();

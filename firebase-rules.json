@@ -111,6 +111,21 @@
         "$other":   { ".validate": false }
       }
     },
+    "minesweeper_scores": {
+      ".read": true,
+      ".indexOn": ["period"],
+      "$id": {
+        ".write": "auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || (!data.exists() && newData.exists())",
+        ".validate": "!newData.exists() || newData.hasChildren(['name','nameKey','period','level','timeSec','ts'])",
+        "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+        "nameKey":  { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "period":   { ".validate": "newData.isString() && newData.val().matches(/^[267]$/)" },
+        "level":    { ".validate": "newData.isString() && newData.val().matches(/^(beginner|intermediate)$/)" },
+        "timeSec":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 999" },
+        "ts":       { ".validate": "newData.isNumber()" },
+        "$other":   { ".validate": false }
+      }
+    },
     "rune_circle_scores": {
       ".read": true,
       ".indexOn": ["period", "nameKey"],

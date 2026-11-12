@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Old Mine</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="shared-student.js"></script>
+<style>
+  :root{
+    --rock:#6b5d52; --rock-hi:#8a7a6c; --rock-lo:#463b33;
+    --dirt:#c9b496; --dirt-line:#a8916f;
+    --ink:#2a211b; --dim:#7a6e64; --paper:#f3ede3; --gold:#f6c90e; --teal:#1a936f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);
+    -webkit-user-select:none;user-select:none;}
+  .app{max-width:760px;margin:0 auto;padding:14px 16px 24px;text-align:center;}
+  .titlebar{display:flex;justify-content:space-between;align-items:center;background:#2b2420;color:#f3ede3;
+    border-radius:10px;padding:10px 14px;margin-bottom:12px;}
+  .titlebar h1{margin:0;font-size:1.15rem;}
+  .badge{background:var(--gold);color:#2b2420;font-weight:800;font-size:0.75rem;padding:3px 8px;border-radius:6px;}
+  .hidden{display:none !important;}
+  button{font:inherit;cursor:pointer;}
+  .primary{display:block;width:100%;max-width:320px;margin:10px auto 0;padding:12px;border:none;border-radius:10px;
+    background:var(--teal);color:#fff;font-weight:700;font-size:1rem;}
+  .levels{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px;}
+  .levels button{padding:12px 18px;border-radius:10px;border:2px solid var(--rock);background:#fff;font-weight:700;min-width:150px;}
+  .levels button small{display:block;font-weight:400;color:var(--dim);font-size:0.8rem;}
+  .intro{color:var(--dim);font-size:0.92rem;line-height:1.45;max-width:520px;margin:0 auto;}
+
+  .hud{display:flex;justify-content:space-between;align-items:center;gap:8px;max-width:var(--board-w,480px);margin:0 auto 8px;}
+  .lcd{background:#1b1412;color:#ff5a3c;font-family:"Courier New",monospace;font-weight:700;font-size:1.4rem;
+    padding:2px 8px;border-radius:6px;min-width:64px;letter-spacing:1px;}
+  .face{font-size:1.5rem;line-height:1;padding:4px 10px;border-radius:8px;border:2px solid var(--rock-lo);background:var(--rock-hi);}
+  .modebtn{padding:6px 10px;border-radius:8px;border:2px solid var(--rock-lo);background:#fff;font-weight:700;font-size:0.9rem;}
+  .modebtn.on{background:#ffe08a;}
+
+  .board{display:inline-grid;gap:0;background:var(--rock-lo);padding:4px;border-radius:8px;touch-action:manipulation;}
+  .cell{width:var(--cell);height:var(--cell);display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:calc(var(--cell) * 0.55);line-height:1;}
+  .cell.hid{background:var(--rock);border:3px solid;border-color:var(--rock-hi) var(--rock-lo) var(--rock-lo) var(--rock-hi);cursor:pointer;}
+  .cell.hid:hover{background:#776859;}
+  .cell.open{background:var(--dirt);border:1px solid var(--dirt-line);}
+  .cell.boom{background:#e0452f;}
+  .cell.wrong{background:#d9c2a3;}
+  .n1{color:#1d4fd6}.n2{color:#1c7a2c}.n3{color:#c4261b}.n4{color:#1b2a7a}
+  .n5{color:#7a1b1b}.n6{color:#127a7a}.n7{color:#111}.n8{color:#666}
+  .msg{min-height:1.6em;margin:10px 0 0;font-weight:700;}
+  .help{color:var(--dim);font-size:0.82rem;margin-top:6px;}
+
+  .leaderboard{text-align:left;margin:16px auto 0;max-width:480px;background:#fff;border:2px solid #ddd;border-radius:10px;padding:12px 16px;}
+  .leaderboard h3{margin:0 0 4px;}
+  .leaderboard table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .leaderboard th{text-align:left;font-size:0.8rem;color:var(--dim);padding:4px 6px;border-bottom:2px solid #ddd;}
+  .leaderboard td{padding:5px 6px;border-bottom:1px solid #eee;font-size:0.9rem;}
+  .leaderboard tr.me td{background:#d4edda;font-weight:700;}
+  .leaderboard .rk{width:28px;text-align:center;font-weight:700;}
+  .leaderboard .tm{text-align:right;font-family:monospace;}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;}
+  .tabs button{padding:5px 10px;border-radius:6px;border:1px solid #ccc;background:#f4f4f4;font-size:0.85rem;}
+  .tabs button.active{background:var(--rock);color:#fff;border-color:var(--rock);}
+  .tabs + .tabs{margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar"><h1>⛏️ The Old Mine</h1><div class="badge">SECRET</div></div>
+
+  <div id="screen-start">
+    <p class="intro">You found the old miner's dig! Somewhere under these rocks is the dynamite they left behind.
+      Dig out every safe rock without touching it.<br><br>
+      A number tells you how many sticks of dynamite are in the 8 rocks around it.
+      Mark the ones you're sure of with a 🚩.</p>
+    <div class="levels">
+      <button data-level="beginner">Beginner<small>9 × 9, 10 dynamite</small></button>
+      <button data-level="intermediate">Intermediate<small>16 × 16, 40 dynamite</small></button>
+    </div>
+    <button class="primary" id="btn-lb" style="background:#555;">Fastest miners</button>
+  </div>
+
+  <div id="screen-game" class="hidden">
+    <div class="hud">
+      <div class="lcd" id="left" title="Dynamite left to mark">010</div>
+      <button class="modebtn" id="btn-mode" title="Switch between digging and marking">⛏️ Dig</button>
+      <button class="face" id="btn-face" title="New game">🙂</button>
+      <button class="modebtn" id="btn-menu">Levels</button>
+      <div class="lcd" id="clock" title="Time">000</div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="msg" id="msg"></div>
+    <div class="help">Click to dig. Right-click, long-press, or switch to 🚩 Mark to mark dynamite.
+      Click a number whose dynamite is all marked to dig around it.</div>
+    <div id="end-lb" class="leaderboard hidden"></div>
+  </div>
+
+  <div id="screen-lb" class="hidden">
+    <div class="leaderboard">
+      <h3>Fastest miners</h3>
+      <p style="margin:0 0 8px;font-size:0.85rem;color:var(--dim);">Best time for each student, cleared boards only.</p>
+      <div class="tabs" id="lb-levels"></div>
+      <div class="tabs" id="lb-periods"></div>
+      <div id="lb-body"></div>
+    </div>
+    <button class="primary" id="btn-back" style="background:#555;">Back</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // A Minesweeper easter egg with the classic rules, in a mine skin (Nick,
+  // 2026-11-12): the hint to find it is on the Density bench's end screen,
+  // and it's opened from the old pickaxe in the Deep Cave. Not class work:
+  // nothing here counts toward a grade, and it isn't on the teacher dashboard.
+  // Its own leaderboard: fastest win per student, per level and period.
+  //
+  // Classic rules, as in the original:
+  //   - the first dig is never dynamite (the board is laid after it),
+  //   - a 0 opens its neighbors, and so on outward,
+  //   - clicking an opened number whose neighbors have that many flags
+  //     digs the rest of its neighbors ("chording"),
+  //   - you win when every safe rock is dug; flags don't have to be placed,
+  //   - the clock starts on the first dig and stops at 999.
+  const LEVELS={
+    beginner:     { name:'Beginner',     cols:9,  rows:9,  mines:10 },
+    intermediate: { name:'Intermediate', cols:16, rows:16, mines:40 },
+  };
+  const PERIODS=['2','6','7'];
+  const DB_PATH='minesweeper_scores';
+  const MAX_TIME=999;
+
+  const $=id=>document.getElementById(id);
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const pad3=n=>{ const s=String(Math.max(-99,Math.min(999,n))); return n<0?'-'+s.slice(1).padStart(2,'0'):s.padStart(3,'0'); };
+  const screens=['screen-start','screen-game','screen-lb'].map($);
+  const show=el=>{ screens.forEach(s=>s.classList.add('hidden')); el.classList.remove('hidden'); };
+
+  let player={ name:'', nameKey:'', period:'', demo:false, teacher:false, loggedIn:false };
+  const realStudent=()=>player.loggedIn&&!player.demo&&!player.teacher;
+
+  // ---------- Game state ----------
+  // cells[i] = { mine, open, flag, n }; laid = mines placed yet (after first dig).
+  let G=null, tick=null, flagMode=false;
+  function newGame(levelKey){
+    const L=LEVELS[levelKey];
+    G={ level:levelKey, L, cells:Array.from({length:L.cols*L.rows},()=>({mine:false,open:false,flag:false,n:0})),
+        laid:false, over:false, won:false, opened:0, flags:0, startMs:0, sec:0, boom:-1 };
+    clearInterval(tick); tick=null;
+    flagMode=false; renderMode();
+    $('msg').textContent=''; $('end-lb').classList.add('hidden');
+    buildBoard(); render(); show($('screen-game'));
+  }
+  const idx=(c,r)=>r*G.L.cols+c;
+  function neighbors(i){
+    const {cols,rows}=G.L, c=i%cols, r=Math.floor(i/cols), out=[];
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc) continue; const cc=c+dc, rr=r+dr;
+      if(cc>=0&&cc<cols&&rr>=0&&rr<rows) out.push(idx(cc,rr));
+    }
+    return out;
+  }
+  function layMines(safe){
+    const spots=[]; for(let i=0;i<G.cells.length;i++) if(i!==safe) spots.push(i);
+    for(let k=0;k<G.L.mines;k++){ const j=k+Math.floor(Math.random()*(spots.length-k)); [spots[k],spots[j]]=[spots[j],spots[k]]; G.cells[spots[k]].mine=true; }
+    G.cells.forEach((cell,i)=>{ cell.n=neighbors(i).filter(j=>G.cells[j].mine).length; });
+    G.laid=true;
+    G.startMs=Date.now(); G.sec=1; // the original shows 1 the moment you start
+    tick=setInterval(()=>{ G.sec=Math.min(MAX_TIME,1+Math.floor((Date.now()-G.startMs)/1000)); $('clock').textContent=pad3(G.sec); },250);
+  }
+
+  function dig(i){
+    if(G.over) return;
+    const cell=G.cells[i];
+    if(cell.flag) return;
+    if(!G.laid) layMines(i);
+    if(cell.open){ chord(i); return; }
+    if(cell.mine){ lose(i); return; }
+    // Flood-open from here: zeros spread to their neighbors.
+    const stack=[i];
+    while(stack.length){
+      const k=stack.pop(), c=G.cells[k];
+      if(c.open||c.flag||c.mine) continue;
+      c.open=true; G.opened++;
+      if(c.n===0) neighbors(k).forEach(j=>{ if(!G.cells[j].open) stack.push(j); });
+    }
+    checkWin();
+  }
+  function chord(i){
+    const cell=G.cells[i];
+    if(!cell.n) return;
+    const nb=neighbors(i);
+    if(nb.filter(j=>G.cells[j].flag).length!==cell.n) return;
+    for(const j of nb){ const c=G.cells[j]; if(!c.open&&!c.flag){ if(c.mine){ lose(j); return; } } }
+    nb.forEach(j=>{ const c=G.cells[j]; if(!c.open&&!c.flag) dig(j); });
+  }
+  function toggleFlag(i){
+    if(G.over) return;
+    const c=G.cells[i]; if(c.open) return;
+    c.flag=!c.flag; G.flags+=c.flag?1:-1; render();
+  }
+  function stopClock(){ clearInterval(tick); tick=null; if(G.laid) G.sec=Math.min(MAX_TIME,1+Math.floor((Date.now()-G.startMs)/1000)); }
+  function lose(i){
+    G.over=true; G.boom=i; stopClock();
+    $('msg').textContent='💥 Kaboom! Press the face to dig again.';
+  }
+  function checkWin(){
+    if(G.opened!==G.cells.length-G.L.mines) return;
+    G.over=true; G.won=true; stopClock();
+    // The original flags every remaining mine for you on a win.
+    G.cells.forEach(c=>{ if(c.mine&&!c.flag){ c.flag=true; G.flags++; } });
+    $('msg').textContent=`🎉 Cleared in ${G.sec} second${G.sec===1?'':'s'}!`;
+    finishWin(G.level,G.sec);
+  }
+
+  // ---------- Drawing ----------
+  let cellEls=[];
+  function buildBoard(){
+    const {cols,rows}=G.L, board=$('board');
+    const avail=Math.min(window.innerWidth,760)-40;
+    const size=Math.max(22,Math.min(38,Math.floor(avail/cols)));
+    board.style.setProperty('--cell',size+'px');
+    board.style.gridTemplateColumns=`repeat(${cols},${size}px)`;
+    document.querySelector('.hud').style.setProperty('--board-w',(size*cols+8)+'px');
+    board.innerHTML=''; cellEls=[];
+    for(let i=0;i<cols*rows;i++){ const d=document.createElement('div'); d.dataset.i=i; board.appendChild(d); cellEls.push(d); }
+  }
+  function render(){
+    G.cells.forEach((c,i)=>{
+      const d=cellEls[i]; let cls='cell', txt='';
+      if(c.open){ cls+=' open'; if(c.n){ txt=c.n; cls+=' n'+c.n; } }
+      else if(G.over&&!G.won&&c.mine){ cls+=' open'+(i===G.boom?' boom':''); txt=c.flag?'🚩':'🧨'; }
+      else if(G.over&&!G.won&&c.flag&&!c.mine){ cls+=' open wrong'; txt='❌'; }
+      else { cls+=' hid'; if(c.flag) txt='🚩'; }
+      d.className=cls; d.textContent=txt;
+    });
+    $('left').textContent=pad3(G.L.mines-G.flags);
+    $('clock').textContent=pad3(G.laid?G.sec:0);
+    $('btn-face').textContent=G.won?'😎':G.over?'😵':'🙂';
+  }
+  function renderMode(){ const b=$('btn-mode'); b.textContent=flagMode?'🚩 Mark':'⛏️ Dig'; b.classList.toggle('on',flagMode); }
+
+  // ---------- Input ----------
+  // Mouse: left digs, right flags. Touch: a tap digs (or marks, in Mark
+  // mode) and a long-press marks. A long-press on a touch screen also
+  // fires contextmenu on some browsers, so the press that marked swallows
+  // the tap and menu that follow it.
+  const board=$('board');
+  let pressTimer=null, pressFlagged=false, pressMoved=false, lastTouch=0;
+  const cellOf=e=>{ const t=e.target.closest('.cell'); return t?Number(t.dataset.i):-1; };
+  function act(i,flag){ if(i<0||!G) return; if(flag) toggleFlag(i); else { dig(i); render(); } }
+  board.addEventListener('contextmenu',e=>{ e.preventDefault(); if(Date.now()-lastTouch<800) return; act(cellOf(e),true); });
+  board.addEventListener('mousedown',e=>{ if(e.button===0&&!G.over&&Date.now()-lastTouch>800) $('btn-face').textContent='😮'; });
+  board.addEventListener('mouseup',e=>{ if(e.button!==0||Date.now()-lastTouch<800) return; act(cellOf(e),flagMode); if(G) render(); });
+  board.addEventListener('touchstart',e=>{
+    lastTouch=Date.now(); pressFlagged=false; pressMoved=false; const i=cellOf(e);
+    clearTimeout(pressTimer);
+    pressTimer=setTimeout(()=>{ pressFlagged=true; act(i,!flagMode); if(navigator.vibrate) navigator.vibrate(30); },450);
+  },{passive:true});
+  board.addEventListener('touchmove',()=>{ pressMoved=true; clearTimeout(pressTimer); },{passive:true});
+  board.addEventListener('touchend',e=>{
+    lastTouch=Date.now(); clearTimeout(pressTimer);
+    e.preventDefault();
+    if(pressFlagged||pressMoved) return; // a long-press already marked; a drag isn't a tap
+    act(cellOf(e),flagMode);
+  });
+  window.addEventListener('mouseup',()=>{ if(G&&!$('screen-game').classList.contains('hidden')) render(); });
+  $('btn-mode').addEventListener('click',()=>{ flagMode=!flagMode; renderMode(); });
+  $('btn-face').addEventListener('click',()=>newGame(G.level));
+  $('btn-menu').addEventListener('click',()=>{ stopClock(); show($('screen-start')); });
+  document.querySelectorAll('.levels button').forEach(b=>b.addEventListener('click',()=>newGame(b.dataset.level)));
+
+  // ---------- Leaderboard ----------
+  // Only wins are saved, one row per win; the board shows each student's
+  // fastest. Practice in demo or teacher mode isn't saved.
+  async function saveWin(rec){ if(!Shared.DB_OK) return; try{ await Shared.DB.ref(DB_PATH).push(rec); }catch(e){ console.warn('[minesweeper] time not saved',e); } }
+  async function loadWins(period,level){
+    if(!Shared.DB_OK) return [];
+    try{
+      const rows=[]; const s=await Shared.DB.ref(DB_PATH).orderByChild('period').equalTo(String(period)).once('value');
+      s.forEach(c => { rows.push(c.val()); });
+      return rows.filter(r=>r&&r.level===level);
+    }catch(e){ return []; }
+  }
+  function fastest(rows){
+    const m={};
+    rows.forEach(r=>{ const t=Number(r.timeSec); if(!Number.isFinite(t)) return;
+      const k=String(r.nameKey||r.name||'').toLowerCase(); if(!m[k]||t<m[k].timeSec) m[k]={ name:String(r.name||''), nameKey:k, timeSec:t }; });
+    return Object.values(m).sort((a,b)=>a.timeSec-b.timeSec).slice(0,10);
+  }
+  function renderTable(rows,container,heading){
+    let h=heading?`<h3>${esc(heading)}</h3>`:'';
+    if(!rows.length){ container.innerHTML=h+'<p>No one has cleared this board yet.</p>'; return; }
+    h+='<table><tr><th></th><th>Name</th><th style="text-align:right">Time</th></tr>';
+    rows.forEach((r,i)=>{ const me=player.nameKey&&r.nameKey===player.nameKey;
+      h+=`<tr class="${me?'me':''}"><td class="rk">${i+1}</td><td>${esc(r.name)}</td><td class="tm">${Math.round(r.timeSec)} s</td></tr>`; });
+    container.innerHTML=h+'</table>';
+  }
+  async function finishWin(level,sec){
+    const box=$('end-lb');
+    if(realStudent()){
+      await saveWin({ name:player.name, nameKey:player.nameKey, period:String(player.period), level, timeSec:sec, ts:Date.now() });
+    }
+    if(!player.period) return;
+    const rows=await loadWins(player.period,level);
+    // This win counts even if the read back hasn't caught up with it.
+    if(realStudent()) rows.push({ name:player.name, nameKey:player.nameKey, timeSec:sec });
+    renderTable(fastest(rows),box,`Period ${player.period}, ${LEVELS[level].name}`);
+    box.classList.remove('hidden');
+  }
+
+  let lbLevel='beginner', lbPeriod=PERIODS[0];
+  Object.entries(LEVELS).forEach(([k,L])=>{ const b=document.createElement('button'); b.textContent=L.name; b.dataset.k=k;
+    b.addEventListener('click',()=>{ lbLevel=k; showLb(); }); $('lb-levels').appendChild(b); });
+  PERIODS.forEach(p=>{ const b=document.createElement('button'); b.textContent='P'+p; b.dataset.k=p;
+    b.addEventListener('click',()=>{ lbPeriod=p; showLb(); }); $('lb-periods').appendChild(b); });
+  async function showLb(){
+    $('lb-levels').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.k===lbLevel));
+    $('lb-periods').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.k===lbPeriod));
+    $('lb-body').innerHTML='<p>Loading…</p>';
+    renderTable(fastest(await loadWins(lbPeriod,lbLevel)),$('lb-body'));
+  }
+  $('btn-lb').addEventListener('click',()=>{ if(PERIODS.includes(player.period)) lbPeriod=player.period; show($('screen-lb')); showLb(); });
+  $('btn-back').addEventListener('click',()=>show($('screen-start')));
+
+  // ---------- Login handoff ----------
+  window.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='mine-login'){
+      const d=e.data;
+      player.name=d.name||''; player.nameKey=Shared.normalizeName(d.name||'');
+      player.period=String(d.period||''); player.demo=!!d.demo; player.teacher=!!d.teacher; player.loggedIn=true;
+    }
+  });
+})();
+</script>
+</body>
+</html>

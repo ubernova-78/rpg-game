@@ -82,6 +82,9 @@
   .best-box{background:#fff;border:2px solid var(--teal);border-radius:10px;padding:10px 14px;margin:0 0 12px;
     font-weight:800;font-size:1.05rem;text-align:center;color:var(--ink);}
   .best-box.end{margin:14px 0 0;}
+  .secret-note{margin:16px 0 0;padding:12px 16px;background:#f7efd9;border:2px dashed #8a6d3b;border-radius:10px;
+    color:#4a3820;font-style:italic;line-height:1.45;text-align:left;}
+  .secret-note strong{font-style:normal;}
   .lock-box{background:#fff7d6;border:2px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 12px;}
   .lock-box h3{margin:0 0 6px;}
   .lock-box table{border-collapse:collapse;margin:6px auto 4px;}
@@ -275,6 +278,7 @@
     <div id="review-list"></div>
     <div id="end-best" class="best-box" style="display:none;"></div>
     <div id="end-leaderboard" class="leaderboard" style="display:none;"></div>
+    <div id="secret-note" class="secret-note" style="display:none;"></div>
     <button class="primary" id="btn-again">Play Again</button>
   </div>
 
@@ -919,7 +923,7 @@
     { const W=STEP_POINTS[bench], t=S.tasks[0];
       const sum=(t.prism?W.pick:0)+t.readings.length*W.reading+t.calcs.reduce((a,c)=>a+W[c.label],0)+(t.unitQ?W.unit:0);
       if(sum!==BENCHES[bench].points) console.error(`STEP_POINTS for ${bench} add up to ${sum}, not ${BENCHES[bench].points}`); }
-    els.endLeaderboard.style.display='none'; $('end-best').style.display='none';
+    els.endLeaderboard.style.display='none'; $('end-best').style.display='none'; $('secret-note').style.display='none';
     updateHud(); showScreen(els.game); startTask();
   });
   // Back to the start screen re-reads the best (and the lock), so a run
@@ -1371,6 +1375,16 @@
     else if(S.score>=90){els.endTitle.textContent='Great job!';els.endMsg.textContent='Strong skills! Try again for a perfect score.';}
     else if(S.score>=60){els.endTitle.textContent='Getting there!';els.endMsg.textContent='Keep practicing!';}
     else{els.endTitle.textContent='Round complete';els.endMsg.textContent='Keep practicing to improve your score.';}
+    // The hint to the Minesweeper easter egg (minesweeper.html, opened from the
+    // pickaxe in the Deep Cave): on every finished Density run, whatever the
+    // score (Nick, 2026-11-12).
+    if(bench==='density'){
+      const note=$('secret-note');
+      note.innerHTML='📜 As you put the last block away, a scrap of paper falls out from under it:<br><br>'
+        +'"I left my old <strong>pickaxe</strong> down in the <strong>Deep Cave</strong>. Step on it, if you dare, '
+        +'and finish the dig I never could. Mind the dynamite." — <em>an old miner</em>';
+      note.style.display='';
+    }
 
     if(player.loggedIn&&!player.demo&&!player.teacher){
       const timeSec=Math.round((Date.now()-S.startTime)/1000);
