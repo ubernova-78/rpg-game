@@ -297,6 +297,7 @@ function validateContent() {
   return problems;
 }
 try { validateContent(); } catch (e) { console.error('[Physics Quest] validateContent itself failed', e); }
+try { checkArrivalZones(); } catch (e) { console.error('[Physics Quest] checkArrivalZones itself failed', e); }
 
 let lastT = performance.now();
 let loopErrorLogged = false;

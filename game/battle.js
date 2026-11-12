@@ -54,12 +54,24 @@ function drawMonsterShape(ctx, def, x, y, size) {
 // within `range` tiles of home, walk to it, pause again) — reused here for both world
 // monsters (world pixel coordinates) and cave monsters (interior-room pixel coordinates,
 // same TILE units, just a different bounding space).
-function wanderStep(m, dt) {
+function wanderStep(m, dt, area) {
   if (!m.target) {
     if (m.pauseT > 0) { m.pauseT -= dt; return; }
-    const rx = (Math.random() * 2 - 1) * m.range * TILE;
-    const ry = (Math.random() * 2 - 1) * m.range * TILE;
-    m.target = { x: m.homeCol * TILE + rx, y: m.homeRow * TILE + ry };
+    // Try a few random points; take the first whose straight walk stays out of every
+    // arrival zone (see ARRIVAL_CLEAR) and inside the area. None fits -> wait and retry.
+    for (let tries = 0; tries < 12 && !m.target; tries++) {
+      const t = {
+        x: m.homeCol * TILE + (Math.random() * 2 - 1) * m.range * TILE,
+        y: m.homeRow * TILE + (Math.random() * 2 - 1) * m.range * TILE,
+      };
+      if (area && area.bounds) {
+        const b = area.bounds;
+        t.x = Math.max(b.minX, Math.min(b.maxX, t.x));
+        t.y = Math.max(b.minY, Math.min(b.maxY, t.y));
+      }
+      if (!area || area.arrivals.every(a => segmentDist(m, t, a) > ARRIVAL_CLEAR)) m.target = t;
+    }
+    if (!m.target) { m.pauseT = 800; return; }
   }
   const dx = m.target.x - m.x, dy = m.target.y - m.y;
   const dist = Math.hypot(dx, dy);
@@ -67,6 +79,63 @@ function wanderStep(m, dt) {
   const speed = 40 * dt / 1000; // gentle wander pace
   m.x += (dx / dist) * speed;
   m.y += (dy / dist) * speed;
+}
+// Shortest distance from point p to the segment a-b (all {x, y}).
+function segmentDist(a, b, p) {
+  const vx = b.x - a.x, vy = b.y - a.y, len2 = vx * vx + vy * vy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2)) : 0;
+  return Math.hypot(a.x + t * vx - p.x, a.y + t * vy - p.y);
+}
+
+// ---------- Arrival zones ----------
+// Monsters keep clear of every spot a player is put down at, so nobody walks into a
+// room or out of a door straight into a fight (Nick, 2026-11-12: the Deep Cave's Flame
+// Skull wandered over its entrance and started a battle the moment you came through).
+// Points are player positions (player.x/y, which monsters' x/y are compared with), and
+// a battle fires within FRAME*SCALE*0.32 (about a tile), so 2.5 tiles leaves a
+// student about a tile and a half to see the monster and choose. Any new
+// spawn, door or room entrance must be added here, and boot reports a monster whose
+// home sits inside a zone (checkArrivalZones).
+const ARRIVAL_CLEAR = TILE * 2.5;
+function worldArrivals() {
+  const pts = [placeFeetAtTile(WORLD_SPOTS.spawn[0], WORLD_SPOTS.spawn[1])];
+  for (const b of BUILDING_DEFS) {
+    // Coming out of a door lands just south of it (exitBuilding).
+    const d = buildingDoorTile(b), p = placeFeetAtTile(d.c, d.r);
+    pts.push({ x: p.x, y: p.y + TILE * 0.6 });
+  }
+  return pts;
+}
+function caveDeepArrivals() {
+  const it = interiorFor('caveDeep');
+  return [placeFeetAtTile(it.exitCol, it.spawnRow), placeFeetAtTile(it.exitCol, it.exitRow)];
+}
+function caveDeepBounds() {
+  const it = interiorFor('caveDeep'), size = FRAME * SCALE;
+  return { minX: -size * 0.3, maxX: it.cols * TILE - size * 0.7, minY: TILE * 0.4, maxY: it.rows * TILE - size * 0.94 };
+}
+let WORLD_AREA = null, CAVE_AREA = null; // built on first update, once every def exists
+function monsterAreas() {
+  if (!WORLD_AREA) {
+    WORLD_AREA = { arrivals: worldArrivals(), bounds: null };
+    CAVE_AREA = { arrivals: caveDeepArrivals(), bounds: caveDeepBounds() };
+  }
+}
+function checkArrivalZones() {
+  monsterAreas();
+  const problems = [];
+  const check = (defs, area, where) => defs.forEach(m => {
+    const home = { x: m.homeCol * TILE, y: m.homeRow * TILE };
+    const d = Math.min(...area.arrivals.map(a => Math.hypot(home.x - a.x, home.y - a.y)));
+    if (d <= ARRIVAL_CLEAR) problems.push(`${where} monster "${m.id}" lives ${Math.round(d)}px from an arrival point; keep it over ${ARRIVAL_CLEAR}px away`);
+  });
+  check(WORLD_MONSTER_DEFS, WORLD_AREA, 'world');
+  check(CAVE_MONSTER_DEFS, CAVE_AREA, 'Deep Cave');
+  if (problems.length) {
+    console.error('[Physics Quest] monsters too close to where players arrive:');
+    problems.forEach(p => console.error('  • ' + p));
+  }
+  return problems;
 }
 function initWanderer(m) {
   m.x = m.homeCol * TILE;
@@ -103,10 +172,13 @@ WORLD_MONSTER_DEFS.forEach(initWanderer);
 // past the chest room — see world.js's 'caveDoor'/enterCaveDeepRoom), once the chest is
 // claimed and the boulder pile has cleared. Positions are in that room's own interior-
 // local tile coordinates (col/row), not the chest room's.
+// Homes are in monster/player position units (x = homeCol*TILE, the sprite's top-left),
+// so row 0-1 is the back of the room and the entrance (bottom middle) is far from all
+// three: the bat and slime in the back corners, the skull at the back in the middle.
 const CAVE_MONSTER_DEFS = [
-  { id: 'caveBat', name: 'Cave Bat', sprite: 'bat', maxHp: 1, exp: 10, gold: 3, homeCol: 2, homeRow: 2, range: 1.5 },
-  { id: 'caveSlime', name: 'Cave Slime', sprite: 'slime', maxHp: 2, exp: 15, gold: 5, homeCol: 8, homeRow: 2, range: 1.5 },
-  { id: 'flameSkull', name: 'Flame Skull', sprite: 'skull', maxHp: 4, exp: 30, gold: 12, homeCol: 5, homeRow: 3, range: 1.5 },
+  { id: 'caveBat', name: 'Cave Bat', sprite: 'bat', maxHp: 1, exp: 10, gold: 3, homeCol: 0.5, homeRow: 1.5, range: 1.5 },
+  { id: 'caveSlime', name: 'Cave Slime', sprite: 'slime', maxHp: 2, exp: 15, gold: 5, homeCol: 6.5, homeRow: 1, range: 1.5 },
+  { id: 'flameSkull', name: 'Flame Skull', sprite: 'skull', maxHp: 4, exp: 30, gold: 12, homeCol: 3.5, homeRow: 0.5, range: 1.5 },
 ];
 CAVE_MONSTER_DEFS.forEach(initWanderer);
 
@@ -117,16 +189,21 @@ function caveMonstersActive() {
 
 function updateMonsters(dt) {
   const now = performance.now();
+  monsterAreas();
+  // A beaten monster comes back at its home, but not while the player stands there:
+  // it would reappear on top of them and start a fight they didn't walk into.
+  const playerAtHome = (m, here) => here && Math.hypot(player.x - m.homeCol * TILE, player.y - m.homeRow * TILE) <= ARRIVAL_CLEAR;
+  const inWorld = scene.mode === 'world', inDeep = scene.mode === 'interior' && scene.buildingId === 'caveDeep';
   for (const m of WORLD_MONSTER_DEFS) {
-    if (!m.alive) { if (now >= m.respawnAt) initWanderer(m); continue; }
+    if (!m.alive) { if (now >= m.respawnAt && !playerAtHome(m, inWorld)) initWanderer(m); continue; }
     if (scene.modalOpen) continue;
-    wanderStep(m, dt);
+    wanderStep(m, dt, WORLD_AREA);
   }
   if (!caveMonstersActive()) return;
   for (const m of CAVE_MONSTER_DEFS) {
-    if (!m.alive) { if (now >= m.respawnAt) initWanderer(m); continue; }
+    if (!m.alive) { if (now >= m.respawnAt && !playerAtHome(m, inDeep)) initWanderer(m); continue; }
     if (scene.modalOpen) continue;
-    wanderStep(m, dt);
+    wanderStep(m, dt, CAVE_AREA);
   }
 }
 
