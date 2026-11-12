@@ -669,7 +669,11 @@ const INTERIOR_OBJECTS = {
     // a separate cave room where the monsters actually live — not this room, so the chest
     // area stays a safe place to come back and stock up. The door is a dark tunnel in the
     // back wall (row 0); the rubble sits on its trigger tile (row 1) until then.
-    { id: 'blockedDoor', kind: 'caveDoor', img: CAVE_ART.tunnel, col: 5, row: 0 },
+    // Its trigger is row 2, not the row-1 tile just south of it: no one's feet can get
+    // above row 2 in any room (the y-clamp in gameplay.js), so a row-1 trigger made the
+    // tunnel impossible to enter (2026-11-12). The boulders on row 1 no longer cover the
+    // trigger, so the door also checks caveTunnelOpen() before it lets anyone through.
+    { id: 'blockedDoor', kind: 'caveDoor', img: CAVE_ART.tunnel, col: 5, row: 0, triggerC: 5, triggerR: 2 },
     { id: 'boulder1', kind: 'decor', img: boulderImg, col: 4, row: 1 },
     { id: 'boulder2', kind: 'decor', img: boulderImg, col: 5, row: 1 },
     { id: 'boulder3', kind: 'decor', img: boulderImg, col: 6, row: 1 },
@@ -735,12 +739,13 @@ const INTERIOR_OBJECTS = {
 // at which point the rubble clears and the door becomes reachable/usable. Filtering it
 // out of the returned list (rather than a separate "removed" flag) keeps collision,
 // rendering, and the trigger check all in sync automatically.
+function caveTunnelOpen() {
+  const chest = INTERIOR_OBJECTS.cave.find(o => o.id === 'swordChest');
+  return !!(chest && chest.claimed);
+}
 function objectsFor(buildingId) {
   const list = INTERIOR_OBJECTS[buildingId] || [];
-  if (buildingId === 'cave') {
-    const chest = list.find(o => o.id === 'swordChest');
-    if (chest && chest.claimed) return list.filter(o => !o.id.startsWith('boulder'));
-  }
+  if (buildingId === 'cave' && caveTunnelOpen()) return list.filter(o => !o.id.startsWith('boulder'));
   return list;
 }
 

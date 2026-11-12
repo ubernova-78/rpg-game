@@ -246,6 +246,13 @@ function validateContent() {
     for (const o of objs) {
       if (seenObjIds.has(o.id)) problems.push(`duplicate object id "${o.id}" — findInteriorObject returns the first match and claimedChests is keyed by id`);
       seenObjIds.add(o.id);
+      // Feet can't get above row 2 in any room (gameplay.js clamps y), so a trigger on
+      // row 0 or 1 can never fire. The default trigger is the tile south of the object's
+      // bottom row, i.e. row + 1. This is how the cave tunnel broke unnoticed (2026-11-12).
+      const trigRow = o.triggerR !== undefined ? o.triggerR : o.row + 1;
+      if (o.kind !== 'decor' && trigRow < 2) {
+        problems.push(`"${o.id}" in "${roomId}" triggers on row ${trigRow}, which no one can reach — give it triggerR: 2 or move it down`);
+      }
       if (o.kind === 'workbench' && (!o.src || !o.messageType)) {
         problems.push(`workbench "${o.id}" is missing ${!o.src ? 'src' : 'messageType'} — it would open blank`);
       }
