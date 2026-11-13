@@ -124,8 +124,9 @@ const LAKE = {
   altarFront: { col: 32, row: 4 },
   landing: { col: 29, row: 5 },      // the island's west edge: step off / get in here
   dock: { col: 19, row: 5 },         // the west shore beside the hut: get in here
+  pier: { col: 20, row: 5 },         // the pier's planks: a water tile you can walk on
   row: 5,                            // the crossing runs along this row
-  shoreEdge: 20,                     // first water column off the dock
+  shoreEdge: 21,                     // the boat moors just past the pier's end
   islandEdge: 29,                    // first island column
 };
 const LAKE_SOLID = new Set([`${LAKE.altar.col},${LAKE.altar.row}`]);
@@ -364,7 +365,7 @@ function isSolidBuildingTile(c, r) {
   if (DECOR_SOLID.has(`${c},${r}`)) return true;
   if (RUNE_SOLID.has(`${c},${r}`)) return true;
   if (LAKE_SOLID.has(`${c},${r}`)) return true;
-  if (isWaterTile(c, r)) return true;
+  if (isWaterTile(c, r) && !(c === LAKE.pier.col && r === LAKE.pier.row)) return true;
   return false;
 }
 function doorAt(c, r) {

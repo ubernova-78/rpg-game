@@ -64,8 +64,11 @@ function updateLakeQuest() {
   const fb = feetBox(player.x, player.y);
   const fx = fb.x + fb.w / 2, fy = fb.y + fb.h / 2;
   const near = (spot, r) => Math.hypot(fx - (spot.col * TILE + TILE / 2), fy - (spot.row * TILE + TILE / 2)) < TILE * r;
+  // The dock's trigger covers the shore spot and the whole pier out to the boat
+  // (Nick, 2026-11-13: a circle round the pier's end was too fiddly to find).
+  const onDock = fx > (LAKE.dock.col - 0.4) * TILE && fx < (LAKE.pier.col + 1) * TILE && fy > (LAKE.row - 0.3) * TILE && fy < (LAKE.row + 1.3) * TILE;
   let on = null;
-  if (near(LAKE.dock, 0.8)) on = 'dock';
+  if (onDock) on = 'dock';
   else if (near(LAKE.landing, 0.8)) on = 'landing';
   else if (near(LAKE.altarFront, 0.8)) on = 'altar';
   if (on && on !== lqWasOn) {
@@ -94,7 +97,7 @@ function lqBoatSize() { const b = lqBoatSpec(); return { b, len: b.L * BOAT_SCAL
 function lqMooring(at) {
   const { len } = lqBoatSize(), y = (LAKE.row + 0.5) * TILE;
   // The water tiles' drawn shoreline sits inside the edge tile, so moor half a tile out.
-  return at === 'dock' ? { x: LAKE.shoreEdge * TILE + len / 2 + TILE * 0.5, y } : { x: LAKE.islandEdge * TILE - len / 2 - TILE * 0.5, y };
+  return at === 'dock' ? { x: LAKE.shoreEdge * TILE + len / 2 + TILE * 0.05, y } : { x: LAKE.islandEdge * TILE - len / 2 - TILE * 0.5, y };
 }
 function lqBoatCenter() {
   if (!lqSail) return lqMooring(lqBoatAt);
@@ -176,11 +179,13 @@ function drawLakeQuest() {
   if (a.x < -10 * TILE && d.x < -10 * TILE) return;
   if (d.x > mapCanvas.width + 10 * TILE || a.y > mapCanvas.height + 12 * TILE) return;
   const s = lqState();
-  // A short jetty off the shore by the hut, the boat tied up beside it.
-  ctx.fillStyle = '#7a5230'; ctx.fillRect(d.x + TILE * 0.55, d.y + TILE * 0.3, TILE * 1.05, TILE * 0.4);
+  // The pier off the shore by the hut, one tile out over the water (you can walk
+  // on it), the boat tied up at its end.
+  ctx.fillStyle = '#7a5230'; ctx.fillRect(d.x + TILE * 0.55, d.y + TILE * 0.15, TILE * 1.45, TILE * 0.7);
   ctx.fillStyle = '#5e3e22';
-  for (let i = 0; i < 6; i++) ctx.fillRect(d.x + TILE * (0.55 + i * 0.19), d.y + TILE * 0.3, 2, TILE * 0.4);
-  ctx.fillRect(d.x + TILE * 1.52, d.y + TILE * 0.22, 5, TILE * 0.56); // post
+  for (let i = 0; i < 8; i++) ctx.fillRect(d.x + TILE * (0.55 + i * 0.185), d.y + TILE * 0.15, 2, TILE * 0.7);
+  ctx.fillRect(d.x + TILE * 1.9, d.y + TILE * 0.05, 5, TILE * 0.9); // posts at the end
+  ctx.fillRect(d.x + TILE * 1.9, d.y + TILE * 0.05, 5, 5);
   if (s.boat) {
     const c = lqBoatCenter();
     drawLakeBoat(ctx, c.x - camera.x, c.y - camera.y, !s.altar); // the stones stay aboard until the altar takes them
