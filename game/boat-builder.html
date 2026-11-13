@@ -545,6 +545,12 @@
     rail(top).forEach(([a, b]) => boat.add(stick(a, b, t)));
     rail(d).forEach(([a, b]) => boat.add(stick(a, b, t)));
     for (const x of [-L2, L2]) for (const z of [-W2, W2]) boat.add(stick([x, d, z], [x, top, z], t));
+    // Wall ribs: upright sticks about every 0.5 m along the sides and across the
+    // ends, so the walls look braced rather than bare rails (Nick, 2026-11-13).
+    // Drawing only: the frame's 40 kg already counts them.
+    const between = (len) => { const n = Math.max(1, Math.round(len / 0.5)), out = []; for (let k = 1; k < n; k++) out.push(-len / 2 + len * k / n); return out; };
+    for (const x of between(D.L)) for (const z of [-W2, W2]) boat.add(stick([x, d, z], [x, top, z], t));
+    for (const z of between(D.W)) for (const x of [-L2, L2]) boat.add(stick([x, d, z], [x, top, z], t));
     if (isV()) {
       boat.add(stick([-L2, 0, 0], [L2, 0, 0], t));
       for (const x of [-L2, 0, L2]) { boat.add(stick([x, 0, 0], [x, d, -W2], t)); boat.add(stick([x, 0, 0], [x, d, W2], t)); }
