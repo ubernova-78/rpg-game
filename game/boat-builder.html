@@ -56,11 +56,27 @@
   .result.good{display:block;background:#d9f2e6;color:#145c3f;border:2px solid var(--good);}
   .result.bad{display:block;background:#fbe1de;color:#7a221a;border:2px solid var(--bad);}
   .result .why{font-weight:400;font-size:0.88rem;margin-top:4px;}
+  /* The coach line: always says what to do next, and the button for it pulses. */
+  .coach{margin-top:8px;padding:8px 12px;border-radius:10px;background:#fff8d6;border:2px solid var(--gold);font-size:0.9rem;line-height:1.4;}
+  .coach b{color:#20313d;}
+  .btn.next, .seg.next, select.next{animation:nextpulse 1.2s ease-in-out infinite;}
+  @keyframes nextpulse{0%,100%{box-shadow:0 0 0 0 rgba(246,201,14,0.9);}50%{box-shadow:0 0 0 6px rgba(246,201,14,0);}}
+  .helpbtn{font:inherit;font-size:0.78rem;font-weight:700;padding:3px 9px;border-radius:6px;border:none;background:#f2efe7;color:#20313d;cursor:pointer;margin-left:8px;}
+  /* The first-time tour: a spotlight on one part of the page and a card explaining it. */
+  .tour-block{position:fixed;inset:0;z-index:50;background:rgba(15,25,33,0.62);}
+  .tour-spot{position:relative;z-index:51;box-shadow:0 0 0 4px var(--gold) !important;border-radius:10px;}
+  .tour-card{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:52;width:min(460px,calc(100% - 32px));
+    background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 8px 28px rgba(0,0,0,0.35);font-size:0.95rem;line-height:1.45;}
+  .tour-card.top{bottom:auto;top:16px;}
+  .tour-card h4{margin:0 0 6px;font-size:1rem;}
+  .tour-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+  .tour-card .dots{font-size:0.8rem;color:var(--dim);}
+  .tour-card .skip{font:inherit;font-size:0.85rem;background:none;border:none;color:var(--dim);cursor:pointer;text-decoration:underline;margin-right:8px;}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="titlebar"><h1>⛵ Boat Builder</h1><div class="badge">LAKE QUEST</div></div>
+  <div class="titlebar"><h1>⛵ Boat Builder</h1><div><span class="badge">LAKE QUEST</span><button class="helpbtn" id="btn-help">❓ How it works</button></div></div>
 
   <div class="goal">
     <strong>The job:</strong> carry <strong>60 stones (5 kg each)</strong> and <strong>yourself (60 kg)</strong>
@@ -76,9 +92,10 @@
     <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
     <div class="gulp" id="gulp">GULP! 🐉</div>
   </div>
+  <div class="coach" id="coach"></div>
 
   <div class="grid2">
-    <div class="panel">
+    <div class="panel" id="p-frame">
       <h3>1. The frame</h3>
       <div class="row"><span>Shape</span>
         <div class="seg" id="shape"><button data-v="box">Flat bottom</button><button data-v="v">V bottom</button></div></div>
@@ -93,7 +110,7 @@
       <div class="note" id="framenote"></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="p-skin">
       <h3>2. The monster skin</h3>
       <canvas class="net" id="net" width="200" height="200"></canvas>
       <div class="note" style="text-align:center">Your 2 m × 2 m sheet, laid flat. The pattern shows where it folds up.</div>
@@ -102,7 +119,7 @@
     </div>
   </div>
 
-  <div class="panel" style="margin-top:10px">
+  <div class="panel" id="p-test" style="margin-top:10px">
     <h3>3. Test it on the water</h3>
     <div class="loadbtns">
       <button class="btn alt" id="btn-rider">Add yourself (60 kg)</button>
@@ -363,6 +380,7 @@
       r.innerHTML = `It floats with you and all ${S.stones} stones! The lowest side is ${p.free.toFixed(2)} m above the water.`
         + `<div class="why">${IN_GAME ? 'Close this and walk onto the dock, just south of the lake, to sail to the island. ' : ''}Want to know the limit? Keep loading 10 more.</div>`;
     } else { r.className = 'result'; r.innerHTML = ''; }
+    coach();
     setPose(p, animate);
   }
 
@@ -662,12 +680,78 @@
     } else { tg.y = -p.T; tg.roll = p.roll; tg.pitch = p.pitch; }
   }
 
+  // ---------- Coach: what to do next ----------
+  // Always one line saying the next step, and that step's control pulses.
+  function coach(){
+    document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
+    const sk = skinInfo();
+    let text, target = null;
+    if (!D.skin && !sk.covers) {
+      text = '<b>Too big:</b> this frame needs more than your 2 m × 2 m skin. Make it shorter, narrower or lower until the skin fits.';
+      target = 'L';
+    } else if (!D.skin) {
+      text = '<b>Next:</b> your frame is ready. Press <b>Stretch the skin over the frame</b> to keep the water out. (Or change the frame first.)';
+      target = 'btn-skin';
+    } else if (!S.rider && !S.failed) {
+      text = '<b>Next:</b> launch it! Press <b>Add yourself</b> to climb in first.';
+      target = 'btn-rider';
+    } else if (S.failed && !S.passed) {
+      text = '<b>It sank.</b> Read why below, press <b>Unload</b>, then change the frame or dividers and try again. Every sinking teaches you something.';
+      target = 'btn-reset';
+    } else if (S.passed) {
+      text = '<b>Done!</b> Your boat carried you and all 60 stones.' + (IN_GAME ? ' Close this and walk onto the dock, south of the lake.' : '') + ' Curious? Keep loading to find its limit.';
+    } else if (S.busy) {
+      text = 'Loading…';
+    } else {
+      text = `<b>Next:</b> load the stones: 1, 10, or all at once. Watch the sides above water and the tilt. <b>${S.stones} of ${GOAL}</b> loaded.`;
+      target = S.stones ? 'btn-10' : 'btn-1';
+    }
+    $('coach').innerHTML = text;
+    if (target && !$(target).disabled) $(target).classList.add('next');
+  }
+
+  // ---------- First-time tour ----------
+  // Shown the first time this computer opens the Boat Builder; "How it works" replays it.
+  const TOUR = [
+    ['view', 'Your boat, on the lake', 'This is your boat. <b>Drag</b> to spin it around, <b>scroll or pinch</b> to zoom. The buttons in the corner jump to the Front, Side and Top views.'],
+    ['p-frame', '1. Build the frame', 'Pick a shape and a size, in steps of 0.25 m. <b>Floor dividers</b> split the floor into compartments so the stones can\'t all slide to one side. They add a little weight.'],
+    ['p-skin', '2. The monster skin', 'You get <b>one 2 m × 2 m skin</b>. It has to cover the bottom <i>and</i> fold up the walls. The pattern shows how much your frame needs. Red means the frame is too big.'],
+    ['p-test', '3. Test it on the water', 'Climb in first, then load the stones <b>1, 10, or all at once</b>. Watch how high the lowest side sits above the water, and how much it tilts. Carry <b>all 60</b> to pass.'],
+    ['coach', 'If it sinks, try again', 'Sinking is part of it: press <b>Unload</b>, change something, and test again. This yellow line always tells you what to do next. Good luck, sailor!'],
+  ];
+  let tourAt = -1, tourEls = null;
+  function tourShow(i){
+    tourEnd(true);
+    tourAt = i;
+    const [id, title, body] = TOUR[i], target = $(id);
+    const block = document.createElement('div'); block.className = 'tour-block';
+    const card = document.createElement('div'); card.className = 'tour-card';
+    card.innerHTML = `<h4>${title}</h4><div>${body}</div><div class="foot"><span class="dots">${i + 1} of ${TOUR.length}</span>`
+      + `<span>${i < TOUR.length - 1 ? '<button class="skip">Skip</button>' : ''}<button class="btn">${i < TOUR.length - 1 ? 'Next' : 'Start building'}</button></span></div>`;
+    document.body.append(block, card);
+    target.classList.add('tour-spot');
+    target.scrollIntoView({ block:'center', behavior:'smooth' });
+    // Keep the card off the thing it explains: lower half of the screen -> card on top.
+    requestAnimationFrame(() => { const r = target.getBoundingClientRect(); if (r.top + r.height / 2 > innerHeight * 0.55 || r.bottom > innerHeight - 190) card.classList.add('top'); });
+    card.querySelector('.btn').addEventListener('click', () => i < TOUR.length - 1 ? tourShow(i + 1) : tourEnd());
+    const skip = card.querySelector('.skip'); if (skip) skip.addEventListener('click', () => tourEnd());
+    tourEls = { block, card, target };
+  }
+  function tourEnd(moving){
+    if (tourEls) { tourEls.block.remove(); tourEls.card.remove(); tourEls.target.classList.remove('tour-spot'); tourEls = null; }
+    if (!moving) { tourAt = -1; try { localStorage.setItem('boatTourSeen', '1'); } catch (e) {} window.scrollTo({ top:0, behavior:'smooth' }); }
+  }
+  $('btn-help').addEventListener('click', () => tourShow(0));
+  document.addEventListener('keydown', e => { if (tourAt >= 0 && e.key === 'Escape') tourEnd(); });
+
   // ---------- Login handoff ----------
   window.addEventListener('message', e => {
     if (e.data && e.data.type === 'boat-login') { player = { loggedIn:true, ...e.data }; }
   });
 
   designChanged();
+  let seen = false; try { seen = localStorage.getItem('boatTourSeen') === '1'; } catch (e) {}
+  if (!seen) setTimeout(() => tourShow(0), 400);
   // For checking the model from the console; nothing in the page uses it.
   window.__boat = { D, S, physics, skinInfo, designChanged, refresh, three };
 })();
