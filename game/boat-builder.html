@@ -515,11 +515,24 @@
     // monster rises, leans over, and swallows it. Unload puts everything back.
     const green = new THREE.MeshLambertMaterial({ color:0x3f9a4d }), belly = new THREE.MeshLambertMaterial({ color:0xb8d98a });
     const white = new THREE.MeshLambertMaterial({ color:0xffffff }), black = new THREE.MeshLambertMaterial({ color:0x111111 });
+    // A sea serpent (Nick, 2026-11-13: a fixed-length neck looked like a pole): a big
+    // body hump that breaks the surface, a tail hump behind it, and a neck that grows
+    // up out of the body (neckG.scale.y), leans in to gulp, and shrinks back. Its own
+    // +x points away from the dummy; the head and the lean are toward -x.
     const monster = new THREE.Group(); monster.visible = false; scene.add(monster);
-    const NECK = 1.7;
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.24, NECK, 14), green); neck.position.y = NECK / 2; monster.add(neck);
-    for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 6), belly); sp.position.set(0.15, 0.35 + i * 0.3, 0); sp.rotation.z = -Math.PI / 2; monster.add(sp); }
-    const head = new THREE.Group(); head.position.y = NECK; monster.add(head);
+    const NECK = 1.4;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), green); body.scale.set(1.25, 0.62, 0.85); monster.add(body);
+    const bellyM = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 10), belly); bellyM.scale.set(1.1, 0.5, 0.78); bellyM.position.set(-0.08, -0.07, 0); monster.add(bellyM);
+    for (const [x, y, r] of [[1.0, -0.12, 0.26], [1.42, -0.2, 0.16], [1.7, -0.26, 0.09]]) { // tail humps, getting smaller
+      const h = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), green); h.scale.set(1.3, 0.9, 0.9); h.position.set(x, y, 0); monster.add(h);
+    }
+    for (let i = 0; i < 4; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.18, 6), belly); sp.position.set(-0.15 + i * 0.3, 0.3 - Math.abs(i - 1) * 0.04, 0); monster.add(sp); }
+    const neckG = new THREE.Group(); neckG.position.set(-0.42, 0.12, 0); monster.add(neckG); // the neck's root, at the body's front
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, NECK, 14), green); neck.position.y = NECK / 2; neckG.add(neck);
+    for (let i = 0; i < 4; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), belly); sp.position.set(0.15, 0.3 + i * 0.3, 0); sp.rotation.z = -Math.PI / 2; neckG.add(sp); }
+    // The head is NOT inside neckG, so it doesn't stretch with the neck: it's placed
+    // at the neck's tip every frame (runSink).
+    const head = new THREE.Group(); monster.add(head);
     const skull = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), green); skull.scale.set(1.5, 0.8, 1); skull.position.x = -0.18; head.add(skull);
     const jaw = new THREE.Group(); jaw.position.set(0.05, -0.08, 0); head.add(jaw);
     const jawM = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.36), belly); jawM.position.x = -0.3; jaw.add(jawM);
@@ -554,7 +567,7 @@
     // Everything on screen is worked out from t alone, so the show can be
     // jumped to any moment (seekSink) and still look right.
     //   0-1 s water floods in; 1 s the boat goes down and the dummy bobs up;
-    //   2-2.8 s the monster rises; 2.9-3.4 s it leans in, jaw open; 3.35 s GULP;
+    //   2-2.9 s the monster surfaces and its neck grows; 2.9-3.4 s it leans in, jaw open; 3.35 s GULP;
     //   3.6-5 s it straightens and sinks away.
     function runSink(){
       const t = anim.frozen != null ? anim.frozen : (performance.now() - anim.t0) / 1000;
@@ -584,10 +597,22 @@
       // Hidden until it starts to rise, so it doesn't show through the water early
       // (seen watching it live, 2026-11-13); it peaks low enough to stay in view and
       // sinks well out of sight before it goes.
+      //   1.9-2.6 s the body surfaces (a dark shape under the water first);
+      //   2.3-2.9 s the neck grows up out of it; 2.9-3.4 s it leans in, jaw open;
+      //   3.6-4.1 s it straightens; 3.9-4.5 s the neck shrinks; 4.3-5.1 s the body sinks.
       monster.visible = t >= 1.9 && t < 5.2;
-      monster.position.set(anim.x + 1.55 * anim.rx, -3.8 + 3.35 * ease((t - 2.0) / 0.8) - 3.35 * ease((t - 4.0) / 1.0), anim.z + 1.55 * anim.rz);
-      monster.rotation.y = anim.yaw; // (Euler XYZ: the lean below is about its own z, then this turns it)
-      monster.rotation.z = 1.0 * ease((t - 2.9) / 0.5) - 1.0 * ease((t - 3.6) / 0.5);
+      const bodyY = -1.3 + 1.15 * ease((t - 1.9) / 0.7) - 1.6 * ease((t - 4.3) / 0.8);
+      monster.position.set(anim.x + 1.55 * anim.rx, bodyY + 0.03 * Math.sin(t * 3), anim.z + 1.55 * anim.rz);
+      monster.rotation.y = anim.yaw;
+      const grow = Math.max(0.04, ease((t - 2.3) / 0.6) - 0.96 * ease((t - 3.9) / 0.6));
+      const lean = 1.2 * ease((t - 2.9) / 0.5) - 1.2 * ease((t - 3.6) / 0.5);
+      neckG.scale.set(1, grow, 1);
+      neckG.rotation.z = lean;
+      // The tip of the neck, in the monster's own frame (lean tips it toward -x).
+      const len = NECK * grow;
+      head.position.set(neckG.position.x - Math.sin(lean) * len, neckG.position.y + Math.cos(lean) * len, 0);
+      head.rotation.z = lean * 0.6; // the head dips a little less than the neck
+      head.scale.setScalar(0.4 + 0.6 * Math.min(1, grow * 1.5));
       jaw.rotation.z = -0.7 * ease((t - 2.9) / 0.3) + 0.7 * ease((t - 3.3) / 0.12);
       gulpEl.style.display = t >= 3.35 && t < 5.2 ? 'block' : 'none';
       // 4.6-5.4 s everything goes black; 5.9-6.6 s you wake up at the drafting desk.
