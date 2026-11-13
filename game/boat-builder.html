@@ -26,7 +26,7 @@
   .viewhint{position:absolute;left:8px;bottom:6px;font-size:0.72rem;color:#355;background:rgba(255,255,255,0.7);padding:2px 6px;border-radius:5px;}
   .gulp{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:2.2rem;font-weight:900;color:#fff;
     text-shadow:0 3px 0 #1d5e2c,0 0 12px rgba(0,0,0,0.5);display:none;pointer-events:none;letter-spacing:2px;}
-  /* After the monster: fade to black, then wake up in bed. It was all a dream. */
+  /* After the monster: fade to black, then wake up at the desk. It was all a dream. */
   .dream{position:absolute;inset:0;background:#05080c;display:none;opacity:0;z-index:5;}
   .dream .wake{position:absolute;inset:0;opacity:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;padding:16px;background:linear-gradient(#ffe7b8,#ffd08a 60%,#f2b56b);color:#3a2a14;}
@@ -99,10 +99,10 @@
     <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
     <div class="gulp" id="gulp">GULP! 🐉</div>
     <div class="dream" id="dream"><div class="wake">
-      <div class="bed">🛏️😵‍💫</div>
-      <h4>…you wake up with a gasp!</h4>
-      <p>Tangled in your blanket, heart pounding. It was only a dream. No lake monster, no cold water. Your boat plans are still on the desk. Maybe change something before the real trip?</p>
-      <button class="btn" id="btn-wake">Get up and try again</button>
+      <div class="bed">📐😵‍💫</div>
+      <h4>…you jolt awake at your desk!</h4>
+      <p>Face-down on your boat plans, pencil still in your hand. You must have dozed off. No lake monster, no cold water, just the old Boatwright's Hut. Maybe change something before the real trip?</p>
+      <button class="btn" id="btn-wake">Back to work</button>
     </div></div>
   </div>
   <div class="coach" id="coach"></div>
@@ -386,13 +386,13 @@
       }[S.failed];
       r.className = S.passed ? 'result good' : 'result bad';
       r.innerHTML = S.passed
-        ? `It carried you and all ${GOAL} stones. Its limit: ${msg[0].charAt(0).toLowerCase() + msg[0].slice(1)}<div class="why">${IN_GAME ? 'You passed. Close this and walk onto the dock, just south of the lake, to sail to the island.' : 'You passed.'}</div>`
+        ? `It carried you and all ${GOAL} stones. Its limit: ${msg[0].charAt(0).toLowerCase() + msg[0].slice(1)}<div class="why">${IN_GAME ? 'You passed. Close this, head outside, and step onto the dock beside the hut to row across.' : 'You passed.'}</div>`
         : `${msg[0]}<div class="why">${msg[1]} Change the design and test again.</div>`;
-      r.innerHTML += '<div class="why">🐉 Then a lake monster swallowed you… and you woke up. Phew, just a dream! Press <b>Get up and try again</b> (or Unload) to test again.</div>';
+      r.innerHTML += '<div class="why">🐉 Then a lake monster swallowed you… and you woke up at your desk. Phew, just a dream! Press <b>Back to work</b> (or Unload) to test again.</div>';
     } else if (S.passed && S.stones >= GOAL) {
       r.className = 'result good';
       r.innerHTML = `It floats with you and all ${S.stones} stones! The lowest side is ${p.free.toFixed(2)} m above the water.`
-        + `<div class="why">${IN_GAME ? 'Close this and walk onto the dock, just south of the lake, to sail to the island. ' : ''}Want to know the limit? Keep loading 10 more.</div>`;
+        + `<div class="why">${IN_GAME ? 'Close this, head outside, and step onto the dock beside the hut to row across. ' : ''}Want to know the limit? Keep loading 10 more.</div>`;
     } else { r.className = 'result'; r.innerHTML = ''; }
     coach();
     setPose(p, animate);
@@ -519,7 +519,7 @@
       monster.rotation.z = 1.0 * ease((t - 2.9) / 0.5) - 1.0 * ease((t - 3.6) / 0.5);
       jaw.rotation.z = -0.7 * ease((t - 2.9) / 0.3) + 0.7 * ease((t - 3.3) / 0.12);
       gulpEl.style.display = t >= 3.35 && t < 5.2 ? 'block' : 'none';
-      // 4.6-5.4 s everything goes black; 5.9-6.6 s you wake up in bed.
+      // 4.6-5.4 s everything goes black; 5.9-6.6 s you wake up at the drafting desk.
       dreamEl.style.display = t >= 4.6 ? 'block' : 'none';
       dreamEl.style.opacity = ease((t - 4.6) / 0.8);
       wakeEl.style.opacity = ease((t - 5.9) / 0.7);
@@ -745,10 +745,10 @@
       text = '<b>Next:</b> launch it! Press <b>Add yourself</b> to climb in first.';
       target = 'btn-rider';
     } else if (S.failed && !S.passed) {
-      text = '<b>It sank.</b> Read why below, press <b>Get up and try again</b> (or Unload), then change the frame or dividers and test again. Every sinking teaches you something.';
+      text = '<b>It sank.</b> Read why below, press <b>Back to work</b> (or Unload), then change the frame or dividers and test again. Every sinking teaches you something.';
       target = 'btn-reset';
     } else if (S.passed) {
-      text = '<b>Done!</b> Your boat carried you and all 60 stones.' + (IN_GAME ? ' Close this and walk onto the dock, south of the lake.' : '') + ' Curious? Keep loading to find its limit.';
+      text = '<b>Done!</b> Your boat carried you and all 60 stones.' + (IN_GAME ? ' Close this and step onto the dock beside the hut.' : '') + ' Curious? Keep loading to find its limit.';
     } else if (S.busy) {
       text = 'Loading…';
     } else {

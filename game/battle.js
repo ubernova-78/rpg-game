@@ -99,7 +99,7 @@ function segmentDist(a, b, p) {
 const ARRIVAL_CLEAR = TILE * 2.5;
 function worldArrivals() {
   const pts = [placeFeetAtTile(WORLD_SPOTS.spawn[0], WORLD_SPOTS.spawn[1]),
-    placeFeetAtTile(LAKE.landing.col, LAKE.landing.row), placeFeetAtTile(LAKE.shoreReturn.col, LAKE.shoreReturn.row)];
+    placeFeetAtTile(LAKE.landing.col, LAKE.landing.row), placeFeetAtTile(LAKE.dock.col, LAKE.dock.row)]; // where the boat drops you
   for (const b of BUILDING_DEFS) {
     // Coming out of a door lands just south of it (exitBuilding).
     const d = buildingDoorTile(b), p = placeFeetAtTile(d.c, d.r);

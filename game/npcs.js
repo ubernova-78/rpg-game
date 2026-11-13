@@ -89,8 +89,8 @@ const NPC_DEFS = [
     range: WORLD_SPOTS.lakeWatcher[2],
     spec: { head: 'head5', hair: 'hair3', top: 'top4', bottom: 'bottom2', skinTone: 0 },
     // Gives the Lake Quest (lake-quest.js); what they say depends on progress.
+    // The builder itself is the desk in the Boatwright's Hut, the one way in.
     message: () => lakeWatcherMessage(),
-    game: { src: 'boat-builder.html', messageType: 'boat-login', label: 'Boat Builder', buttonLabel: 'Design a boat' },
   },
   {
     id: 'rocky', name: 'Stone Warden',

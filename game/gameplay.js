@@ -1,6 +1,7 @@
 // gameplay.js — the per-frame update/draw loop pieces: player movement+triggers, world/interior rendering.
 
 function updatePlayer(dt) {
+  if (updateLakeSail()) { player.moving = false; return; } // rowing across: no walking
   if (scene.modalOpen) { player.moving = false; return; }
 
   let dx = 0, dy = 0;
@@ -93,7 +94,7 @@ function updatePlayer(dt) {
         else if (touched.kind === 'storageChest') openStorageChest();
         else if (touched.kind === 'bed') openBedRest(touched);
         else if (touched.kind === 'caveDoor' && caveTunnelOpen()) enterCaveDeepRoom();
-        else if (touched.kind === 'secret') openGameOverlay(touched);
+        else if (touched.kind === 'secret' || touched.kind === 'desk') openGameOverlay(touched);
         else if (touched.kind === 'pickup' && !touched.claimed) {
           touched.claimed = true;
           grantBackpack();

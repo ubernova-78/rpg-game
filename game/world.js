@@ -113,17 +113,20 @@ const WORLD_SPOTS = {
   pinecoon: [54, 12, 3], meadowWasp: [15, 36, 3], grassSnake: [46, 37, 3],
 };
 const CLEARING = { col: 57, row: 23, r: 5 }; // the Potion Master's glade in the east forest
-// The Lake Quest's island in the middle of the lake (lake-quest.js): the altar, where
-// you land, and the dock on the south shore. Walking can't reach the island (water is
-// solid); you sail there from the dock once your boat passes at the Boat Builder.
+// The Lake Quest (lake-quest.js): the Boatwright's Hut on the north-west shore, where
+// you design a boat at the desk; its dock just east of the hut; and the island in the
+// middle of the lake with the altar. Walking can't reach the island (water is solid):
+// your boat rows you across row 5, about 8 tiles of open water, from the dock to the
+// island's west landing. (The first dock, on the south shore, was 2 tiles from the
+// island: too short a crossing to row, 2026-11-13.)
 const LAKE = {
   altar: { col: 32, row: 3 },        // the pedestal's base tile (solid)
   altarFront: { col: 32, row: 4 },
-  landing: { col: 32, row: 6 },      // where you step off on the island
-  boatIsland: { col: 32, row: 7 },
-  dock: { col: 32, row: 9 },         // the shore spot the boat leaves from
-  boatDock: { col: 32, row: 8 },
-  shoreReturn: { col: 32, row: 10 }, // where you land coming back, clear of the dock trigger
+  landing: { col: 29, row: 5 },      // the island's west edge: step off / get in here
+  dock: { col: 19, row: 5 },         // the west shore beside the hut: get in here
+  row: 5,                            // the crossing runs along this row
+  shoreEdge: 20,                     // first water column off the dock
+  islandEdge: 29,                    // first island column
 };
 const LAKE_SOLID = new Set([`${LAKE.altar.col},${LAKE.altar.row}`]);
 
@@ -226,6 +229,8 @@ addBuilding('blue', 'Place Value Workshop', 16, 24, { w: 7, roofRows: 3, wallRow
 addBuilding('elapsed', 'Elapsed Time Workshop', 24, 24, { w: 7, roofRows: 3, wallRows: 2, roof: 'yellow', wall: 'wood', gable: 'yellow' });
 addBuilding('mvd', 'Mass, Volume & Density Workshop', 34, 24, { w: 9, roofRows: 3, wallRows: 2, roof: 'brown', wall: 'stoneTrim', gable: 'brown', sign: 'jug' });
 addBuilding('dojo', 'Dojo', 44, 24, { w: 7, roofRows: 3, wallRows: 2, roof: 'dark', wall: 'darkWood', sign: 'sword' });
+// By the lake, its dock just east: the Lake Quest's drafting desk (lake-quest.js).
+addBuilding('boathouse', "Boatwright's Hut", 14, 3, { w: 5, roofRows: 3, wallRows: 2, roof: 'brown', wall: 'wood' });
 
 // The cave sits out in the rocky west. It's a grassy hill with the cave mouth in its
 // face (Hometown pack's A5 outside sheet), 7x5; the door is the bottom of the mouth.
@@ -288,7 +293,7 @@ const keepClear = [];   // [c0, r0, c1, r1] tile boxes
 for (const b of BUILDING_DEFS) keepClear.push([b.tileX - 1, b.tileY - 1, b.tileX + b.tilesWide, b.tileY + b.tilesTall + 1]);
 for (const [c, r, range] of Object.values(WORLD_SPOTS)) { const k = (range || 0) + 1; keepClear.push([c - k, r - k, c + k, r + k]); }
 keepClear.push([RUNE_CIRCLE.stake.col - 8, RUNE_CIRCLE.stake.row - 4, RUNE_CIRCLE.stake.col + 7, RUNE_CIRCLE.stake.row + 4]);
-keepClear.push([LAKE.dock.col - 2, LAKE.dock.row - 1, LAKE.dock.col + 2, LAKE.shoreReturn.row + 1], [28, 1, 36, 7]); // the dock, the island
+keepClear.push([13, 2, LAKE.dock.col + 1, 11], [28, 1, 36, 7]); // the hut, its dock and the walk down to them; the island
 const inKeepClear = (c, r) => keepClear.some(([c0, r0, c1, r1]) => c >= c0 && c <= c1 && r >= r0 && r <= r1);
 const inClearing = (c, r) => (c - CLEARING.col) ** 2 + (r - CLEARING.row) ** 2 <= CLEARING.r ** 2;
 function groundAround(c, r, ok) {
@@ -479,8 +484,9 @@ const INTERIOR_SIZES = {
   dojo: { cols: 13, rows: 10 },
   elapsed: { cols: 9, rows: 7 },
   mvd: { cols: 17, rows: 7 },
+  boathouse: { cols: 9, rows: 7 },
 };
-const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg, mvd: floorImg };
+const INTERIOR_FLOORS = { red: floorImg, blue: floorImg, home: floorImg, cave: caveFloorImg, caveDeep: caveFloorImg, dojo: floorImg, elapsed: floorImg, mvd: floorImg, boathouse: floorImg };
 // A light, warm overlay tinting the normal floor texture toward a boxing-mat look for the
 // Dojo — there's no dedicated light-colored floor tile in the licensed art pack, so this
 // tints the same floor_interior.png tile everything else uses rather than needing new art.
@@ -548,6 +554,7 @@ Object.assign(ROOM_STYLE, {
   dojo: indoorRoom([2, 3], [[10, 0, 1], [10, 1, 1]]),
   elapsed: indoorRoom([4, 5], WOOD_FLOOR),
   mvd: indoorRoom([6, 7], STONE_FLOOR),
+  boathouse: indoorRoom([2, 3], WOOD_FLOOR),
 });
 
 const roomBackgrounds = {};
@@ -748,6 +755,13 @@ const INTERIOR_OBJECTS = {
     { id: 'densityBench', kind: 'workbench', img: workbenchImg, col: 14, row: 1, label: 'Density Work Bench', shortLabel: 'Density', src: 'mass-volume-bench.html', messageType: 'mvd-login', bench: 'density' },
   ],
   dojo: [],
+  // The Boatwright's Hut: the drafting desk opens the Boat Builder (lake-quest.js).
+  // Falling asleep over it is how the builder's sinking ends: it was all a dream.
+  boathouse: [
+    { id: 'boatDesk', kind: 'desk', img: workbenchImg, col: 4, row: 1, label: "Boatwright's Drafting Desk", src: 'boat-builder.html', messageType: 'boat-login' },
+    { id: 'bhBarrel', kind: 'decor', img: PROP.barrel.img, col: 1, row: 1, solidRows: 1 },
+    { id: 'bhCrates', kind: 'decor', img: PROP.crates.img, col: 7, row: 1, solidRows: 1 },
+  ],
 };
 // The cave's boulder pile physically blocks the approach to the sealed door (its solid
 // footprint sits right on the door's trigger tile) until the dagger chest is claimed,
