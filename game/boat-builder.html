@@ -12,14 +12,14 @@
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);}
-  .app{max-width:760px;margin:0 auto;padding:12px 14px 24px;}
+  .app{max-width:1120px;margin:0 auto;padding:10px 14px 12px;}
   .titlebar{display:flex;justify-content:space-between;align-items:center;background:#20313d;color:#f2efe7;
     border-radius:10px;padding:10px 14px;margin-bottom:10px;}
   .titlebar h1{margin:0;font-size:1.1rem;}
   .badge{background:var(--gold);color:#20313d;font-weight:800;font-size:0.72rem;padding:3px 8px;border-radius:6px;}
-  .goal{background:#fff;border:2px solid var(--line);border-radius:10px;padding:10px 12px;font-size:0.9rem;line-height:1.45;margin-bottom:10px;}
+  .goal{background:#fff;border:2px solid var(--line);border-radius:10px;padding:6px 12px;font-size:0.88rem;line-height:1.4;margin-bottom:8px;}
   .goal strong{color:#20313d;}
-  .view{position:relative;height:330px;border-radius:10px;overflow:hidden;background:linear-gradient(#cfe6f7,#eaf4fb);touch-action:none;}
+  .view{position:relative;height:var(--viewH);border-radius:10px;overflow:hidden;background:linear-gradient(#cfe6f7,#eaf4fb);touch-action:none;}
   .view canvas{display:block;width:100%;height:100%;}
   .viewbtns{position:absolute;top:8px;right:8px;display:flex;gap:4px;}
   .viewbtns button{font:inherit;font-size:0.75rem;padding:4px 8px;border-radius:6px;border:1px solid #9bb;background:rgba(255,255,255,0.85);cursor:pointer;}
@@ -34,8 +34,25 @@
   .dream h4{margin:8px 0 4px;font-size:1.2rem;}
   .dream p{margin:0 0 12px;font-size:0.92rem;max-width:420px;line-height:1.4;}
   .no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
-  @media (max-width:600px){ .grid2{grid-template-columns:1fr;} }
+  /* Side by side: the viewer fills the screen's height (less the title, goal and
+     coach line), and the tab panel beside it scrolls on its own if it must. */
+  :root{--viewH:clamp(240px, calc(100vh - 190px), 560px);}
+  .main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:10px;align-items:start;}
+  .right{display:flex;flex-direction:column;max-height:calc(var(--viewH) + 60px);}
+  .tabs{display:flex;gap:4px;}
+  .tabs button{flex:1;font:inherit;font-weight:700;font-size:0.9rem;padding:8px 6px;border:2px solid var(--line);border-bottom:none;
+    border-radius:10px 10px 0 0;background:#e6e1d4;color:#5b6770;cursor:pointer;}
+  .tabs button.on{background:#fff;color:#20313d;}
+  .tabs button.next{animation:nextpulse 1.2s ease-in-out infinite;}
+  .tabpanel{display:none;border-top-left-radius:0;border-top-right-radius:0;overflow:auto;}
+  .tabpanel.on{display:block;}
+  .tabpanel h3{display:none;}
+  /* Narrow (a phone, or a half-width window): stacked, still tabbed. */
+  @media (max-width:720px){
+    :root{--viewH:300px;}
+    .main{grid-template-columns:1fr;}
+    .right{max-height:none;}
+  }
   .panel{background:#fff;border:2px solid var(--line);border-radius:10px;padding:10px 12px;}
   .panel h3{margin:0 0 8px;font-size:0.95rem;}
   .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:0.9rem;}
@@ -54,12 +71,11 @@
   .btn.skin{background:#6b3f7a;}
   .btn:disabled{opacity:0.45;cursor:not-allowed;}
   .loadbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
-  @media (max-width:600px){ .stats{grid-template-columns:repeat(2,1fr);} }
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px;}
   .stat{background:#f4f6f7;border-radius:8px;padding:6px 8px;text-align:center;}
   .stat .v{font-weight:800;font-size:1.05rem;font-family:ui-monospace,Menlo,monospace;}
   .stat .k{font-size:0.72rem;color:var(--dim);}
-  .result{margin-top:10px;padding:10px 12px;border-radius:10px;font-weight:700;line-height:1.4;display:none;}
+  .result{margin-top:6px;padding:8px 12px;border-radius:10px;font-weight:700;line-height:1.4;display:none;}
   .result.good{display:block;background:#d9f2e6;color:#145c3f;border:2px solid var(--good);}
   .result.bad{display:block;background:#fbe1de;color:#7a221a;border:2px solid var(--bad);}
   .result .why{font-weight:400;font-size:0.88rem;margin-top:4px;}
@@ -87,67 +103,71 @@
 
   <div class="goal">
     <strong>The job:</strong> carry <strong>60 stones (5 kg each)</strong> and <strong>yourself (60 kg)</strong>
-    to the island in <strong>one trip</strong>. Build a wooden frame, stretch the <strong>monster skin</strong>
-    (one 2 m × 2 m sheet) over it to keep the water out, then test it: put yourself in first, then load the stones.
-    Loose stones slide around when the boat moves. Dividers on the floor stop them.
+    to the island in <strong>one trip</strong>. New here? Press <strong>❓ How it works</strong>.
   </div>
 
-  <div class="view" id="view">
-    <div class="viewbtns">
-      <button data-v="3d">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
-    </div>
-    <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
-    <div class="gulp" id="gulp">GULP! 🐉</div>
-    <div class="dream" id="dream"><div class="wake">
-      <div class="bed">📐😵‍💫</div>
-      <h4>…you jolt awake at your desk!</h4>
-      <p>Face-down on your boat plans, pencil still in your hand. You must have dozed off. No lake monster, no cold water, just the old Boatwright's Hut. Maybe change something before the real trip?</p>
-      <button class="btn" id="btn-wake">Back to work</button>
-    </div></div>
-  </div>
-  <div class="coach" id="coach"></div>
-
-  <div class="grid2">
-    <div class="panel" id="p-frame">
-      <h3>1. The frame</h3>
-      <div class="row"><span>Shape</span>
-        <div class="seg" id="shape"><button data-v="box">Flat bottom</button><button data-v="v">V bottom</button></div></div>
-      <div class="row"><span>Length</span><select id="L"></select></div>
-      <div class="row"><span>Width</span><select id="W"></select></div>
-      <div class="row"><span>Wall height</span><select id="H"></select></div>
-      <div class="row" id="Drow"><span>V depth</span><select id="D"></select></div>
-      <div class="row"><span>Floor dividers</span></div>
-      <div class="seg" id="baffle">
-        <button data-v="none">None</button><button data-v="long">Lengthwise</button><button data-v="cross">Crosswise</button><button data-v="grid">Grid</button>
+  <!-- The viewer on the left with the coach line under it; the three steps as tabs on
+       the right, so the whole builder fits a Chromebook screen without scrolling. -->
+  <div class="main">
+    <div class="left">
+      <div class="view" id="view">
+        <div class="viewbtns">
+          <button data-v="3d">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
+        </div>
+        <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
+        <div class="gulp" id="gulp">GULP! 🐉</div>
+        <div class="dream" id="dream"><div class="wake">
+          <div class="bed">📐😵‍💫</div>
+          <h4>…you jolt awake at your desk!</h4>
+          <p>Face-down on your boat plans, pencil still in your hand. You must have dozed off. No lake monster, no cold water, just the old Boatwright's Hut. Maybe change something before the real trip?</p>
+          <button class="btn" id="btn-wake">Back to work</button>
+        </div></div>
       </div>
-      <div class="note" id="framenote"></div>
+      <div class="coach" id="coach"></div>
     </div>
-
-    <div class="panel" id="p-skin">
-      <h3>2. The monster skin</h3>
-      <canvas class="net" id="net" width="200" height="200"></canvas>
-      <div class="note" style="text-align:center">Your 2 m × 2 m sheet, laid flat. The pattern shows where it folds up.</div>
-      <div class="skinmsg" id="skinmsg"></div>
-      <div style="margin-top:8px;text-align:center"><button class="btn skin" id="btn-skin">Stretch the skin over the frame</button></div>
+    <div class="right">
+      <div class="tabs" id="tabs">
+        <button data-tab="p-frame">1. Frame</button><button data-tab="p-skin">2. Skin</button><button data-tab="p-test">3. Test</button>
+      </div>
+      <div class="panel tabpanel" id="p-frame">
+        <h3>1. The frame</h3>
+        <div class="row"><span>Shape</span>
+          <div class="seg" id="shape"><button data-v="box">Flat bottom</button><button data-v="v">V bottom</button></div></div>
+        <div class="row"><span>Length</span><select id="L"></select></div>
+        <div class="row"><span>Width</span><select id="W"></select></div>
+        <div class="row"><span>Wall height</span><select id="H"></select></div>
+        <div class="row" id="Drow"><span>V depth</span><select id="D"></select></div>
+        <div class="row"><span>Floor dividers</span></div>
+        <div class="seg" id="baffle">
+          <button data-v="none">None</button><button data-v="long">Lengthwise</button><button data-v="cross">Crosswise</button><button data-v="grid">Grid</button>
+        </div>
+        <div class="note" id="framenote"></div>
+      </div>
+      <div class="panel tabpanel" id="p-skin">
+        <h3>2. The monster skin</h3>
+        <canvas class="net" id="net" width="200" height="200"></canvas>
+        <div class="note" style="text-align:center">Your 2 m × 2 m sheet, laid flat. The pattern shows where it folds up.</div>
+        <div class="skinmsg" id="skinmsg"></div>
+        <div style="margin-top:8px;text-align:center"><button class="btn skin" id="btn-skin">Stretch the skin over the frame</button></div>
+      </div>
+      <div class="panel tabpanel" id="p-test">
+        <h3>3. Test it on the water</h3>
+        <div class="loadbtns">
+          <button class="btn alt" id="btn-rider">Add yourself (60 kg)</button>
+          <button class="btn" id="btn-1">Load 1 stone</button>
+          <button class="btn" id="btn-10">Load 10 stones</button>
+          <button class="btn" id="btn-all">Load all 60</button>
+          <button class="btn alt" id="btn-reset">Unload</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="s-stones">0</div><div class="k">stones</div></div>
+          <div class="stat"><div class="v" id="s-mass">0 kg</div><div class="k">total weight</div></div>
+          <div class="stat"><div class="v" id="s-free">—</div><div class="k">lowest side above water</div></div>
+          <div class="stat"><div class="v" id="s-tilt">0°</div><div class="k">tilt</div></div>
+        </div>
+        <div class="result" id="result"></div>
+      </div>
     </div>
-  </div>
-
-  <div class="panel" id="p-test" style="margin-top:10px">
-    <h3>3. Test it on the water</h3>
-    <div class="loadbtns">
-      <button class="btn alt" id="btn-rider">Add yourself (60 kg)</button>
-      <button class="btn" id="btn-1">Load 1 stone</button>
-      <button class="btn" id="btn-10">Load 10 stones</button>
-      <button class="btn" id="btn-all">Load all 60</button>
-      <button class="btn alt" id="btn-reset">Unload</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="v" id="s-stones">0</div><div class="k">stones</div></div>
-      <div class="stat"><div class="v" id="s-mass">0 kg</div><div class="k">total weight</div></div>
-      <div class="stat"><div class="v" id="s-free">—</div><div class="k">lowest side above water</div></div>
-      <div class="stat"><div class="v" id="s-tilt">0°</div><div class="k">tilt</div></div>
-    </div>
-    <div class="result" id="result"></div>
   </div>
 </div>
 
@@ -329,7 +349,7 @@
     }
     if (!D.skin) el.textContent += ' Not on yet.';
   }
-  $('btn-skin').addEventListener('click', () => { D.skin = true; resetLoad(); drawNet(); paintSkinMsg(); rebuildBoat(); refresh(); });
+  $('btn-skin').addEventListener('click', () => { D.skin = true; resetLoad(); drawNet(); paintSkinMsg(); rebuildBoat(); showTab('p-test'); refresh(); });
 
   // ---------- Loading ----------
   $('btn-rider').addEventListener('click', () => { if (S.busy || S.rider) return; S.rider = true; check(); refresh(true); });
@@ -388,7 +408,7 @@
       r.innerHTML = S.passed
         ? `It carried you and all ${GOAL} stones. Its limit: ${msg[0].charAt(0).toLowerCase() + msg[0].slice(1)}<div class="why">${IN_GAME ? 'You passed. Close this, head outside, and step onto the dock beside the hut to row across.' : 'You passed.'}</div>`
         : `${msg[0]}<div class="why">${msg[1]} Change the design and test again.</div>`;
-      r.innerHTML += '<div class="why">🐉 Then a lake monster swallowed you… and you woke up at your desk. Phew, just a dream! Press <b>Back to work</b> (or Unload) to test again.</div>';
+      r.innerHTML += '<div class="why">🐉 …then a lake monster swallowed you, and you woke up at your desk. Just a dream!</div>';
     } else if (S.passed && S.stones >= GOAL) {
       r.className = 'result good';
       r.innerHTML = `It floats with you and all ${S.stones} stones! The lowest side is ${p.free.toFixed(2)} m above the water.`
@@ -729,6 +749,15 @@
     } else { tg.y = -p.T; tg.roll = p.roll; tg.pitch = p.pitch; }
   }
 
+  // ---------- Tabs ----------
+  const panelOf = el => el && el.closest('.tabpanel');
+  function showTab(id){
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('on', p.id === id));
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => { showTab(b.dataset.tab); coach(); }));
+  showTab('p-frame');
+
   // ---------- Coach: what to do next ----------
   // Always one line saying the next step, and that step's control pulses.
   function coach(){
@@ -736,16 +765,16 @@
     const sk = skinInfo();
     let text, target = null;
     if (!D.skin && !sk.covers) {
-      text = '<b>Too big:</b> this frame needs more than your 2 m × 2 m skin. Make it shorter, narrower or lower until the skin fits.';
+      text = '<b>Too big:</b> this frame needs more than your 2 m × 2 m skin. On <b>1. Frame</b>, make it shorter, narrower or lower until the skin fits.';
       target = 'L';
     } else if (!D.skin) {
-      text = '<b>Next:</b> your frame is ready. Press <b>Stretch the skin over the frame</b> to keep the water out. (Or change the frame first.)';
+      text = '<b>Next:</b> your frame is ready. On <b>2. Skin</b>, press <b>Stretch the skin over the frame</b> to keep the water out. (Or change the frame first.)';
       target = 'btn-skin';
     } else if (!S.rider && !S.failed) {
       text = '<b>Next:</b> launch it! Press <b>Add yourself</b> to climb in first.';
       target = 'btn-rider';
     } else if (S.failed && !S.passed) {
-      text = '<b>It sank.</b> Read why below, press <b>Back to work</b> (or Unload), then change the frame or dividers and test again. Every sinking teaches you something.';
+      text = '<b>It sank.</b> Read why on <b>3. Test</b>, press <b>Back to work</b> (or Unload), then change the frame or dividers and test again. Every sinking teaches you something.';
       target = 'btn-reset';
     } else if (S.passed) {
       text = '<b>Done!</b> Your boat carried you and all 60 stones.' + (IN_GAME ? ' Close this and step onto the dock beside the hut.' : '') + ' Curious? Keep loading to find its limit.';
@@ -756,7 +785,12 @@
       target = S.stones ? 'btn-10' : 'btn-1';
     }
     $('coach').innerHTML = text;
-    if (target && !$(target).disabled) $(target).classList.add('next');
+    if (target && !$(target).disabled) {
+      $(target).classList.add('next');
+      // On another tab? Pulse that tab, so they know where to go.
+      const p = panelOf($(target));
+      if (p && !p.classList.contains('on')) document.querySelector(`#tabs [data-tab="${p.id}"]`).classList.add('next');
+    }
   }
 
   // ---------- First-time tour ----------
@@ -773,6 +807,7 @@
     tourEnd(true);
     tourAt = i;
     const [id, title, body] = TOUR[i], target = $(id);
+    if (target.classList.contains('tabpanel')) showTab(id);
     const block = document.createElement('div'); block.className = 'tour-block';
     const card = document.createElement('div'); card.className = 'tour-card';
     card.innerHTML = `<h4>${title}</h4><div>${body}</div><div class="foot"><span class="dots">${i + 1} of ${TOUR.length}</span>`

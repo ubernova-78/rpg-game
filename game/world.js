@@ -758,7 +758,7 @@ const INTERIOR_OBJECTS = {
   // The Boatwright's Hut: the drafting desk opens the Boat Builder (lake-quest.js).
   // Falling asleep over it is how the builder's sinking ends: it was all a dream.
   boathouse: [
-    { id: 'boatDesk', kind: 'desk', img: workbenchImg, col: 4, row: 1, label: "Boatwright's Drafting Desk", src: 'boat-builder.html', messageType: 'boat-login' },
+    { id: 'boatDesk', kind: 'desk', img: workbenchImg, col: 4, row: 1, label: "Boatwright's Drafting Desk", src: 'boat-builder.html', messageType: 'boat-login', wide: true },
     { id: 'bhBarrel', kind: 'decor', img: PROP.barrel.img, col: 1, row: 1, solidRows: 1 },
     { id: 'bhCrates', kind: 'decor', img: PROP.crates.img, col: 7, row: 1, solidRows: 1 },
   ],

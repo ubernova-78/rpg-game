@@ -323,6 +323,7 @@ function openGameOverlay(wb) {
   scene.modalOpen = true;
   gameOverlayEls.title.textContent = wb.label + (session.demo ? ' (Demo)' : session.teacher ? ' (Teacher)' : '');
   gameOverlayEls.frame.src = wb.src;
+  gameOverlayEls.overlay.classList.toggle('wide', !!wb.wide);
   gameOverlayEls.overlay.classList.remove('hidden');
   gameOverlayEls.frame.onload = () => {
     gameOverlayEls.frame.contentWindow.postMessage({

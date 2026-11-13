@@ -309,6 +309,11 @@
   #gameOverlay iframe {
     width: 100%; max-width: 760px; flex: 1; border: none; border-radius: 14px; background: #fff;
   }
+  /* Pages laid out side by side (the Boat Builder: 3D view beside its tabs) get the
+     screen's width, so they fit a Chromebook without scrolling. */
+  #gameOverlay.wide { padding: 10px 16px 12px; }
+  #gameOverlay.wide iframe, #gameOverlay.wide .game-overlay-bar { max-width: 1120px; }
+  #gameOverlay.wide .game-overlay-bar { margin-bottom: 6px; }
 
   /* ---- Battle overlay: full-width question on top (like the Workbench mini-game),
      player/monster + HP bars in a row below it ---- */
