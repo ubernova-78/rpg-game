@@ -553,13 +553,22 @@
     }
     // Dividers on the floor
     const { nx, nz } = comps(), bh = dividerH();
+    // Solid boards DT thick, so they read from every angle (Nick, 2026-11-13:
+    // flat panels disappeared edge-on).
+    const DT = 0.04;
     for (let i = 1; i < nx; i++) { const x = -L2 + i * D.L / nx;
-      // Across the width it follows the floor (flat, or the V), in short strips.
-      const n = isV() ? 12 : 1;
-      for (let k = 0; k < n; k++) { const za = -W2 + D.W * k / n, zb = -W2 + D.W * (k + 1) / n;
-        boat.add(quad([[x, floorAt(za), za], [x, floorAt(za) + bh, za], [x, floorAt(zb) + bh, zb], [x, floorAt(zb), zb]], m.divider)); } }
+      // Across the width the board's bottom follows the floor (flat, or the V):
+      // its outline in (z, y), extruded DT along the length.
+      const sh = new THREE.Shape(), n = isV() ? 16 : 1;
+      for (let k = 0; k <= n; k++) { const z = -W2 + D.W * k / n; k ? sh.lineTo(z, floorAt(z)) : sh.moveTo(z, floorAt(z)); }
+      for (let k = n; k >= 0; k--) { const z = -W2 + D.W * k / n; sh.lineTo(z, floorAt(z) + bh); }
+      const g = new THREE.ExtrudeGeometry(sh, { depth: DT, bevelEnabled: false });
+      g.translate(0, 0, -DT / 2);
+      const board = new THREE.Mesh(g, m.divider);
+      board.rotation.y = Math.PI / 2; board.position.x = x; boat.add(board); }
     for (let j = 1; j < nz; j++) { const z = -W2 + j * D.W / nz, y0 = floorAt(z);
-      boat.add(quad([[-L2, y0, z], [-L2, y0 + bh, z], [L2, y0 + bh, z], [L2, y0, z]], m.divider)); }
+      const board = new THREE.Mesh(new THREE.BoxGeometry(D.L, bh, DT), m.divider);
+      board.position.set(0, y0 + bh / 2, z); boat.add(board); }
     // The rider's seat, on top of the dividers.
     if (D.baffle !== 'none') {
       const seat = new THREE.Mesh(new THREE.BoxGeometry(Math.min(D.L, 2 * SEAT), 0.04, Math.min(D.W, 2 * SEAT)), m.seat);
