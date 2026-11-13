@@ -252,3 +252,178 @@ function drawLakeBoat(ctx, cx, cy, loaded) {
     }
   }
 }
+
+// ---------- Witch Hazel: the quest's story (Nick, 2026-11-13) ----------
+// In the town square. The first time you talk to her she tells the whole story,
+// a page at a time: the altar and its healing crystal, a flashback of the lake
+// serpent wrecking the altar and the only boat, why nobody has crossed since, the
+// prize (Heal, once per battle), and where to start (the Boatwright's Hut). After
+// that she gives a hint for where you are, and will tell the story again.
+let lqHeardStory = false; // this session only: not saved
+function witchTalk() {
+  const s = lqState();
+  if (!lqHeardStory && !s.boat && !s.altar) { witchStory(0); return; }
+  const hint = s.altar
+    ? `You did it! The altar glows again, and the crystal taught you <strong>Heal</strong>. Once in every battle, it gives you back ${HEAL_HP} HP.`
+    : s.boat
+      ? 'You built a boat that can carry it all! It\'s tied up at the pier by the Boatwright\'s Hut. Row it to the island and rebuild the altar.'
+      : 'Head north to the lake. The <strong>Boatwright\'s Hut</strong> is on the north-west shore: design your boat at the drafting desk inside.';
+  witchPage(hint, [['Tell me the story again', () => witchStory(0)], ['Thanks!', closeWorkbench]]);
+}
+const WITCH_STORY = [
+  { text: 'Ah, a new face! Come closer, dear. Do you see the island in the middle of the lake? Let me tell you what happened there.' },
+  { text: 'An altar stood on that island, with a crystal that could heal any wound. Then, one stormy night, a <strong>lake serpent</strong> rose out of the water. It smashed the altar to rubble, and it splintered the only boat we had.', scene: true },
+  { text: 'Nobody has crossed since. We have no boat, and nobody knows how to build one strong enough. To rebuild the altar, someone must carry <strong>60 stones of 5 kg</strong> each, and themselves, across the lake in <strong>one trip</strong>.' },
+  { text: `Whoever rebuilds the altar will be rewarded. The crystal will teach them <strong>Heal</strong>: once in every battle, they can cast it to get back ${HEAL_HP} HP.` },
+  { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!', last: true },
+];
+function witchStory(i) {
+  const p = WITCH_STORY[i];
+  const buttons = p.last
+    ? [['I\'ll do it!', () => { lqHeardStory = true; closeWorkbench(); }]]
+    : [['Next', () => witchStory(i + 1)]];
+  if (p.scene) buttons.unshift(['▶ Watch again', () => witchStory(i)]);
+  witchPage(p.text, buttons, p.scene, `${i + 1} of ${WITCH_STORY.length}`);
+}
+function witchPage(html, buttons, withScene, step) {
+  stopFlashback();
+  storyOpen();
+  wbTitle.textContent = 'Witch Hazel' + (step ? ` (${step})` : '');
+  wbBody.innerHTML = '';
+  if (withScene) {
+    const cv = document.createElement('canvas');
+    cv.width = 480; cv.height = 270; cv.className = 'story-scene';
+    wbBody.appendChild(cv);
+    playFlashback(cv);
+  }
+  const p = document.createElement('p'); p.innerHTML = html; p.style.margin = '0 0 6px'; wbBody.appendChild(p);
+  for (const [label, fn] of buttons) wbBody.appendChild(gateButton(label, fn));
+  wbModal.classList.remove('hidden');
+}
+function storyOpen() {
+  scene.modalOpen = true;
+  wbModal.classList.add('story');
+  wbModalCloseHook = () => { stopFlashback(); wbModal.classList.remove('story'); };
+}
+
+// ---------- The flashback ----------
+// The real island, cut from the game's own ground (buildGround), at night in a
+// storm. The altar glows on it, the old boat is tied at its west landing. The
+// serpent rises south of the island, smashes the altar (flash, shake, stones and
+// crystal shards fly), sweeps round and splinters the boat, and sinks back. About
+// 6 s; everything is worked out from t, so it can be replayed from any moment.
+let flashRAF = 0;
+function stopFlashback() { cancelAnimationFrame(flashRAF); flashRAF = 0; }
+function playFlashback(cv) {
+  stopFlashback();
+  const ctx = cv.getContext('2d'), t0 = performance.now();
+  const step = () => {
+    if (!cv.isConnected) { flashRAF = 0; return; }
+    drawFlashback(ctx, (performance.now() - t0) / 1000);
+    flashRAF = requestAnimationFrame(step);
+  };
+  step();
+}
+function drawFlashback(ctx, t) {
+  const W = 480, H = 270, C0 = 24.5, R0 = 0, PX = 32; // 15 x 8.4 tiles at 2x
+  const X = c => (c - C0) * PX, Y = r => (r - R0) * PX;
+  const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const hitAltar = 3.4, hitBoat = 4.15;
+  // Camera shake on each strike.
+  const shake = Math.max(0, 1 - Math.abs(t - hitAltar) * 4) + Math.max(0, 1 - Math.abs(t - hitBoat) * 4);
+  ctx.save();
+  ctx.clearRect(0, 0, W, H);
+  ctx.translate(Math.sin(t * 90) * 5 * shake, Math.cos(t * 77) * 4 * shake);
+  ctx.imageSmoothingEnabled = false;
+  const frames = buildGround();
+  if (frames) ctx.drawImage(frames[Math.floor(t * 2) % frames.length], C0 * 16, R0 * 16, W / 2, H / 2, 0, 0, W, H);
+  else { ctx.fillStyle = '#2f6fb5'; ctx.fillRect(0, 0, W, H); }
+
+  // The altar: whole and glowing, then rubble.
+  const ax = X(LAKE.altar.col), ay = Y(LAKE.altar.row);
+  if (t < hitAltar) {
+    if (LAKE_ART.pedestal.complete !== false) ctx.drawImage(LAKE_ART.pedestal, ax, ay - PX, PX, PX * 2);
+    const glow = 0.55 + 0.45 * Math.sin(t * 5);
+    ctx.globalAlpha = 0.35 + 0.3 * glow; ctx.fillStyle = '#9fe7ff';
+    ctx.beginPath(); ctx.arc(ax + PX / 2, ay - PX * 0.85, PX * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.drawImage(LAKE_ART.crystal, ax, ay - PX * 1.45, PX, PX);
+  } else {
+    ctx.fillStyle = '#8a8f94';
+    for (const [ox, oy, r] of [[0.25, 0.6, 0.16], [0.55, 0.65, 0.2], [0.75, 0.45, 0.14], [0.45, 0.35, 0.15]]) {
+      ctx.beginPath(); ctx.arc(ax + PX * ox, ay + PX * oy, PX * r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Stones and crystal shards flying out, then landing.
+    const k = Math.min(1, (t - hitAltar) / 0.9);
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * Math.PI * 2 + 0.4, d = PX * (0.6 + 1.6 * k) * (0.6 + (i % 3) * 0.25);
+      const x = ax + PX / 2 + Math.cos(a) * d, y = ay + Math.sin(a) * d * 0.6 - PX * 1.2 * Math.sin(k * Math.PI) * (i % 2 ? 1 : 0.6);
+      ctx.fillStyle = i % 3 ? '#8a8f94' : '#9fe7ff';
+      ctx.beginPath(); ctx.arc(x, y, i % 3 ? 4 : 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // The old boat at the island's west landing: whole, then planks drifting apart.
+  const bx = X(LAKE.islandEdge - 1.1), by = Y(LAKE.row + 0.5);
+  if (t < hitBoat) {
+    ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.ellipse(bx, by, PX * 0.8, PX * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5e3e22'; ctx.beginPath(); ctx.ellipse(bx, by, PX * 0.62, PX * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#a0703f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx - PX * 0.2, by - PX * 0.25); ctx.lineTo(bx - PX * 0.5, by - PX * 0.75); ctx.stroke();
+  } else {
+    const k = Math.min(1, (t - hitBoat) / 1.5);
+    ctx.fillStyle = '#7a5230';
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.1, d = PX * (0.2 + 1.1 * k) * (0.5 + (i % 3) * 0.3);
+      ctx.save(); ctx.translate(bx + Math.cos(a) * d, by + Math.sin(a) * d * 0.7); ctx.rotate(a + k * (i % 2 ? 1.5 : -1.2));
+      ctx.fillRect(-PX * 0.3, -3, PX * 0.6, 6); ctx.restore();
+    }
+  }
+
+  // The serpent: comes up in the water north-west of the island, between the old
+  // boat and the altar, its neck a chain of green discs from where it breaks the
+  // water to its head. Rises 1.6-2.6 s, rears up, strikes the altar (3.4 s), swings
+  // to the boat (4.15 s), sinks 4.6-5.6 s.
+  const base = { x: X(27.3), y: Y(3.2) };
+  const up = ease((t - 1.6) / 1.0) * (1 - ease((t - 4.6) / 1.0));
+  if (up > 0.01) {
+    const rear = { x: base.x + 30, y: base.y - PX * 1.5 }; // reared up, head still in frame
+    const atAltar = { x: ax + PX / 2 - 16, y: ay - PX * 0.4 }, atBoat = { x: bx - 12, y: by - 10 }; // (mouth on target)
+    let head;
+    if (t < 3.0) head = rear;
+    else if (t < hitAltar) { const k = ease((t - 3.0) / 0.4); head = { x: rear.x + (atAltar.x - rear.x) * k, y: rear.y + (atAltar.y - rear.y) * k }; }
+    else if (t < hitBoat) { const k = ease((t - hitAltar - 0.25) / 0.5); head = { x: atAltar.x + (atBoat.x - atAltar.x) * k, y: atAltar.y + (atBoat.y - atAltar.y) * k }; }
+    else head = { x: atBoat.x + (rear.x - atBoat.x) * ease((t - hitBoat) / 0.5), y: atBoat.y + (rear.y - atBoat.y) * ease((t - hitBoat) / 0.5) };
+    head = { x: base.x + (head.x - base.x) * up, y: base.y + (head.y - base.y) * up };
+    // Water ring where it comes up, and two humps behind.
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(base.x, base.y, 22 + 6 * Math.sin(t * 6), 8, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#2f7a3c';
+    for (const [dx, dy, r] of [[-30, 22, 16], [-62, 40, 11]]) { ctx.beginPath(); ctx.ellipse(base.x + dx, base.y + dy, r * up + 1, r * 0.6 * up + 1, 0, Math.PI, 0); ctx.fill(); }
+    const ctrl = { x: (base.x + head.x) / 2 - 20, y: Math.min(base.y, head.y) - 30 };
+    for (let i = 0; i <= 14; i++) {
+      const u = i / 14, iu = 1 - u;
+      const x = iu * iu * base.x + 2 * iu * u * ctrl.x + u * u * head.x, y = iu * iu * base.y + 2 * iu * u * ctrl.y + u * u * head.y;
+      ctx.fillStyle = i % 2 ? '#3f9a4d' : '#368a43';
+      ctx.beginPath(); ctx.arc(x, y, 17 - u * 5, 0, Math.PI * 2); ctx.fill();
+      if (i % 3 === 1) { ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.moveTo(x - 4, y - 14); ctx.lineTo(x + 2, y - 24); ctx.lineTo(x + 6, y - 12); ctx.fill(); }
+    }
+    // Head, mouth open on the strikes.
+    const open = Math.max(0, 1 - Math.abs(t - hitAltar) * 3) + Math.max(0, 1 - Math.abs(t - hitBoat) * 3);
+    // (It faces right, toward the altar.)
+    ctx.fillStyle = '#3f9a4d'; ctx.beginPath(); ctx.ellipse(head.x + 6, head.y, 27, 17, 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.ellipse(head.x + 12, head.y + 10 + open * 9, 20, 7, 0.15, 0, Math.PI * 2); ctx.fill();
+    if (open > 0.1) { ctx.fillStyle = '#5a1020'; ctx.beginPath(); ctx.ellipse(head.x + 14, head.y + 5 + open * 4, 14, 4 + open * 5, 0.15, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(head.x + 2, head.y - 9, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(head.x + 4, head.y - 9, 3.4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Night and storm over everything: dark blue, rain, lightning on the strikes.
+  ctx.fillStyle = 'rgba(10,20,45,0.38)'; ctx.fillRect(-10, -10, W + 20, H + 20);
+  ctx.strokeStyle = 'rgba(190,210,255,0.35)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 70; i++) {
+    const x = (i * 97 + t * 260) % (W + 40) - 20, y = (i * 53 + t * 520) % (H + 40) - 20;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 13); ctx.stroke();
+  }
+  const flash = Math.max(0, 1 - Math.abs(t - hitAltar) * 6) * 0.7 + Math.max(0, 1 - Math.abs(t - hitBoat) * 6) * 0.5 + (t > 0.5 && t < 0.62 ? 0.4 : 0);
+  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(-10, -10, W + 20, H + 20); }
+  ctx.restore();
+}

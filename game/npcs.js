@@ -84,6 +84,16 @@ const NPC_DEFS = [
     game: { src: 'archery-range.html', messageType: 'archery-login', label: 'Archery Range' },
   },
   {
+    // Tells the Lake Quest's story, with a flashback of the serpent wrecking the
+    // altar and the old boat, and where to start (lake-quest.js, witchTalk).
+    id: 'witch', name: 'Witch Hazel',
+    homeCol: WORLD_SPOTS.witch[0], homeRow: WORLD_SPOTS.witch[1],
+    range: WORLD_SPOTS.witch[2],
+    // A hat from the art pack (a drawn pointed one looked wrong, Nick 2026-11-13).
+    spec: { head: 'head2', hair: 'hair12', top: 'top12', bottom: 'bottom7', hat: 'hat6', skinTone: 0, variantIndex: { top: 1 } },
+    talk: () => witchTalk(),
+  },
+  {
     id: 'lake', name: 'Lake Watcher',
     homeCol: WORLD_SPOTS.lakeWatcher[0], homeRow: WORLD_SPOTS.lakeWatcher[1],
     range: WORLD_SPOTS.lakeWatcher[2],
@@ -211,6 +221,7 @@ function nearbyNpc(x, y) {
   return null;
 }
 function openNpcDialogue(npc) {
+  if (npc.talk) { npc.talk(); return; } // a character with their own conversation
   scene.modalOpen = true;
   wbTitle.textContent = npc.name;
   wbBody.innerHTML = '';
