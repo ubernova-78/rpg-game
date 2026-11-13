@@ -177,6 +177,7 @@ function drawWorld() {
     mapCtx.fillText(b.label, labelX, sy + 1, bw - 14);
   }
   mapCtx.textBaseline = 'alphabetic';
+  drawLakeCutscene(); // the witch's flashback, over everything (lake-quest.js)
 }
 
 let interiorOrigin = { x: 0, y: 0 };

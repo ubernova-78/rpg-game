@@ -190,6 +190,7 @@ function drawLakeQuest() {
     const c = lqBoatCenter();
     drawLakeBoat(ctx, c.x - camera.x, c.y - camera.y, !s.altar); // the stones stay aboard until the altar takes them
   }
+  if (lqCut) return; // the flashback draws the altar itself (drawLakeCutscene)
   // The altar: rubble until rebuilt, then the pedestal with its crystal.
   const img = LAKE_ART.pedestal;
   if (s.altar) {
@@ -279,199 +280,205 @@ const WITCH_STORY = [
 ];
 function witchStory(i) {
   const p = WITCH_STORY[i];
-  if (p.scene) { storyStage(p.text, [['▶ Watch again', () => witchStory(i)], ['Next', () => witchStory(i + 1)]], `${i + 1} of ${WITCH_STORY.length}`); return; }
+  const step = `${i + 1} of ${WITCH_STORY.length}`;
+  if (p.scene) { startLakeCutscene(p.text, step, [['▶ Watch again', () => witchStory(i)], ['Next', () => witchStory(i + 1)]]); return; }
   const buttons = p.last
     ? [['I\'ll do it!', () => { lqHeardStory = true; closeWorkbench(); }]]
     : [['Next', () => witchStory(i + 1)]];
-  if (p.scene) buttons.unshift(['▶ Watch again', () => witchStory(i)]);
-  witchPage(p.text, buttons, p.scene, `${i + 1} of ${WITCH_STORY.length}`);
+  witchPage(p.text, buttons, step);
 }
-function witchPage(html, buttons, withScene, step) {
-  stopFlashback(); closeStage();
-  storyOpen();
+function witchPage(html, buttons, step) {
+  endLakeCutscene();
+  scene.modalOpen = true;
+  wbModal.classList.add('story');
+  wbModalCloseHook = () => { endLakeCutscene(); wbModal.classList.remove('story'); };
   wbTitle.textContent = 'Witch Hazel' + (step ? ` (${step})` : '');
   wbBody.innerHTML = '';
-  if (withScene) {
-    const cv = document.createElement('canvas');
-    cv.width = 480; cv.height = 270; cv.className = 'story-scene';
-    wbBody.appendChild(cv);
-    playFlashback(cv);
-  }
   const p = document.createElement('p'); p.innerHTML = html; p.style.margin = '0 0 6px'; wbBody.appendChild(p);
   for (const [label, fn] of buttons) wbBody.appendChild(gateButton(label, fn));
   wbModal.classList.remove('hidden');
 }
-function storyOpen() {
-  scene.modalOpen = true;
-  wbModal.classList.add('story');
-  wbModalCloseHook = () => { stopFlashback(); wbModal.classList.remove('story'); };
-}
 
-// The flashback plays full screen (Nick, 2026-11-13: it was a small picture in the
-// dialogue box), with the story as a caption under it and the buttons beside that.
-let stageEl = null;
-function storyStage(html, buttons, step) {
-  stopFlashback();
-  if (!stageEl) {
-    stageEl = document.createElement('div'); stageEl.className = 'story-stage';
-    stageEl.innerHTML = '<canvas width="960" height="540"></canvas><div class="story-caption"><div class="who"></div><div class="txt"></div><div class="btns"></div></div>';
-    document.body.appendChild(stageEl);
-  }
+// ---------- The flashback, played in the game itself ----------
+// (Nick, 2026-11-13: not a separate view; the same size as the game, as if it plays
+// out there.) The camera pans from you to the island (0.8 s), the scene plays on the
+// real map at night in a storm, and the witch's words sit in a caption box at the
+// bottom of the game screen with Watch again / Next. Next (or the end of Watch again)
+// pans back. Your controls are locked meanwhile (scene.modalOpen).
+//
+// Everything in the scene is drawn into a low-resolution buffer at the art's own
+// 16 px tiles and scaled up 3x with no smoothing, so the serpent is pixel art like
+// everything else; it's darker and scarier (near-black outline, swamp green, bone
+// spines, red eyes, fangs). Scene time ts = seconds since the pan finished:
+//   0.5 lightning; 1.6-2.6 the serpent rises between the old boat and the island;
+//   3.4 it smashes the altar; 3.9 it swallows the keeper; 4.6 it splinters the boat;
+//   5.1-6.1 it sinks.
+let lqCut = null;            // { t0, html, step, buttons }
+const PAN = 0.8, SCENE_END = 6.6;
+// The altar's keeper: a robed elder, so they don't look like a student's default character.
+const LQ_KEEPER = { spec: { head: 'head4', hair: 'hair9', top: 'top12', bottom: 'bottom7', hat: 'hat5', skinTone: 2, variantIndex: { top: 2, hat: 3 } }, sheet: null };
+let captionEl = null;
+function startLakeCutscene(html, step, buttons) {
   wbModal.classList.add('hidden'); wbModal.classList.remove('story');
   scene.modalOpen = true;
-  stageEl.querySelector('.who').textContent = 'Witch Hazel' + (step ? ` (${step})` : '');
-  stageEl.querySelector('.txt').innerHTML = html;
-  const bb = stageEl.querySelector('.btns'); bb.innerHTML = '';
+  lqCut = { t0: performance.now() };
+  if (!captionEl) {
+    captionEl = document.createElement('div'); captionEl.className = 'cut-caption';
+    document.getElementById('mapWrap').appendChild(captionEl);
+  }
+  captionEl.innerHTML = `<div class="who">Witch Hazel (${step})</div><div class="txt">${html}</div><div class="btns"></div>`;
+  const bb = captionEl.querySelector('.btns');
   for (const [label, fn] of buttons) { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', fn); bb.appendChild(b); }
   const x = document.createElement('button'); x.textContent = 'Close'; x.className = 'ghost';
-  x.addEventListener('click', () => { closeStage(); scene.modalOpen = false; }); bb.appendChild(x);
-  stageEl.classList.remove('hidden');
-  playFlashback(stageEl.querySelector('canvas'));
+  x.addEventListener('click', () => { endLakeCutscene(); scene.modalOpen = false; }); bb.appendChild(x);
+  captionEl.classList.remove('hidden');
 }
-function closeStage() { stopFlashback(); if (stageEl) stageEl.classList.add('hidden'); }
+function endLakeCutscene() { lqCut = null; if (captionEl) captionEl.classList.add('hidden'); }
 
-// ---------- The flashback ----------
-// The real island, cut from the game's own ground (buildGround), at night in a
-// storm. The altar glows on it, the old boat is tied at its west landing. The
-// serpent rises south of the island, smashes the altar (flash, shake, stones and
-// crystal shards fly), sweeps round and splinters the boat, and sinks back. About
-// 6 s; everything is worked out from t, so it can be replayed from any moment.
-let flashRAF = 0;
-// The altar's keeper (someone who lived on the island), and where the serpent's
-// mouth is this frame, for the gulp.
-const LQ_KEEPER = { spec: { head: 'head1', hair: 'hair6', top: 'top7', bottom: 'bottom3', skinTone: 1 }, sheet: null, mouth: { x: 0, y: 0 } };
-function stopFlashback() { cancelAnimationFrame(flashRAF); flashRAF = 0; }
-function playFlashback(cv) {
-  stopFlashback();
-  const ctx = cv.getContext('2d'), t0 = performance.now();
-  const step = () => {
-    if (!cv.isConnected) { flashRAF = 0; return; }
-    drawFlashback(ctx, (performance.now() - t0) / 1000);
-    flashRAF = requestAnimationFrame(step);
-  };
-  step();
+// Where the camera should centre (world px) while the flashback runs, or null.
+// updateCamera (world.js) asks this each frame.
+function lakeCutsceneFocus() {
+  if (!lqCut) return null;
+  const t = (performance.now() - lqCut.t0) / 1000;
+  const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const size = FRAME * SCALE, me = { x: player.x + size / 2, y: player.y + size / 2 };
+  const isle = { x: 30.6 * TILE, y: 4.6 * TILE };
+  const k = ease(t / PAN) * (1 - ease((t - PAN - SCENE_END) / PAN));
+  if (t > PAN * 2 + SCENE_END) { /* back with you: hold until Next */ }
+  return { x: me.x + (isle.x - me.x) * k, y: me.y + (isle.y - me.y) * k };
 }
-function drawFlashback(ctx, t) {
-  const W = 480, H = 270, C0 = 24.5, R0 = 0, PX = 32; // 15 x 8.4 tiles at 2x
-  const X = c => (c - C0) * PX, Y = r => (r - R0) * PX;
+
+let cutBuf = null;
+function drawLakeCutscene() {
+  if (!lqCut || scene.mode !== 'world') return;
+  const ts = (performance.now() - lqCut.t0) / 1000 - PAN;
+  if (ts < 0 || ts > SCENE_END) { if (ts > SCENE_END + PAN) return; }
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   const hitAltar = 3.4, gulp = 3.9, hitBoat = 4.6;
-  // Camera shake on each strike.
+  const t = Math.max(0, Math.min(ts, SCENE_END));
+  const N = TILE_NATIVE; // native px per tile; the buffer is the view at 1/SCALE
+  const bw = Math.ceil(mapCanvas.width / SCALE) + 2, bh = Math.ceil(mapCanvas.height / SCALE) + 2;
+  if (!cutBuf || cutBuf.width !== bw || cutBuf.height !== bh) { cutBuf = document.createElement('canvas'); cutBuf.width = bw; cutBuf.height = bh; }
+  const g = cutBuf.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, bw, bh);
+  const ox = Math.floor(camera.x / SCALE), oy = Math.floor(camera.y / SCALE);
+  const P = (c, r) => ({ x: Math.round(c * N - ox), y: Math.round(r * N - oy) }); // tile -> buffer px
+  const dot = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(Math.round(x), Math.round(y), r, 0, Math.PI * 2); g.fill(); };
   const shake = Math.max(0, 1 - Math.abs(t - hitAltar) * 4) + Math.max(0, 1 - Math.abs(t - hitBoat) * 4);
-  ctx.save();
-  ctx.scale(ctx.canvas.width / W, ctx.canvas.height / H); // drawn at 480 x 270, sharper on a bigger canvas
-  ctx.clearRect(0, 0, W, H);
-  ctx.translate(Math.sin(t * 90) * 5 * shake, Math.cos(t * 77) * 4 * shake);
-  ctx.imageSmoothingEnabled = false;
-  const frames = buildGround();
-  if (frames) ctx.drawImage(frames[Math.floor(t * 2) % frames.length], C0 * 16, R0 * 16, W / 2, H / 2, 0, 0, W, H);
-  else { ctx.fillStyle = '#2f6fb5'; ctx.fillRect(0, 0, W, H); }
 
-  // The altar: whole and glowing, then rubble.
-  const ax = X(LAKE.altar.col), ay = Y(LAKE.altar.row);
+  // The altar, whole (and glowing) until it's struck, then rubble and flying bits.
+  const A = P(LAKE.altar.col, LAKE.altar.row);
   if (t < hitAltar) {
-    if (LAKE_ART.pedestal.complete !== false) ctx.drawImage(LAKE_ART.pedestal, ax, ay - PX, PX, PX * 2);
-    const glow = 0.55 + 0.45 * Math.sin(t * 5);
-    ctx.globalAlpha = 0.35 + 0.3 * glow; ctx.fillStyle = '#9fe7ff';
-    ctx.beginPath(); ctx.arc(ax + PX / 2, ay - PX * 0.85, PX * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.drawImage(LAKE_ART.crystal, ax, ay - PX * 1.45, PX, PX);
+    if (LAKE_ART.pedestal.complete !== false) g.drawImage(LAKE_ART.pedestal, A.x, A.y - N, N, N * 2);
+    g.globalAlpha = 0.35 + 0.25 * Math.sin(t * 5); dot(A.x + N / 2, A.y - N * 0.85, 7, '#9fe7ff'); g.globalAlpha = 1;
+    g.drawImage(LAKE_ART.crystal, A.x, A.y - N * 1.45, N, N);
   } else {
-    ctx.fillStyle = '#8a8f94';
-    for (const [ox, oy, r] of [[0.25, 0.6, 0.16], [0.55, 0.65, 0.2], [0.75, 0.45, 0.14], [0.45, 0.35, 0.15]]) {
-      ctx.beginPath(); ctx.arc(ax + PX * ox, ay + PX * oy, PX * r, 0, Math.PI * 2); ctx.fill();
-    }
-    // Stones and crystal shards flying out, then landing.
+    for (const [ox2, oy2, r] of [[0.25, 0.6, 2.6], [0.55, 0.65, 3.2], [0.75, 0.45, 2.3], [0.45, 0.35, 2.4]]) dot(A.x + N * ox2, A.y + N * oy2, r, '#8a8f94');
     const k = Math.min(1, (t - hitAltar) / 0.9);
     for (let i = 0; i < 9; i++) {
-      const a = i / 9 * Math.PI * 2 + 0.4, d = PX * (0.6 + 1.6 * k) * (0.6 + (i % 3) * 0.25);
-      const x = ax + PX / 2 + Math.cos(a) * d, y = ay + Math.sin(a) * d * 0.6 - PX * 1.2 * Math.sin(k * Math.PI) * (i % 2 ? 1 : 0.6);
-      ctx.fillStyle = i % 3 ? '#8a8f94' : '#9fe7ff';
-      ctx.beginPath(); ctx.arc(x, y, i % 3 ? 4 : 3, 0, Math.PI * 2); ctx.fill();
+      const a = i / 9 * Math.PI * 2 + 0.4, d = N * (0.6 + 1.6 * k) * (0.6 + (i % 3) * 0.25);
+      dot(A.x + N / 2 + Math.cos(a) * d, A.y + Math.sin(a) * d * 0.6 - N * 1.2 * Math.sin(k * Math.PI) * (i % 2 ? 1 : 0.6), i % 3 ? 1.5 : 1, i % 3 ? '#8a8f94' : '#9fe7ff');
     }
   }
 
-  // The altar's keeper, beside it: stands calm, shakes once the serpent is up,
-  // then is snatched into its mouth (gulp). Drawn with the town's own sprite maker.
+  // The serpent's head path (buffer px), worked out first so the keeper can be
+  // swallowed into its mouth.
+  const base = P(27.3, 3.6);
+  const up = ease((t - 1.6) / 1.0) * (1 - ease((t - 5.1) / 1.0));
+  const K = P(33.4, 4.6), B = P(LAKE.islandEdge - 1.1, LAKE.row + 0.5);
+  const rear = { x: base.x + 10, y: base.y - N * 1.6 };
+  const atAltar = { x: A.x - 2, y: A.y - N * 0.4 }, atKeeper = { x: K.x - 6, y: K.y - N * 0.6 }, atBoat = { x: B.x - 4, y: B.y - 4 };
+  const go = (a, b, k) => ({ x: a.x + (b.x - a.x) * ease(k), y: a.y + (b.y - a.y) * ease(k) });
+  let head = t < 3.0 ? rear : t < hitAltar ? go(rear, atAltar, (t - 3.0) / 0.4) : t < gulp ? go(atAltar, atKeeper, (t - hitAltar - 0.1) / 0.35)
+    : t < hitBoat ? go(atKeeper, atBoat, (t - gulp - 0.15) / 0.5) : go(atBoat, rear, (t - hitBoat) / 0.5);
+  head = { x: base.x + (head.x - base.x) * up, y: base.y + (head.y - base.y) * up };
+  const mouth = { x: head.x + 7, y: head.y + 3 };
+
+  // The keeper, by the altar: calm, then trembling, then snatched (gulp).
   if (!LQ_KEEPER.sheet && typeof buildStaticSheet === 'function') LQ_KEEPER.sheet = buildStaticSheet(LQ_KEEPER.spec);
-  const kx = X(33.4), ky = Y(4.6), ks = PX * 1.5;
-  let keeperAt = null;
-  if (t < gulp - 0.25) keeperAt = { x: kx + (t > 1.9 ? Math.sin(t * 40) * 1.5 : 0), y: ky, s: 1 };
-  else if (t < gulp) { const k = (t - (gulp - 0.25)) / 0.25; keeperAt = { x: kx + (LQ_KEEPER.mouth.x - kx) * k, y: ky + (LQ_KEEPER.mouth.y - ky) * k - 20 * Math.sin(k * Math.PI), s: 1 - 0.8 * k }; }
-  if (keeperAt && LQ_KEEPER.sheet) {
-    const row = t > 1.9 ? DIR_ROW.west : DIR_ROW.south, sz = ks * keeperAt.s;
-    ctx.drawImage(LQ_KEEPER.sheet, WALK_COLS[1] * FRAME, row * FRAME, FRAME, FRAME, keeperAt.x - sz / 2, keeperAt.y - sz * 0.8, sz, sz);
+  if (LQ_KEEPER.sheet && t < gulp) {
+    let kx = K.x + (t > 1.9 ? Math.round(Math.sin(t * 40)) : 0), ky = K.y, sc = 1;
+    if (t > gulp - 0.25) { const k = (t - (gulp - 0.25)) / 0.25; kx += (mouth.x - kx) * k; ky += (mouth.y - ky) * k - 6 * Math.sin(k * Math.PI); sc = 1 - 0.8 * k; }
+    const row = t > 1.9 ? DIR_ROW.west : DIR_ROW.south, sz = Math.round(FRAME * sc);
+    g.drawImage(LQ_KEEPER.sheet, WALK_COLS[1] * FRAME, row * FRAME, FRAME, FRAME, Math.round(kx - sz / 2), Math.round(ky - sz * 0.8), sz, sz);
   }
 
-  // The old boat at the island's west landing: whole, then planks drifting apart.
-  const bx = X(LAKE.islandEdge - 1.1), by = Y(LAKE.row + 0.5);
+  // The old boat at the island's west landing, then planks drifting apart.
   if (t < hitBoat) {
-    ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.ellipse(bx, by, PX * 0.8, PX * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#5e3e22'; ctx.beginPath(); ctx.ellipse(bx, by, PX * 0.62, PX * 0.24, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#a0703f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx - PX * 0.2, by - PX * 0.25); ctx.lineTo(bx - PX * 0.5, by - PX * 0.75); ctx.stroke();
+    g.fillStyle = '#3d2814'; g.fillRect(B.x - 13, B.y - 6, 26, 12);
+    g.fillStyle = '#7a5230'; g.fillRect(B.x - 12, B.y - 5, 24, 10);
+    g.fillStyle = '#5e3e22'; g.fillRect(B.x - 9, B.y - 3, 18, 6);
+    g.fillStyle = '#a0703f'; g.fillRect(B.x - 4, B.y - 12, 2, 9);
   } else {
     const k = Math.min(1, (t - hitBoat) / 1.5);
-    ctx.fillStyle = '#7a5230';
     for (let i = 0; i < 6; i++) {
-      const a = i * 1.1, d = PX * (0.2 + 1.1 * k) * (0.5 + (i % 3) * 0.3);
-      ctx.save(); ctx.translate(bx + Math.cos(a) * d, by + Math.sin(a) * d * 0.7); ctx.rotate(a + k * (i % 2 ? 1.5 : -1.2));
-      ctx.fillRect(-PX * 0.3, -3, PX * 0.6, 6); ctx.restore();
+      const a = i * 1.1, d = N * (0.2 + 1.1 * k) * (0.5 + (i % 3) * 0.3);
+      g.save(); g.translate(Math.round(B.x + Math.cos(a) * d), Math.round(B.y + Math.sin(a) * d * 0.7)); g.rotate(Math.round((a + k * (i % 2 ? 1.5 : -1.2)) * 4) / 4);
+      g.fillStyle = '#3d2814'; g.fillRect(-6, -2, 12, 4); g.fillStyle = '#7a5230'; g.fillRect(-5, -1, 10, 2); g.restore();
     }
   }
 
-  // The serpent: comes up in the water north-west of the island, between the old
-  // boat and the altar, its neck a chain of green discs from where it breaks the
-  // water to its head. Rises 1.6-2.6 s, rears up, strikes the altar (3.4 s), swings
-  // to the boat (4.15 s), sinks 4.6-5.6 s.
-  const base = { x: X(27.3), y: Y(3.2) };
-  const up = ease((t - 1.6) / 1.0) * (1 - ease((t - 5.1) / 1.0));
+  // The serpent, pixel art: outline pass, then body, belly, spines; head last.
   if (up > 0.01) {
-    const rear = { x: base.x + 30, y: base.y - PX * 1.5 }; // reared up, head still in frame
-    const atAltar = { x: ax + PX / 2 - 16, y: ay - PX * 0.4 }, atKeeper = { x: kx - 16, y: ky - PX * 0.5 }, atBoat = { x: bx - 12, y: by - 10 }; // (mouth on target)
-    const go = (a, b, k) => ({ x: a.x + (b.x - a.x) * ease(k), y: a.y + (b.y - a.y) * ease(k) });
-    let head;
-    if (t < 3.0) head = rear;
-    else if (t < hitAltar) head = go(rear, atAltar, (t - 3.0) / 0.4);
-    else if (t < gulp) head = go(atAltar, atKeeper, (t - hitAltar - 0.1) / 0.35);
-    else if (t < hitBoat) head = go(atKeeper, atBoat, (t - gulp - 0.15) / 0.5);
-    else head = go(atBoat, rear, (t - hitBoat) / 0.5);
-    head = { x: base.x + (head.x - base.x) * up, y: base.y + (head.y - base.y) * up };
-    // Water ring where it comes up, and two humps behind.
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(base.x, base.y, 22 + 6 * Math.sin(t * 6), 8, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#2f7a3c';
-    for (const [dx, dy, r] of [[-30, 22, 16], [-62, 40, 11]]) { ctx.beginPath(); ctx.ellipse(base.x + dx, base.y + dy, r * up + 1, r * 0.6 * up + 1, 0, Math.PI, 0); ctx.fill(); }
-    const ctrl = { x: (base.x + head.x) / 2 - 20, y: Math.min(base.y, head.y) - 30 };
-    for (let i = 0; i <= 14; i++) {
-      const u = i / 14, iu = 1 - u;
-      const x = iu * iu * base.x + 2 * iu * u * ctrl.x + u * u * head.x, y = iu * iu * base.y + 2 * iu * u * ctrl.y + u * u * head.y;
-      ctx.fillStyle = i % 2 ? '#3f9a4d' : '#368a43';
-      ctx.beginPath(); ctx.arc(x, y, 17 - u * 5, 0, Math.PI * 2); ctx.fill();
-      if (i % 3 === 1) { ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.moveTo(x - 4, y - 14); ctx.lineTo(x + 2, y - 24); ctx.lineTo(x + 6, y - 12); ctx.fill(); }
+    const OUT = '#0b1410', BODY = '#1f4d33', LIGHT = '#2e6b45', BELLY = '#8f9c5c', BONE = '#d9d2b4';
+    g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1;
+    g.beginPath(); g.ellipse(base.x, base.y, 9 + 2 * Math.sin(t * 6), 3, 0, 0, Math.PI * 2); g.stroke(); // ring where it breaks the water
+    for (const [dx, dy, r] of [[-12, 8, 6], [-24, 14, 4]]) { dot(base.x + dx, base.y + dy, r * up + 1, OUT); dot(base.x + dx, base.y + dy - 1, r * up, BODY); }
+    const ctrl = { x: (base.x + head.x) / 2 - 8, y: Math.min(base.y, head.y) - 10 };
+    const pts = [];
+    for (let i = 0; i <= 16; i++) {
+      const u = i / 16, iu = 1 - u;
+      pts.push({ x: iu * iu * base.x + 2 * iu * u * ctrl.x + u * u * head.x, y: iu * iu * base.y + 2 * iu * u * ctrl.y + u * u * head.y, r: 6.5 - u * 2.5 });
     }
-    // Head, mouth open on the strikes.
+    for (const q of pts) dot(q.x, q.y, q.r + 1, OUT);
+    for (const [i, q] of pts.entries()) { dot(q.x, q.y, q.r, i % 2 ? BODY : LIGHT); dot(q.x + 1, q.y + q.r * 0.5, q.r * 0.45, BELLY); }
+    for (const [i, q] of pts.entries()) if (i % 2 === 1 && i < 15) {
+      g.fillStyle = OUT; g.beginPath(); g.moveTo(q.x - 3, q.y - q.r + 1); g.lineTo(q.x - 1, q.y - q.r - 6); g.lineTo(q.x + 2, q.y - q.r + 1); g.fill();
+      g.fillStyle = BONE; g.beginPath(); g.moveTo(q.x - 2, q.y - q.r + 1); g.lineTo(q.x - 1, q.y - q.r - 4); g.lineTo(q.x + 1, q.y - q.r + 1); g.fill();
+    }
+    // Head: a long wedge snout facing right, jaw dropping open on each strike.
     const open = Math.max(0, 1 - Math.abs(t - hitAltar) * 3) + Math.max(0, 1 - Math.abs(t - gulp + 0.1) * 4) + Math.max(0, 1 - Math.abs(t - hitBoat) * 3);
-    LQ_KEEPER.mouth = { x: head.x + 14, y: head.y + 6 };
-    // (It faces right, toward the altar.)
-    ctx.fillStyle = '#3f9a4d'; ctx.beginPath(); ctx.ellipse(head.x + 6, head.y, 27, 17, 0.15, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.ellipse(head.x + 12, head.y + 10 + open * 9, 20, 7, 0.15, 0, Math.PI * 2); ctx.fill();
-    if (open > 0.1) { ctx.fillStyle = '#5a1020'; ctx.beginPath(); ctx.ellipse(head.x + 14, head.y + 5 + open * 4, 14, 4 + open * 5, 0.15, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(head.x + 2, head.y - 9, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(head.x + 4, head.y - 9, 3.4, 0, Math.PI * 2); ctx.fill();
+    const hx = Math.round(head.x), hy = Math.round(head.y), jaw = Math.round(2 + open * 4);
+    // Upper head, column by column: a heavy brow at the back sloping down to a narrow snout.
+    const colTop = x => Math.round(-6 + Math.max(0, x - 3) * 0.45), colLen = 18;
+    for (let x = -1; x <= colLen; x++) { const top = colTop(Math.max(0, x)); g.fillStyle = OUT; g.fillRect(hx - 7 + x, hy + top - 1, 1, 4 - top); }
+    for (let x = 0; x < colLen; x++) { const top = colTop(x); g.fillStyle = BODY; g.fillRect(hx - 7 + x, hy + top, 1, 2 - top); g.fillStyle = LIGHT; g.fillRect(hx - 7 + x, hy + top, 1, 1); }
+    g.fillStyle = OUT; g.fillRect(hx - 6, hy + 2, colLen - 2, jaw + 3);                // jaw outline
+    g.fillStyle = '#4a0f14'; g.fillRect(hx - 5, hy + 2, colLen - 4, jaw);              // mouth
+    g.fillStyle = BELLY; g.fillRect(hx - 5, hy + 2 + jaw, colLen - 5, 2);              // lower jaw
+    g.fillStyle = BONE; for (let x = hx - 4; x < hx + colLen - 8; x += 3) { g.fillRect(x, hy + 2, 1, 2); g.fillRect(x + 1, hy + jaw, 1, 2); } // fangs
+    g.fillStyle = BONE; g.fillRect(hx + colLen - 9, hy + 2, 1, 3);                     // a long front fang
+    g.fillStyle = OUT; g.fillRect(hx - 5, hy - 9, 3, 4); g.fillRect(hx - 1, hy - 8, 2, 3); // horns
+    g.fillStyle = BONE; g.fillRect(hx - 4, hy - 8, 1, 3);
+    g.fillStyle = OUT; g.fillRect(hx - 1, hy - 6, 6, 1);                               // brow ridge over the eye
+    g.fillStyle = '#ff2a1a'; g.fillRect(hx, hy - 5, 3, 2);                              // eye
+    g.fillStyle = '#ffd34a'; g.fillRect(hx + 1, hy - 5, 1, 1);
+    g.globalAlpha = 0.35; dot(hx + 1, hy - 4, 4, '#ff2a1a'); g.globalAlpha = 1;          // its glow
+    g.fillStyle = OUT; g.fillRect(hx + colLen - 9, hy - 3, 1, 1);                       // nostril
   }
 
-  // Night and storm over everything: dark blue, rain, lightning on the strikes.
-  ctx.fillStyle = 'rgba(10,20,45,0.38)'; ctx.fillRect(-10, -10, W + 20, H + 20);
-  ctx.strokeStyle = 'rgba(190,210,255,0.35)'; ctx.lineWidth = 1;
-  for (let i = 0; i < 70; i++) {
-    const x = (i * 97 + t * 260) % (W + 40) - 20, y = (i * 53 + t * 520) % (H + 40) - 20;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 13); ctx.stroke();
+  // Up to the screen, 3x, no smoothing (shaking on the strikes).
+  const ctx = mapCtx;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  const sx = Math.sin(t * 90) * 6 * shake, sy = Math.cos(t * 77) * 5 * shake;
+  ctx.drawImage(cutBuf, ox * SCALE - camera.x + sx, oy * SCALE - camera.y + sy, bw * SCALE, bh * SCALE);
+  // Night and storm over the whole view; rain; lightning on the strikes.
+  const W = mapCanvas.width, H = mapCanvas.height;
+  const dark = Math.min(1, ts / 0.4) * (ts > SCENE_END ? Math.max(0, 1 - (ts - SCENE_END) / PAN) : 1);
+  ctx.fillStyle = `rgba(10,20,45,${0.42 * dark})`; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = `rgba(190,210,255,${0.35 * dark})`; ctx.lineWidth = 2;
+  for (let i = 0; i < 80; i++) {
+    const x = (i * 97 + ts * 300) % (W + 40) - 20, y = (i * 53 + ts * 620) % (H + 40) - 20;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 16); ctx.stroke();
   }
-  const flash = Math.max(0, 1 - Math.abs(t - hitAltar) * 6) * 0.7 + Math.max(0, 1 - Math.abs(t - hitBoat) * 6) * 0.5 + (t > 0.5 && t < 0.62 ? 0.4 : 0);
-  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(-10, -10, W + 20, H + 20); }
+  const flash = (Math.max(0, 1 - Math.abs(t - hitAltar) * 6) * 0.7 + Math.max(0, 1 - Math.abs(t - hitBoat) * 6) * 0.5 + (t > 0.5 && t < 0.62 ? 0.4 : 0)) * dark;
+  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(0, 0, W, H); }
   if (t > gulp && t < gulp + 0.7) {
-    ctx.font = 'bold 34px system-ui, sans-serif'; ctx.textAlign = 'center';
-    ctx.lineWidth = 5; ctx.strokeStyle = '#1d5e2c'; ctx.strokeText('GULP!', W / 2, 44);
-    ctx.fillStyle = '#fff'; ctx.fillText('GULP!', W / 2, 44);
+    ctx.font = 'bold 40px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.lineWidth = 6; ctx.strokeStyle = '#3a0a0a'; ctx.strokeText('GULP!', W / 2, 60);
+    ctx.fillStyle = '#fff'; ctx.fillText('GULP!', W / 2, 60);
   }
   ctx.restore();
 }

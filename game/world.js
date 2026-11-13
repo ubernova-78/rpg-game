@@ -78,8 +78,10 @@ const WORLD_MAP = [
 const camera = { x: 0, y: 0 };
 function updateCamera() {
   const spriteSize = FRAME * SCALE;
-  const targetX = player.x + spriteSize / 2 - mapCanvas.width / 2;
-  const targetY = player.y + spriteSize / 2 - mapCanvas.height / 2;
+  // The witch's flashback pans the camera to the island and back (lake-quest.js).
+  const focus = typeof lakeCutsceneFocus === 'function' ? lakeCutsceneFocus() : null;
+  const targetX = (focus ? focus.x : player.x + spriteSize / 2) - mapCanvas.width / 2;
+  const targetY = (focus ? focus.y : player.y + spriteSize / 2) - mapCanvas.height / 2;
   camera.x = Math.max(0, Math.min(WORLD_COLS * TILE - mapCanvas.width, targetX));
   camera.y = Math.max(0, Math.min(WORLD_ROWS * TILE - mapCanvas.height, targetY));
 }
