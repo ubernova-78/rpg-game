@@ -1,6 +1,9 @@
 // read-aloud.js — Read Aloud for the game and every student page (Nick, 2026-11-13).
 //
-// A 🔊 button (bottom-right) turns it on and off. The setting is kept in
+// A "Read aloud" button turns it on and off: in the game it sits in the top bar
+// beside the coins and hearts ([data-read-aloud-slot]); on a page without a slot
+// it's a labeled pill in the bottom-right corner. (It began as a bare icon in the
+// window's corner, which Nick couldn't find on a wide Mac screen, 2026-11-13.) The setting is kept in
 // localStorage ('pq-read-aloud'), which the game and its benches share (same
 // origin), so turning it on in the game turns it on inside every workbench.
 // While it's on:
@@ -12,15 +15,13 @@
 // Uses the browser's own speech (speechSynthesis): on Chromebooks that's ChromeOS's
 // voices, which work offline. Nothing is sent anywhere.
 //
-// Inside the game's overlay (an iframe) the page hides its own button: the game's
-// button sits above the overlay and controls both, and a 'storage' event tells the
-// page when it changes.
+// A bench inside the game's overlay shows its own button (the overlay covers the
+// game's top bar); a 'storage' event keeps the two in step.
 (function () {
   if (window.__readAloud) return;
   const synth = window.speechSynthesis;
   if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return; // no speech on this browser: no button
   const KEY = 'pq-read-aloud';
-  const inFrame = window.parent !== window;
   const get = () => { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } };
   const put = v => { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) {} };
   let on = get();
@@ -147,12 +148,12 @@
   // ---------- The button ----------
   const css = document.createElement('style');
   css.textContent = `
-    .ra-btn{position:fixed;right:14px;bottom:14px;z-index:2147483000;width:48px;height:48px;border-radius:50%;border:3px solid #f6c90e;
-      background:#20313d;color:#fff;font-size:22px;line-height:1;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:0;}
-    .ra-btn.off{border-color:#7a8790;opacity:.75;}
-    .ra-btn .ra-tip{position:absolute;right:56px;bottom:8px;white-space:nowrap;background:#20313d;color:#fff;font:600 12px system-ui,sans-serif;
-      padding:5px 8px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .15s;}
-    .ra-btn:hover .ra-tip,.ra-btn:focus-visible .ra-tip{opacity:1;}
+    .ra-btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:17px;border:2px solid #f6c90e;
+      background:#20313d;color:#fff;font:700 13px system-ui,-apple-system,sans-serif;white-space:nowrap;cursor:pointer;line-height:1;}
+    .ra-btn.corner{position:fixed;right:14px;bottom:14px;z-index:2147483000;box-shadow:0 3px 10px rgba(0,0,0,.35);}
+    .ra-btn.off{border-color:#9aa6ae;}
+    .ra-btn:not(.off){background:#f6c90e;color:#20313d;}
+    .ra-btn .ra-ico{font-size:16px;}
     body.ra-on .ra-hover{outline:2px dashed #f6c90e;outline-offset:2px;cursor:pointer;}
     body.ra-on .ra-speaking{outline:3px solid #f6c90e;outline-offset:2px;background-color:rgba(246,201,14,.15);}
   `;
@@ -164,8 +165,9 @@
     if (!btn) return;
     btn.classList.toggle('off', !on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    btn.firstChild.textContent = on ? '🔊' : '🔈';
-    btn.querySelector('.ra-tip').textContent = on ? 'Read aloud is ON: click any words to hear them' : 'Read aloud: off';
+    btn.querySelector('.ra-ico').textContent = on ? '🔊' : '🔈';
+    btn.querySelector('.ra-txt').textContent = on ? 'Read aloud: on' : 'Read aloud';
+    btn.title = on ? 'Read aloud is on: click any words to hear them. Click here to turn it off.' : 'Turn on read aloud';
   }
   function setOn(v, announce) {
     on = v; put(v); paint();
@@ -173,15 +175,14 @@
     else { scan(); if (announce) say('Read aloud is on. Click any words to hear them.'); }
   }
   function init() {
-    if (!inFrame) {
-      btn = document.createElement('button');
-      btn.className = 'ra-btn'; btn.type = 'button';
-      btn.setAttribute('aria-label', 'Read aloud');
-      btn.append(document.createTextNode('🔈'));
-      const tip = document.createElement('span'); tip.className = 'ra-tip'; btn.append(tip);
-      btn.addEventListener('click', e => { e.stopPropagation(); setOn(!on, true); });
-      document.body.appendChild(btn);
-    }
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Read aloud');
+    btn.innerHTML = '<span class="ra-ico"></span><span class="ra-txt"></span>';
+    btn.addEventListener('click', e => { e.stopPropagation(); setOn(!on, true); });
+    const slot = document.querySelector('[data-read-aloud-slot]');
+    btn.className = 'ra-btn' + (slot ? '' : ' corner');
+    (slot || document.body).appendChild(btn);
     paint(); scan();
     // Pop-ups added later (a bench building its screen) get watched too.
     new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
