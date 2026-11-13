@@ -39,12 +39,16 @@ function lqSave(patch) {
 }
 function lqHasHeal() { return !!lqState().altar; }
 
-// The Boat Builder reports a design that carried the rider and all the stones.
+// The Boat Builder's "Use this boat" (a design that carried the rider and all the
+// stones): save it, close the builder, and say where the boat is.
 window.addEventListener('message', e => {
   if (!e.data || e.data.type !== 'boat-passed') return;
   const first = !lqState().boat;
   lqSave({ boat: true, design: String(e.data.design || '').slice(0, 200), stones: Math.max(0, Math.min(1000, Number(e.data.stones) || 0)) });
   if (first) console.log('[lake] boat saved');
+  gameOverlayEls.btnBack.click();
+  lqModal(first ? '⛵ Your boat is built!' : '⛵ Boat swapped',
+    'It\'s tied up at the dock just outside, on the east side of the hut' + (lqState().altar ? '.' : ', loaded with 60 stones.') + ' Step onto the dock to row across to the island.', [['OK']]);
 });
 
 // What the Lake Watcher says depends on how far along you are.
