@@ -591,7 +591,7 @@
         <button id="runeUnhookBtn" class="hidden">✋ Unhook tape</button>
 
         <div id="workbenchModal" class="wb-modal hidden">
-          <div class="wb-modal-inner">
+          <div class="wb-modal-inner" data-read-auto>
             <div class="wb-modal-title" id="wbTitle">Workbench</div>
             <div class="wb-modal-body" id="wbBody">Mini-game coming soon.</div>
             <button id="wbCloseBtn">Close</button>
@@ -641,7 +641,7 @@
       </div>
 
       <div id="chestModal" class="wb-modal hidden">
-        <div class="wb-modal-inner">
+        <div class="wb-modal-inner" data-read-auto>
           <div class="wb-modal-title" id="chestTitle">Chest</div>
           <div id="chestBody"></div>
         </div>
@@ -694,7 +694,7 @@
           <span class="battle-mode-tag"><span class="dot"></span><span id="battleModeTag">Battle</span></span>
           <button class="backbtn" id="battleLeaveBtn">Leave Battle</button>
         </div>
-        <div id="battleBody"></div>
+        <div id="battleBody" data-read-auto></div>
       </div>
       <div class="battle-right">
         <div class="battle-combatant">
@@ -737,5 +737,6 @@
   <script src="lake-quest.js"></script>
   <script src="dojo.js"></script>
   <script src="session.js"></script>
+<script src="read-aloud.js"></script>
 </body>
 </html>

@@ -195,6 +195,7 @@ const MeasureShared = (function () {
     const outer = document.createElement('div');
     outer.className = p + 'tape-wrap-outer';
     outer.style.position = 'relative';
+    outer.setAttribute('data-no-read', ''); // Read Aloud skips the tick numbers (read-aloud.js)
 
     const tapeWrap = document.createElement('div');
     tapeWrap.className = p + 'tape-wrap';

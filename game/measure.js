@@ -172,6 +172,7 @@
       // Caliper SVG
       const caliperWrap = document.createElement('div');
       caliperWrap.className = 'mq-caliper-wrap';
+      caliperWrap.setAttribute('data-no-read', ''); // Read Aloud skips the scale's numbers
       caliperWrap.innerHTML = buildCaliperSVG(valueMM, 80, BATTLE_OPTS);
       const badge = document.createElement('div');
       badge.className = 'mq-unit-badge';
