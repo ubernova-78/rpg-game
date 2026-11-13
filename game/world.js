@@ -108,7 +108,7 @@ const isDirtGround = ch => ch === 'd' || ch === '=';
 // or the Rune Circle (validateWorld checks the buildings).
 const WORLD_SPOTS = {
   spawn: [31, 19],                  // the plaza, just south of the statue
-  witch: [34, 17, 0],               // the town square, between the statue and the well (stands still), in view from the spawn: tells the Lake Quest's story
+  witch: [33, 21, 0],               // the town square, on the paving just below the spawn (stands still; at 34,17 she stood on a bench), in view from the spawn: tells the Lake Quest's story
   ranger: [54, 18, 2], lakeWatcher: [27, 11, 2], warden: [2, 20, 2], fieldGuide: [35, 34, 2],
   shop: [27, 15, 1], potionMaster: [57, 22, 2], woodsman: [55, 26, 2],
   pinecoon: [54, 12, 3], meadowWasp: [15, 36, 3], grassSnake: [46, 37, 3],

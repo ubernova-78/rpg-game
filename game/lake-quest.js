@@ -54,7 +54,7 @@ window.addEventListener('message', e => {
 // What the Lake Watcher says depends on how far along you are.
 function lakeWatcherMessage() {
   const s = lqState();
-  if (s.altar) return 'The altar on the island glows again, thanks to you. Remember: in battle, you can cast Heal once per fight.';
+  if (s.altar) return 'The altar on the island glows again, thanks to you. Remember: in battle, you can cast the Heal spell once per fight.';
   if (s.boat) return 'Your boat is tied up at the dock by the Boatwright\'s Hut, on the west shore. Step onto the dock to row across, then build the altar on the island.';
   return 'The old altar on the island has fallen. To rebuild it, someone must carry 60 stones of 5 kg each across the lake, and themselves too, in ONE trip. The old Boatwright\'s Hut on the north-west shore still has a drafting desk. Design a boat there that can do it. Whoever rebuilds the altar learns the Heal spell.';
 }
@@ -155,7 +155,7 @@ function lqAtLanding() {
 }
 function lqAtAltar() {
   if (lqState().altar) {
-    lqModal('The Altar', `The crystal hums. You know <strong>Heal</strong>: once in every battle, cast it to get back ${HEAL_HP} HP.`, [['OK']]);
+    lqModal('The Altar', `The crystal hums. You know the <strong>Heal spell</strong>: once in every battle, cast it to get back ${HEAL_HP} HP.`, [['OK']]);
     return;
   }
   if (!lqState().boat) {
@@ -165,7 +165,7 @@ function lqAtAltar() {
   lqModal('The Altar', 'You unload all 60 stones from your boat. Stack them to rebuild the altar?', [
     ['Rebuild the altar', () => {
       lqSave({ altar: true });
-      lqModal('✨ You learned Heal!', `The crystal lights up as the last stone goes in. In battle, you can now cast <strong>Heal</strong> once per fight to get back ${HEAL_HP} HP.`, [['Great!']]);
+      lqModal('✨ You learned the Heal spell!', `The crystal lights up as the last stone goes in. In battle, you can now cast the <strong>Heal spell</strong> once per fight to get back ${HEAL_HP} HP.`, [['Great!']]);
     }],
     ['Not yet'],
   ]);
@@ -264,7 +264,7 @@ function witchTalk() {
   const s = lqState();
   if (!lqHeardStory && !s.boat && !s.altar) { witchStory(0); return; }
   const hint = s.altar
-    ? `You did it! The altar glows again, and the crystal taught you <strong>Heal</strong>. Once in every battle, it gives you back ${HEAL_HP} HP.`
+    ? `You did it! The altar glows again, and the crystal taught you the <strong>Heal spell</strong>. Once in every battle, it gives you back ${HEAL_HP} HP.`
     : s.boat
       ? 'You built a boat that can carry it all! It\'s tied up at the pier by the Boatwright\'s Hut. Row it to the island and rebuild the altar.'
       : 'Head north to the lake. The <strong>Boatwright\'s Hut</strong> is on the north-west shore: design your boat at the drafting desk inside.';
@@ -274,7 +274,7 @@ const WITCH_STORY = [
   { text: 'Ah, a new face! Come closer, dear. Do you see the island in the middle of the lake? Let me tell you what happened there.' },
   { text: 'An altar stood on that island, with a crystal that could heal any wound. Then, one stormy night, a <strong>lake serpent</strong> rose out of the water. It smashed the altar to rubble, and it splintered the only boat we had.', scene: true },
   { text: 'Nobody has crossed since. We have no boat, and nobody knows how to build one strong enough. To rebuild the altar, someone must carry <strong>60 stones of 5 kg</strong> each, and themselves, across the lake in <strong>one trip</strong>.' },
-  { text: `Whoever rebuilds the altar will be rewarded. The crystal will teach them <strong>Heal</strong>: once in every battle, they can cast it to get back ${HEAL_HP} HP.` },
+  { text: `Whoever rebuilds the altar will be rewarded. The crystal will teach them the <strong>Heal spell</strong>: once in every battle, they can cast it to get back ${HEAL_HP} HP.` },
   { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!', last: true },
 ];
 function witchStory(i) {
