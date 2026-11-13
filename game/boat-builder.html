@@ -444,7 +444,7 @@
       const d = cargo.getObjectByName('dummy'), wp = new THREE.Vector3();
       (d || pivot).getWorldPosition(wp);
       anim = { t0: performance.now(), x: wp.x, z: wp.z, frozen: null };
-      orbit.r = Math.max(orbit.r, 5.2); orbit.phi = Math.max(orbit.phi, 1.2);
+      orbit.r = Math.max(orbit.r, 5.8); orbit.phi = Math.max(orbit.phi, 1.2);
     }
     function stopSink(){
       anim = null; monster.visible = false; freeDummy.visible = false; gulpEl.style.display = 'none';
@@ -467,8 +467,11 @@
       if (d) d.visible = t < 1;
       freeDummy.visible = t >= 1 && t < 3.35;
       freeDummy.position.set(anim.x, -0.22 + 0.05 * Math.sin(t * 5), anim.z); freeDummy.rotation.set(0, 0, 0.3);
-      monster.visible = t >= 1 && t < 5.2;
-      monster.position.set(anim.x + 1.55, -2.8 + 2.6 * ease((t - 2.0) / 0.8) - 2.6 * ease((t - 4.0) / 1.0), anim.z);
+      // Hidden until it starts to rise, so it doesn't show through the water early
+      // (seen watching it live, 2026-11-13); it peaks low enough to stay in view and
+      // sinks well out of sight before it goes.
+      monster.visible = t >= 1.9 && t < 5.2;
+      monster.position.set(anim.x + 1.55, -3.8 + 3.35 * ease((t - 2.0) / 0.8) - 3.35 * ease((t - 4.0) / 1.0), anim.z);
       monster.rotation.z = 1.0 * ease((t - 2.9) / 0.5) - 1.0 * ease((t - 3.6) / 0.5);
       jaw.rotation.z = -0.7 * ease((t - 2.9) / 0.3) + 0.7 * ease((t - 3.3) / 0.12);
       gulpEl.style.display = t >= 3.35 && t < 5.2 ? 'block' : 'none';
