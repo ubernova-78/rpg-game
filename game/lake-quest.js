@@ -272,13 +272,14 @@ function witchTalk() {
 }
 const WITCH_STORY = [
   { text: 'Ah, a new face! Come closer, dear. Do you see the island in the middle of the lake? Let me tell you what happened there.' },
-  { text: 'An altar stood on that island, with a crystal that could heal any wound. Then, one stormy night, a <strong>lake serpent</strong> rose out of the water. It smashed the altar to rubble, and it splintered the only boat we had.', scene: true },
+  { text: 'An altar stood on that island, with a crystal that could heal any wound. Then, one stormy night, a <strong>lake serpent</strong> rose out of the water. It smashed the altar to rubble, swallowed the altar\'s keeper whole, and splintered the only boat we had.', scene: true },
   { text: 'Nobody has crossed since. We have no boat, and nobody knows how to build one strong enough. To rebuild the altar, someone must carry <strong>60 stones of 5 kg</strong> each, and themselves, across the lake in <strong>one trip</strong>.' },
   { text: `Whoever rebuilds the altar will be rewarded. The crystal will teach them the <strong>Heal spell</strong>: once in every battle, they can cast it to get back ${HEAL_HP} HP.` },
-  { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!', last: true },
+  { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!<br><br><em>Oh, and one more thing. No one has seen the serpent since that night, but some people think it\'s still down there. Let\'s hope it has gone back to the depths forever...</em>', last: true },
 ];
 function witchStory(i) {
   const p = WITCH_STORY[i];
+  if (p.scene) { storyStage(p.text, [['▶ Watch again', () => witchStory(i)], ['Next', () => witchStory(i + 1)]], `${i + 1} of ${WITCH_STORY.length}`); return; }
   const buttons = p.last
     ? [['I\'ll do it!', () => { lqHeardStory = true; closeWorkbench(); }]]
     : [['Next', () => witchStory(i + 1)]];
@@ -286,7 +287,7 @@ function witchStory(i) {
   witchPage(p.text, buttons, p.scene, `${i + 1} of ${WITCH_STORY.length}`);
 }
 function witchPage(html, buttons, withScene, step) {
-  stopFlashback();
+  stopFlashback(); closeStage();
   storyOpen();
   wbTitle.textContent = 'Witch Hazel' + (step ? ` (${step})` : '');
   wbBody.innerHTML = '';
@@ -306,6 +307,29 @@ function storyOpen() {
   wbModalCloseHook = () => { stopFlashback(); wbModal.classList.remove('story'); };
 }
 
+// The flashback plays full screen (Nick, 2026-11-13: it was a small picture in the
+// dialogue box), with the story as a caption under it and the buttons beside that.
+let stageEl = null;
+function storyStage(html, buttons, step) {
+  stopFlashback();
+  if (!stageEl) {
+    stageEl = document.createElement('div'); stageEl.className = 'story-stage';
+    stageEl.innerHTML = '<canvas width="960" height="540"></canvas><div class="story-caption"><div class="who"></div><div class="txt"></div><div class="btns"></div></div>';
+    document.body.appendChild(stageEl);
+  }
+  wbModal.classList.add('hidden'); wbModal.classList.remove('story');
+  scene.modalOpen = true;
+  stageEl.querySelector('.who').textContent = 'Witch Hazel' + (step ? ` (${step})` : '');
+  stageEl.querySelector('.txt').innerHTML = html;
+  const bb = stageEl.querySelector('.btns'); bb.innerHTML = '';
+  for (const [label, fn] of buttons) { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', fn); bb.appendChild(b); }
+  const x = document.createElement('button'); x.textContent = 'Close'; x.className = 'ghost';
+  x.addEventListener('click', () => { closeStage(); scene.modalOpen = false; }); bb.appendChild(x);
+  stageEl.classList.remove('hidden');
+  playFlashback(stageEl.querySelector('canvas'));
+}
+function closeStage() { stopFlashback(); if (stageEl) stageEl.classList.add('hidden'); }
+
 // ---------- The flashback ----------
 // The real island, cut from the game's own ground (buildGround), at night in a
 // storm. The altar glows on it, the old boat is tied at its west landing. The
@@ -313,6 +337,9 @@ function storyOpen() {
 // crystal shards fly), sweeps round and splinters the boat, and sinks back. About
 // 6 s; everything is worked out from t, so it can be replayed from any moment.
 let flashRAF = 0;
+// The altar's keeper (someone who lived on the island), and where the serpent's
+// mouth is this frame, for the gulp.
+const LQ_KEEPER = { spec: { head: 'head1', hair: 'hair6', top: 'top7', bottom: 'bottom3', skinTone: 1 }, sheet: null, mouth: { x: 0, y: 0 } };
 function stopFlashback() { cancelAnimationFrame(flashRAF); flashRAF = 0; }
 function playFlashback(cv) {
   stopFlashback();
@@ -328,10 +355,11 @@ function drawFlashback(ctx, t) {
   const W = 480, H = 270, C0 = 24.5, R0 = 0, PX = 32; // 15 x 8.4 tiles at 2x
   const X = c => (c - C0) * PX, Y = r => (r - R0) * PX;
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
-  const hitAltar = 3.4, hitBoat = 4.15;
+  const hitAltar = 3.4, gulp = 3.9, hitBoat = 4.6;
   // Camera shake on each strike.
   const shake = Math.max(0, 1 - Math.abs(t - hitAltar) * 4) + Math.max(0, 1 - Math.abs(t - hitBoat) * 4);
   ctx.save();
+  ctx.scale(ctx.canvas.width / W, ctx.canvas.height / H); // drawn at 480 x 270, sharper on a bigger canvas
   ctx.clearRect(0, 0, W, H);
   ctx.translate(Math.sin(t * 90) * 5 * shake, Math.cos(t * 77) * 4 * shake);
   ctx.imageSmoothingEnabled = false;
@@ -362,6 +390,18 @@ function drawFlashback(ctx, t) {
     }
   }
 
+  // The altar's keeper, beside it: stands calm, shakes once the serpent is up,
+  // then is snatched into its mouth (gulp). Drawn with the town's own sprite maker.
+  if (!LQ_KEEPER.sheet && typeof buildStaticSheet === 'function') LQ_KEEPER.sheet = buildStaticSheet(LQ_KEEPER.spec);
+  const kx = X(33.4), ky = Y(4.6), ks = PX * 1.5;
+  let keeperAt = null;
+  if (t < gulp - 0.25) keeperAt = { x: kx + (t > 1.9 ? Math.sin(t * 40) * 1.5 : 0), y: ky, s: 1 };
+  else if (t < gulp) { const k = (t - (gulp - 0.25)) / 0.25; keeperAt = { x: kx + (LQ_KEEPER.mouth.x - kx) * k, y: ky + (LQ_KEEPER.mouth.y - ky) * k - 20 * Math.sin(k * Math.PI), s: 1 - 0.8 * k }; }
+  if (keeperAt && LQ_KEEPER.sheet) {
+    const row = t > 1.9 ? DIR_ROW.west : DIR_ROW.south, sz = ks * keeperAt.s;
+    ctx.drawImage(LQ_KEEPER.sheet, WALK_COLS[1] * FRAME, row * FRAME, FRAME, FRAME, keeperAt.x - sz / 2, keeperAt.y - sz * 0.8, sz, sz);
+  }
+
   // The old boat at the island's west landing: whole, then planks drifting apart.
   const bx = X(LAKE.islandEdge - 1.1), by = Y(LAKE.row + 0.5);
   if (t < hitBoat) {
@@ -383,15 +423,17 @@ function drawFlashback(ctx, t) {
   // water to its head. Rises 1.6-2.6 s, rears up, strikes the altar (3.4 s), swings
   // to the boat (4.15 s), sinks 4.6-5.6 s.
   const base = { x: X(27.3), y: Y(3.2) };
-  const up = ease((t - 1.6) / 1.0) * (1 - ease((t - 4.6) / 1.0));
+  const up = ease((t - 1.6) / 1.0) * (1 - ease((t - 5.1) / 1.0));
   if (up > 0.01) {
     const rear = { x: base.x + 30, y: base.y - PX * 1.5 }; // reared up, head still in frame
-    const atAltar = { x: ax + PX / 2 - 16, y: ay - PX * 0.4 }, atBoat = { x: bx - 12, y: by - 10 }; // (mouth on target)
+    const atAltar = { x: ax + PX / 2 - 16, y: ay - PX * 0.4 }, atKeeper = { x: kx - 16, y: ky - PX * 0.5 }, atBoat = { x: bx - 12, y: by - 10 }; // (mouth on target)
+    const go = (a, b, k) => ({ x: a.x + (b.x - a.x) * ease(k), y: a.y + (b.y - a.y) * ease(k) });
     let head;
     if (t < 3.0) head = rear;
-    else if (t < hitAltar) { const k = ease((t - 3.0) / 0.4); head = { x: rear.x + (atAltar.x - rear.x) * k, y: rear.y + (atAltar.y - rear.y) * k }; }
-    else if (t < hitBoat) { const k = ease((t - hitAltar - 0.25) / 0.5); head = { x: atAltar.x + (atBoat.x - atAltar.x) * k, y: atAltar.y + (atBoat.y - atAltar.y) * k }; }
-    else head = { x: atBoat.x + (rear.x - atBoat.x) * ease((t - hitBoat) / 0.5), y: atBoat.y + (rear.y - atBoat.y) * ease((t - hitBoat) / 0.5) };
+    else if (t < hitAltar) head = go(rear, atAltar, (t - 3.0) / 0.4);
+    else if (t < gulp) head = go(atAltar, atKeeper, (t - hitAltar - 0.1) / 0.35);
+    else if (t < hitBoat) head = go(atKeeper, atBoat, (t - gulp - 0.15) / 0.5);
+    else head = go(atBoat, rear, (t - hitBoat) / 0.5);
     head = { x: base.x + (head.x - base.x) * up, y: base.y + (head.y - base.y) * up };
     // Water ring where it comes up, and two humps behind.
     ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
@@ -407,7 +449,8 @@ function drawFlashback(ctx, t) {
       if (i % 3 === 1) { ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.moveTo(x - 4, y - 14); ctx.lineTo(x + 2, y - 24); ctx.lineTo(x + 6, y - 12); ctx.fill(); }
     }
     // Head, mouth open on the strikes.
-    const open = Math.max(0, 1 - Math.abs(t - hitAltar) * 3) + Math.max(0, 1 - Math.abs(t - hitBoat) * 3);
+    const open = Math.max(0, 1 - Math.abs(t - hitAltar) * 3) + Math.max(0, 1 - Math.abs(t - gulp + 0.1) * 4) + Math.max(0, 1 - Math.abs(t - hitBoat) * 3);
+    LQ_KEEPER.mouth = { x: head.x + 14, y: head.y + 6 };
     // (It faces right, toward the altar.)
     ctx.fillStyle = '#3f9a4d'; ctx.beginPath(); ctx.ellipse(head.x + 6, head.y, 27, 17, 0.15, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#b8d98a'; ctx.beginPath(); ctx.ellipse(head.x + 12, head.y + 10 + open * 9, 20, 7, 0.15, 0, Math.PI * 2); ctx.fill();
@@ -425,5 +468,10 @@ function drawFlashback(ctx, t) {
   }
   const flash = Math.max(0, 1 - Math.abs(t - hitAltar) * 6) * 0.7 + Math.max(0, 1 - Math.abs(t - hitBoat) * 6) * 0.5 + (t > 0.5 && t < 0.62 ? 0.4 : 0);
   if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(-10, -10, W + 20, H + 20); }
+  if (t > gulp && t < gulp + 0.7) {
+    ctx.font = 'bold 34px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.lineWidth = 5; ctx.strokeStyle = '#1d5e2c'; ctx.strokeText('GULP!', W / 2, 44);
+    ctx.fillStyle = '#fff'; ctx.fillText('GULP!', W / 2, 44);
+  }
   ctx.restore();
 }
