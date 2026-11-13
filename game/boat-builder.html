@@ -497,7 +497,10 @@
     // Invisible lid at the top of the skin: drawn after the boat and before the water,
     // it keeps the water surface from being painted across the dry inside of the hull.
     MAT.mask = new THREE.MeshBasicMaterial({ colorWrite:false, side:THREE.DoubleSide });
-    MAT.divider = new THREE.MeshLambertMaterial({ color:0x7a5230 });
+    // Double-sided: a one-sided panel vanished when seen from behind, so lengthwise
+    // dividers were invisible from most angles (Nick's screenshot, 2026-11-13).
+    MAT.divider = new THREE.MeshLambertMaterial({ color:0x7a5230, side:THREE.DoubleSide });
+    MAT.seat = new THREE.MeshLambertMaterial({ color:0xb07a45 });
     MAT.stone = new THREE.MeshLambertMaterial({ color:0x8c8f93 });
     MAT.dummy = new THREE.MeshLambertMaterial({ color:0xe0a050 });
     return MAT;
@@ -521,10 +524,14 @@
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
     return new THREE.Mesh(g, mat);
   }
-  // The rider sits in the middle on a clear square SEAT each way from the centre:
-  // dividers stop at its edge and no stone is drawn inside it, so nothing passes
-  // through the dummy or lands on its head (Nick, 2026-11-13).
+  // The rider sits in the middle. No stone is drawn within SEAT of the centre,
+  // so none lands on the dummy's head. With dividers, the rider sits on a small
+  // seat plank resting on top of them, so dividers run full length underneath
+  // instead of passing through the dummy. (Cutting a gap in the dividers around
+  // the rider was tried first: it left stubs that looked broken, 2026-11-13.)
   const SEAT = 0.3;
+  const dividerH = () => Math.min(0.25, D.H);
+  const seatY = () => D.baffle === 'none' ? floorAt(0) : Math.max(floorAt(0), floorAt(SEAT)) + dividerH();
   // Floor height (above the keel) at a point across the width.
   const floorAt = z => isV() ? D.D * Math.min(1, Math.abs(z) / (D.W / 2)) : 0;
 
@@ -545,19 +552,19 @@
       for (const x of [-L2 / 2, 0, L2 / 2]) boat.add(stick([x, 0, -W2], [x, 0, W2], t));
     }
     // Dividers on the floor
-    const { nx, nz } = comps(), bh = Math.min(0.25, D.H);
-    // A run from a to b, minus the part inside the seat.
-    const spans = (a, b, crossesSeat) => crossesSeat ? [[a, -SEAT], [SEAT, b]].filter(([p, q]) => q - p > 0.02) : [[a, b]];
+    const { nx, nz } = comps(), bh = dividerH();
     for (let i = 1; i < nx; i++) { const x = -L2 + i * D.L / nx;
-      for (const [z0, z1] of spans(-W2, W2, Math.abs(x) < SEAT)) {
-        // Across the width it follows the floor (flat, or the V), in short strips.
-        const n = isV() ? 12 : 1;
-        for (let k = 0; k < n; k++) { const za = z0 + (z1 - z0) * k / n, zb = z0 + (z1 - z0) * (k + 1) / n;
-          boat.add(quad([[x, floorAt(za), za], [x, floorAt(za) + bh, za], [x, floorAt(zb) + bh, zb], [x, floorAt(zb), zb]], m.divider)); }
-      } }
+      // Across the width it follows the floor (flat, or the V), in short strips.
+      const n = isV() ? 12 : 1;
+      for (let k = 0; k < n; k++) { const za = -W2 + D.W * k / n, zb = -W2 + D.W * (k + 1) / n;
+        boat.add(quad([[x, floorAt(za), za], [x, floorAt(za) + bh, za], [x, floorAt(zb) + bh, zb], [x, floorAt(zb), zb]], m.divider)); } }
     for (let j = 1; j < nz; j++) { const z = -W2 + j * D.W / nz, y0 = floorAt(z);
-      for (const [x0, x1] of spans(-L2, L2, Math.abs(z) < SEAT))
-        boat.add(quad([[x0, y0, z], [x0, y0 + bh, z], [x1, y0 + bh, z], [x1, y0, z]], m.divider)); }
+      boat.add(quad([[-L2, y0, z], [-L2, y0 + bh, z], [L2, y0 + bh, z], [L2, y0, z]], m.divider)); }
+    // The rider's seat, on top of the dividers.
+    if (D.baffle !== 'none') {
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(Math.min(D.L, 2 * SEAT), 0.04, Math.min(D.W, 2 * SEAT)), m.seat);
+      seat.position.set(0, seatY() + 0.02, 0); boat.add(seat);
+    }
     // Skin, up to where it reaches
     const sk = skinInfo();
     if (D.skin && sk.covers) {
@@ -599,7 +606,7 @@
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.55, 12), m.dummy); body.position.y = 0.3;
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), m.dummy); head.position.y = 0.7;
-      g.add(body, head); g.position.set(0, floorAt(0), 0); g.name = 'dummy'; cargo.add(g);
+      g.add(body, head); g.position.set(0, seatY() + (D.baffle === 'none' ? 0 : 0.04), 0); g.name = 'dummy'; cargo.add(g);
     }
     if (!S.stones) return;
     const { nx, nz } = comps(), sp = 0.14, geo = new THREE.DodecahedronGeometry(0.075);
