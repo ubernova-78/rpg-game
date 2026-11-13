@@ -450,10 +450,7 @@
       const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), black); pupil.position.set(-0.11, 0.2, z * 1.15); head.add(pupil);
     }
     const freeDummy = new THREE.Group(); freeDummy.visible = false; scene.add(freeDummy);
-    const dm = new THREE.MeshLambertMaterial({ color:0xe0a050 });
-    const fdBody = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.55, 12), dm); fdBody.position.y = 0.1;
-    const fdHead = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), dm); fdHead.position.y = 0.5;
-    freeDummy.add(fdBody, fdHead);
+    const fd = makeDummy(new THREE.MeshLambertMaterial({ color:0xe0a050 })); fd.position.y = -0.2; freeDummy.add(fd);
     const gulpEl = document.getElementById('gulp');
     let anim = null;
     const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
@@ -484,7 +481,21 @@
       const d = cargo.getObjectByName('dummy');
       if (d) d.visible = t < 1;
       freeDummy.visible = t >= 1 && t < 3.35;
-      freeDummy.position.set(anim.x, -0.22 + 0.05 * Math.sin(t * 5), anim.z); freeDummy.rotation.set(0, 0, 0.3);
+      // Flailing: a nervous paddle while it bobs, then full panic, arms windmilling
+      // over its head and legs kicking, once the monster comes up (from 1.9 s). It
+      // thrashes itself higher in the water then, so the kicking legs show.
+      const panic = ease((t - 1.9) / 0.4);
+      freeDummy.position.set(anim.x, -0.22 + 0.2 * panic + (0.05 + 0.04 * panic) * Math.sin(t * (5 + 7 * panic)), anim.z);
+      freeDummy.rotation.set(0.12 * panic * Math.sin(t * 9), 0, 0.3 + 0.15 * panic);
+      fd.userData.arms.forEach((a, i) => {
+        const side = i ? -1 : 1, ph = i * 1.7;
+        a.rotation.x = side * ((0.7 + 0.4 * Math.sin(t * 7 + ph)) * (1 - panic) + (2.4 + 0.6 * Math.sin(t * 17 + ph)) * panic);
+        a.rotation.z = 0.5 * panic * Math.sin(t * 13 + ph);
+      });
+      fd.userData.legs.forEach((l, i) => {
+        l.rotation.z = 0.3 + (0.25 + 0.45 * panic) * Math.sin(t * (6 + 10 * panic) + i * Math.PI);
+        l.rotation.x = (i ? -1 : 1) * 0.15 * panic;
+      });
       // Hidden until it starts to rise, so it doesn't show through the water early
       // (seen watching it live, 2026-11-13); it peaks low enough to stay in view and
       // sinks well out of sight before it goes.
@@ -548,6 +559,27 @@
   // instead of passing through the dummy. (Cutting a gap in the dividers around
   // the rider was tried first: it left stubs that looked broken, 2026-11-13.)
   const SEAT = 0.3;
+  // The test dummy: body, head, and arms and legs on pivots (shoulders, hips)
+  // so the sink show can make them flail. Origin at the seat; it faces +x.
+  // Seated, its short legs stick forward and stay inside the seat, clear of stones.
+  function makeDummy(mat){
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.55, 12), mat); body.position.y = 0.3;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), mat); head.position.y = 0.7;
+    g.add(body, head);
+    const limb = (len, r, at, name) => {
+      const pv = new THREE.Group(); pv.position.set(...at); pv.name = name;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.85, len, 8), mat); m.position.y = -len / 2;
+      const end = new THREE.Mesh(new THREE.SphereGeometry(r * 1.25, 8, 6), mat); end.position.y = -len;
+      pv.add(m, end); g.add(pv); return pv;
+    };
+    g.userData.arms = [limb(0.3, 0.045, [0, 0.52, -0.2], 'armL'), limb(0.3, 0.045, [0, 0.52, 0.2], 'armR')];
+    g.userData.legs = [limb(0.22, 0.055, [0.04, 0.08, -0.09], 'legL'), limb(0.22, 0.055, [0.04, 0.08, 0.09], 'legR')];
+    // Sitting: arms down and a little out, legs forward.
+    g.userData.arms.forEach((a, i) => { a.rotation.x = (i ? -1 : 1) * 0.25; });
+    g.userData.legs.forEach(l => { l.rotation.z = 1.35; });
+    return g;
+  }
   const dividerH = () => Math.min(0.25, D.H);
   const seatY = () => D.baffle === 'none' ? floorAt(0) : Math.max(floorAt(0), floorAt(SEAT)) + dividerH();
   // Floor height (above the keel) at a point across the width.
@@ -636,10 +668,8 @@
     cargo.userData.key = key;
     while (cargo.children.length) cargo.remove(cargo.children[0]);
     if (S.rider) {
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.55, 12), m.dummy); body.position.y = 0.3;
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), m.dummy); head.position.y = 0.7;
-      g.add(body, head); g.position.set(0, seatY() + (D.baffle === 'none' ? 0 : 0.04), 0); g.name = 'dummy'; cargo.add(g);
+      const g = makeDummy(m.dummy);
+      g.position.set(0, seatY() + (D.baffle === 'none' ? 0 : 0.04), 0); g.name = 'dummy'; cargo.add(g);
     }
     if (!S.stones) return;
     const { nx, nz } = comps(), sp = 0.14, geo = new THREE.DodecahedronGeometry(0.075);
