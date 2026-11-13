@@ -26,11 +26,11 @@ const WORLD_COLS = 64, WORLD_ROWS = 48;
 const WORLD_MAP = [
   'ddddddddddddd...................................................',
   'd...ddddddddd..............~~~~~~~~~~~~.........................',
-  '.....dddddddd.........~~~~~~~~~~~~~~~~~~~.......................',
-  '.....dddddddd........~~~~~~~~~~~~~~~~~~~~~~~....................',
-  '.....ddddddddd......~~~~~~~~~~~~~~~~~~~~~~~~~...................',
-  'd...ddddddddd.......~~~~~~~~~~~~~~~~~~~~~~~~~...................',
-  'ddddddd...d..........~~~~~~~~~~~~~~~~~~~~~~~....................',
+  '.....dddddddd.........~~~~~~~~.....~~~~~~.......................',
+  '.....dddddddd........~~~~~~~~.......~~~~~~~~....................',
+  '.....ddddddddd......~~~~~~~~~.......~~~~~~~~~...................',
+  'd...ddddddddd.......~~~~~~~~~.......~~~~~~~~~...................',
+  'ddddddd...d..........~~~~~~~~~.....~~~~~~~~~....................',
   'ddddddd...d...........~~~~~~~~~~~~~~~~~~~.......................',
   'ddddddd...d...............~~~~~~~~~~~~~.........................',
   'dddddddddd......................................................',
@@ -113,6 +113,19 @@ const WORLD_SPOTS = {
   pinecoon: [54, 12, 3], meadowWasp: [15, 36, 3], grassSnake: [46, 37, 3],
 };
 const CLEARING = { col: 57, row: 23, r: 5 }; // the Potion Master's glade in the east forest
+// The Lake Quest's island in the middle of the lake (lake-quest.js): the altar, where
+// you land, and the dock on the south shore. Walking can't reach the island (water is
+// solid); you sail there from the dock once your boat passes at the Boat Builder.
+const LAKE = {
+  altar: { col: 32, row: 3 },        // the pedestal's base tile (solid)
+  altarFront: { col: 32, row: 4 },
+  landing: { col: 32, row: 6 },      // where you step off on the island
+  boatIsland: { col: 32, row: 7 },
+  dock: { col: 32, row: 9 },         // the shore spot the boat leaves from
+  boatDock: { col: 32, row: 8 },
+  shoreReturn: { col: 32, row: 10 }, // where you land coming back, clear of the dock trigger
+};
+const LAKE_SOLID = new Set([`${LAKE.altar.col},${LAKE.altar.row}`]);
 
 // ---------- Props (Hometown pack, tileB_outside / tileB_town) ----------
 // solid: tiles that block, as [dc, dr] from the base tile (the bottom-middle tile the
@@ -275,6 +288,7 @@ const keepClear = [];   // [c0, r0, c1, r1] tile boxes
 for (const b of BUILDING_DEFS) keepClear.push([b.tileX - 1, b.tileY - 1, b.tileX + b.tilesWide, b.tileY + b.tilesTall + 1]);
 for (const [c, r, range] of Object.values(WORLD_SPOTS)) { const k = (range || 0) + 1; keepClear.push([c - k, r - k, c + k, r + k]); }
 keepClear.push([RUNE_CIRCLE.stake.col - 8, RUNE_CIRCLE.stake.row - 4, RUNE_CIRCLE.stake.col + 7, RUNE_CIRCLE.stake.row + 4]);
+keepClear.push([LAKE.dock.col - 2, LAKE.dock.row - 1, LAKE.dock.col + 2, LAKE.shoreReturn.row + 1], [28, 1, 36, 7]); // the dock, the island
 const inKeepClear = (c, r) => keepClear.some(([c0, r0, c1, r1]) => c >= c0 && c <= c1 && r >= r0 && r <= r1);
 const inClearing = (c, r) => (c - CLEARING.col) ** 2 + (r - CLEARING.row) ** 2 <= CLEARING.r ** 2;
 function groundAround(c, r, ok) {
@@ -344,6 +358,7 @@ function isSolidBuildingTile(c, r) {
   }
   if (DECOR_SOLID.has(`${c},${r}`)) return true;
   if (RUNE_SOLID.has(`${c},${r}`)) return true;
+  if (LAKE_SOLID.has(`${c},${r}`)) return true;
   if (isWaterTile(c, r)) return true;
   return false;
 }

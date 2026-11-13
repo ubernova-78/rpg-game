@@ -98,7 +98,8 @@ function segmentDist(a, b, p) {
 // home sits inside a zone (checkArrivalZones).
 const ARRIVAL_CLEAR = TILE * 2.5;
 function worldArrivals() {
-  const pts = [placeFeetAtTile(WORLD_SPOTS.spawn[0], WORLD_SPOTS.spawn[1])];
+  const pts = [placeFeetAtTile(WORLD_SPOTS.spawn[0], WORLD_SPOTS.spawn[1]),
+    placeFeetAtTile(LAKE.landing.col, LAKE.landing.row), placeFeetAtTile(LAKE.shoreReturn.col, LAKE.shoreReturn.row)];
   for (const b of BUILDING_DEFS) {
     // Coming out of a door lands just south of it (exitBuilding).
     const d = buildingDoorTile(b), p = placeFeetAtTile(d.c, d.r);
@@ -383,7 +384,7 @@ function teleportToBedKnockedOut() {
 // entry can be reused across many battles; a local `state` object below tracks this
 // particular fight's monster HP.
 function runBattle({ monsterDef, onEnd }) {
-  const state = { monsterHp: monsterDef.maxHp };
+  const state = { monsterHp: monsterDef.maxHp, healUsed: false };
   let defeated = false;
   scene.modalOpen = true;
   battleOverlay.classList.remove('hidden');
@@ -403,6 +404,16 @@ function runBattle({ monsterDef, onEnd }) {
       container.appendChild(gateButton(`Use Health Potion (${hpCount} left)`, () => {
         consumePotion('healthPotion');
         playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + CONSUMABLE_DEFS.healthPotion.heal);
+        paintHud();
+        updateHpBars(state.monsterHp, monsterDef.maxHp);
+        onUsed();
+      }));
+    }
+    // Heal, learned at the Lake Quest's altar (lake-quest.js): once per battle.
+    if (lqHasHeal() && !state.healUsed && playerStats.hp < playerStats.maxHp) {
+      container.appendChild(gateButton(`✨ Cast Heal (+${HEAL_HP} HP, once per battle)`, () => {
+        state.healUsed = true;
+        playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + HEAL_HP);
         paintHud();
         updateHpBars(state.monsterHp, monsterDef.maxHp);
         onUsed();

@@ -47,6 +47,7 @@ function updatePlayer(dt) {
       scene.wasOnNpcId = onNpc;
 
       updateRuneCircle();
+      updateLakeQuest();
 
       const monster = nearbyMonster(player.x, player.y);
       const onMonster = monster ? monster.id : null;
@@ -130,6 +131,7 @@ function drawWorld() {
   mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
   drawGround();
   drawRuneCircle();
+  drawLakeQuest();
   // Buildings, trees, people and monsters, back to front (see drawSorted): walk north
   // past a tree and its canopy covers you; its trunk is the only part that blocks.
   const items = [];

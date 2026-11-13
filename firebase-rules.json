@@ -36,6 +36,15 @@
         "hp":            { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "pvpWins":       { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "isTeacher":     { ".validate": "newData.isBoolean() && (auth.uid === 'VrGdq2EJQ5NmgNssQjShyN1hIBI3' || newData.val() === false || newData.val() === data.val())" },
+        "lakeQuest": {
+          ".validate": "newData.hasChildren(['boat'])",
+          "boat":    { ".validate": "newData.isBoolean()" },
+          "altar":   { ".validate": "newData.isBoolean()" },
+          "design":  { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "stones":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+          "ts":      { ".validate": "newData.isNumber()" },
+          "$other":  { ".validate": false }
+        },
         "runeCircle": {
           ".validate": "newData.hasChildren(['done','score'])",
           "done":    { ".validate": "newData.isBoolean()" },

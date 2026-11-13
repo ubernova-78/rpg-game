@@ -88,7 +88,9 @@ const NPC_DEFS = [
     homeCol: WORLD_SPOTS.lakeWatcher[0], homeRow: WORLD_SPOTS.lakeWatcher[1],
     range: WORLD_SPOTS.lakeWatcher[2],
     spec: { head: 'head5', hair: 'hair3', top: 'top4', bottom: 'bottom2', skinTone: 0 },
-    message: 'The currents whisper that great challenges are coming. Keep training!',
+    // Gives the Lake Quest (lake-quest.js); what they say depends on progress.
+    message: () => lakeWatcherMessage(),
+    game: { src: 'boat-builder.html', messageType: 'boat-login', label: 'Boat Builder', buttonLabel: 'Design a boat' },
   },
   {
     id: 'rocky', name: 'Stone Warden',
@@ -213,7 +215,7 @@ function openNpcDialogue(npc) {
   wbTitle.textContent = npc.name;
   wbBody.innerHTML = '';
   const msg = document.createElement('p');
-  msg.textContent = npc.message;
+  msg.textContent = typeof npc.message === 'function' ? npc.message() : npc.message;
   msg.style.margin = '0 0 8px';
   wbBody.appendChild(msg);
   if (npc.game) {

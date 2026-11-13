@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --ink:#1f2a33; --dim:#6b7780; --paper:#f2efe7; --line:#d6d0c2;
+    --teal:#1a936f; --gold:#f6c90e; --bad:#c1443a; --good:#2d936c; --water:#2f6fb5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);}
+  .app{max-width:760px;margin:0 auto;padding:12px 14px 24px;}
+  .titlebar{display:flex;justify-content:space-between;align-items:center;background:#20313d;color:#f2efe7;
+    border-radius:10px;padding:10px 14px;margin-bottom:10px;}
+  .titlebar h1{margin:0;font-size:1.1rem;}
+  .badge{background:var(--gold);color:#20313d;font-weight:800;font-size:0.72rem;padding:3px 8px;border-radius:6px;}
+  .goal{background:#fff;border:2px solid var(--line);border-radius:10px;padding:10px 12px;font-size:0.9rem;line-height:1.45;margin-bottom:10px;}
+  .goal strong{color:#20313d;}
+  .view{position:relative;height:330px;border-radius:10px;overflow:hidden;background:linear-gradient(#cfe6f7,#eaf4fb);touch-action:none;}
+  .view canvas{display:block;width:100%;height:100%;}
+  .viewbtns{position:absolute;top:8px;right:8px;display:flex;gap:4px;}
+  .viewbtns button{font:inherit;font-size:0.75rem;padding:4px 8px;border-radius:6px;border:1px solid #9bb;background:rgba(255,255,255,0.85);cursor:pointer;}
+  .viewhint{position:absolute;left:8px;bottom:6px;font-size:0.72rem;color:#355;background:rgba(255,255,255,0.7);padding:2px 6px;border-radius:5px;}
+  .no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  @media (max-width:600px){ .grid2{grid-template-columns:1fr;} }
+  .panel{background:#fff;border:2px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .panel h3{margin:0 0 8px;font-size:0.95rem;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:0.9rem;}
+  .row select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid #bbb;min-width:110px;}
+  .seg{display:flex;flex-wrap:wrap;gap:4px;}
+  .seg button{font:inherit;font-size:0.82rem;padding:5px 8px;border-radius:6px;border:1px solid #bbb;background:#f6f6f6;cursor:pointer;}
+  .seg button.on{background:#20313d;color:#fff;border-color:#20313d;}
+  .note{font-size:0.8rem;color:var(--dim);margin-top:4px;line-height:1.35;}
+  .net{display:block;margin:4px auto 0;background:#f7f4ec;border-radius:6px;}
+  .skinmsg{font-size:0.85rem;margin-top:6px;line-height:1.35;}
+  .skinmsg.bad{color:var(--bad);font-weight:600;}
+  .skinmsg.warn{color:#9a6a00;font-weight:600;}
+  .skinmsg.ok{color:var(--good);font-weight:600;}
+  .btn{font:inherit;font-weight:700;padding:9px 12px;border-radius:8px;border:none;cursor:pointer;background:var(--teal);color:#fff;}
+  .btn.alt{background:#5b6770;}
+  .btn.skin{background:#6b3f7a;}
+  .btn:disabled{opacity:0.45;cursor:not-allowed;}
+  .loadbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
+  @media (max-width:600px){ .stats{grid-template-columns:repeat(2,1fr);} }
+  .stat{background:#f4f6f7;border-radius:8px;padding:6px 8px;text-align:center;}
+  .stat .v{font-weight:800;font-size:1.05rem;font-family:ui-monospace,Menlo,monospace;}
+  .stat .k{font-size:0.72rem;color:var(--dim);}
+  .result{margin-top:10px;padding:10px 12px;border-radius:10px;font-weight:700;line-height:1.4;display:none;}
+  .result.good{display:block;background:#d9f2e6;color:#145c3f;border:2px solid var(--good);}
+  .result.bad{display:block;background:#fbe1de;color:#7a221a;border:2px solid var(--bad);}
+  .result .why{font-weight:400;font-size:0.88rem;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar"><h1>⛵ Boat Builder</h1><div class="badge">LAKE QUEST</div></div>
+
+  <div class="goal">
+    <strong>The job:</strong> carry <strong>60 stones (5 kg each)</strong> and <strong>yourself (60 kg)</strong>
+    to the island in <strong>one trip</strong>. Build a wooden frame, stretch the <strong>monster skin</strong>
+    (one 2 m × 2 m sheet) over it to keep the water out, then test it: put yourself in first, then load the stones.
+    Loose stones slide around when the boat moves. Dividers on the floor stop them.
+  </div>
+
+  <div class="view" id="view">
+    <div class="viewbtns">
+      <button data-v="3d">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
+    </div>
+    <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>1. The frame</h3>
+      <div class="row"><span>Shape</span>
+        <div class="seg" id="shape"><button data-v="box">Flat bottom</button><button data-v="v">V bottom</button></div></div>
+      <div class="row"><span>Length</span><select id="L"></select></div>
+      <div class="row"><span>Width</span><select id="W"></select></div>
+      <div class="row"><span>Wall height</span><select id="H"></select></div>
+      <div class="row" id="Drow"><span>V depth</span><select id="D"></select></div>
+      <div class="row"><span>Floor dividers</span></div>
+      <div class="seg" id="baffle">
+        <button data-v="none">None</button><button data-v="long">Lengthwise</button><button data-v="cross">Crosswise</button><button data-v="grid">Grid</button>
+      </div>
+      <div class="note" id="framenote"></div>
+    </div>
+
+    <div class="panel">
+      <h3>2. The monster skin</h3>
+      <canvas class="net" id="net" width="200" height="200"></canvas>
+      <div class="note" style="text-align:center">Your 2 m × 2 m sheet, laid flat. The pattern shows where it folds up.</div>
+      <div class="skinmsg" id="skinmsg"></div>
+      <div style="margin-top:8px;text-align:center"><button class="btn skin" id="btn-skin">Stretch the skin over the frame</button></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:10px">
+    <h3>3. Test it on the water</h3>
+    <div class="loadbtns">
+      <button class="btn alt" id="btn-rider">Add yourself (60 kg)</button>
+      <button class="btn" id="btn-10">Load 10 stones</button>
+      <button class="btn" id="btn-all">Load all 60</button>
+      <button class="btn alt" id="btn-reset">Unload</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="s-stones">0</div><div class="k">stones</div></div>
+      <div class="stat"><div class="v" id="s-mass">0 kg</div><div class="k">total weight</div></div>
+      <div class="stat"><div class="v" id="s-free">—</div><div class="k">lowest side above water</div></div>
+      <div class="stat"><div class="v" id="s-tilt">0°</div><div class="k">tilt</div></div>
+    </div>
+    <div class="result" id="result"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Boat Builder, the Lake Quest's design bench (Nick, 2026-11-13).
+  // Students design a frame (flat box or V bottom with short walls, 0.25 m
+  // steps), choose floor dividers, cover it with one 2 m x 2 m monster skin,
+  // then load themselves (60 kg) and 60 stones of 5 kg. One trip, pass/fail.
+  //
+  // It's the classroom foil-boat project scaled 10x in length: 5 g marbles
+  // become 5 kg stones, cm become m (dm, really), volumes and masses x1000.
+  //
+  // The physics, kept honest but simple:
+  //  - Floating: the boat sinks until the water it pushes aside weighs as
+  //    much as boat + load (1000 kg per m3). Exact for a level boat.
+  //  - The skin decides how high the boat keeps water out. Folding a sheet
+  //    over a box needs (L + 2H) x (W + 2H); a V hull needs its two slanted
+  //    sides across, plus the walls, and its full depth at each end. Where the
+  //    sheet runs out, water comes in, so the boat is only as tall as its skin.
+  //  - Tilt: loose stones slide toward one side or end as you row. The pile's
+  //    centre moves by SLIDE x (half the compartment, less a stone) x (1 - how
+  //    full the compartment is). Dividers make compartments smaller, so the
+  //    pile can't move as far. A V bottom rolls stones to its middle, so it
+  //    doesn't tilt side to side -- only end to end. The tilt angle comes from
+  //    the metacentric height (GM = KB + I/V - KG), the standard small-angle
+  //    model. It sinks when the lowest corner of the skin reaches the water.
+  //  - SLIDE = 0.3 was tuned (2026-11-13) so that, at 60 stones: a wide flat
+  //    box fails without dividers (36) and passes with a grid (64); a deep
+  //    1x1x0.5 box: 36 / 52 one way / 68 grid; the V with short walls: 56
+  //    without, 73 with crosswise dividers. The best design can't be found
+  //    by maximizing volume alone, which is the point.
+  const SHEET = 2.0, RHO = 1000, FRAME_KG = 40, DIVIDER_KG_PER_M = 4;
+  const RIDER = 60, STONE = 5, GOAL = 60, SLIDE = 0.3;
+  const STONE_FOOT = 0.12 * 0.12, STONE_H = 0.12, RIDER_SIT = 0.30;
+
+  const $ = id => document.getElementById(id);
+  const IN_GAME = window.parent !== window;
+  let player = { loggedIn:false };
+
+  // ---------- Design ----------
+  const steps = (lo, hi) => { const a = []; for (let v = lo; v <= hi + 1e-9; v += 0.25) a.push(+v.toFixed(2)); return a; };
+  const D = { shape:'box', L:1.0, W:1.0, H:0.5, D:0.25, baffle:'none', skin:false };
+  const fill = (sel, vals, cur) => { sel.innerHTML = vals.map(v => `<option value="${v}"${v===cur?' selected':''}>${v.toFixed(2)} m</option>`).join(''); };
+  fill($('L'), steps(0.25, 2), D.L); fill($('W'), steps(0.25, 2), D.W);
+  fill($('H'), steps(0.25, 1), D.H); fill($('D'), steps(0.25, 1), D.D);
+  ['L','W','H','D'].forEach(k => $(k).addEventListener('change', e => { D[k] = +e.target.value; designChanged(); }));
+  function seg(id, key){
+    const el = $(id);
+    el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { D[key] = b.dataset.v; designChanged(); }));
+    return () => el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === D[key]));
+  }
+  const paintShape = seg('shape', 'shape'), paintBaffle = seg('baffle', 'baffle');
+
+  // ---------- Geometry and the skin ----------
+  const isV = () => D.shape === 'v';
+  const slant = () => Math.hypot(D.W / 2, D.D);
+  function skinInfo(){
+    // How far up the walls the sheet reaches, or why it can't cover the bottom.
+    if (!isV()) {
+      const needL = D.L + 2 * D.H, needW = D.W + 2 * D.H;
+      const side = Math.min((SHEET - D.L) / 2, (SHEET - D.W) / 2);
+      if (side <= 1e-9) return { covers:false, needL, needW, why:`The bottom alone is ${D.L} × ${D.W} m, with nothing left over to fold up the walls.` };
+      return { covers:true, reach: Math.min(D.H, side), needL, needW };
+    }
+    const s = slant(), needL = D.L + 2 * (D.D + D.H), needW = 2 * s + 2 * D.H;
+    const across = (SHEET - 2 * s) / 2, ends = (SHEET - D.L) / 2 - D.D;
+    if (across < -1e-9) return { covers:false, needL, needW, why:`The two slanted sides need ${(2*s).toFixed(2)} m of skin across, more than the 2 m sheet.` };
+    if (ends < -1e-9) return { covers:false, needL, needW, why:`The ends of the V need ${(D.L + 2*D.D).toFixed(2)} m of skin lengthwise, more than the 2 m sheet.` };
+    return { covers:true, reach: Math.max(0, Math.min(D.H, across, ends)), needL, needW };
+  }
+  const depth = () => (isV() ? D.D : 0) + D.H;
+  function comps(){ return { nx: (D.baffle === 'cross' || D.baffle === 'grid') ? 3 : 1, nz: (D.baffle === 'long' || D.baffle === 'grid') ? 3 : 1 }; }
+  function frameMass(){ const { nx, nz } = comps(); return FRAME_KG + DIVIDER_KG_PER_M * ((nx - 1) * D.W + (nz - 1) * D.L); }
+
+  // Cross-section at draft T (measured up from the keel): submerged area,
+  // waterline width, and the height of the submerged area's centroid.
+  function section(T){
+    const W = D.W, d = isV() ? D.D : 0;
+    if (!d) return { a: W * T, w: W, kb: T / 2 };
+    if (T <= d) { const w = W * T / d; return { a: w * T / 2, w, kb: 2 * T / 3 }; }
+    const a1 = W * d / 2, a2 = W * (T - d);
+    return { a: a1 + a2, w: W, kb: (a1 * 2 * d / 3 + a2 * (d + (T - d) / 2)) / (a1 + a2) };
+  }
+  function draftFor(vol){
+    let lo = 0, hi = 6;
+    for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (section(m).a * D.L < vol) lo = m; else hi = m; }
+    return lo;
+  }
+
+  // The boat's state with the rider (if aboard) and n stones.
+  function physics(rider, n){
+    const sk = skinInfo();
+    const rim = sk.covers ? (isV() ? D.D : 0) + sk.reach : 0;
+    const fm = frameMass(), M = fm + (rider ? RIDER : 0) + n * STONE, vol = M / RHO;
+    const T = draftFor(vol), sec = section(T);
+    const { nx, nz } = comps(), ncomp = nx * nz, per = n / ncomp;
+    const floorA = isV() ? D.L * D.W / 2 : D.L * D.W, compA = floorA / ncomp;
+    const layers = per > 0 ? Math.max(1, Math.ceil(per * STONE_FOOT / compA)) : 1;
+    const stoneH = (isV() ? D.D * 0.35 : 0.02) + STONE_H * (layers - 0.5);
+    const off = span => { if (per <= 0) return 0; const f = Math.min(1, per * STONE_FOOT / (compA * 2)); return SLIDE * Math.max(0, span / 2 - 0.06) * (1 - f); };
+    const ex = off(D.L / nx), ez = isV() ? 0 : off(D.W / nz);
+    const mst = n * STONE;
+    const KG = (FRAME_KG * depth() / 2 + (fm - FRAME_KG) * ((isV() ? D.D : 0) + 0.1)
+      + (rider ? RIDER * ((isV() ? D.D * 0.5 : 0) + RIDER_SIT) : 0) + mst * stoneH) / M;
+    const GMr = sec.kb + (D.L * sec.w ** 3 / 12) / vol - KG;
+    const GMp = sec.kb + (sec.w * D.L ** 3 / 12) / vol - KG;
+    const out = { M, T, rim, ex, ez, n, rider };
+    if (!sk.covers || !D.skin) {
+      // A bare frame lets the water straight through: it floats on its wood
+      // alone, and sinks the moment anyone climbs in.
+      out.status = (rider || n) ? 'leak' : 'ok';
+      out.roll = 0; out.pitch = 0; out.T = Math.min(T, 0.05); out.free = null;
+      return out;
+    }
+    if (GMr <= 0 || GMp <= 0) { out.status = 'capsize'; out.roll = 0.6; out.pitch = 0; out.free = -1; return out; }
+    out.roll = Math.atan(mst * ez / (M * GMr));
+    out.pitch = Math.atan(mst * ex / (M * GMp));
+    out.free = rim - T - (sec.w / 2) * Math.tan(out.roll) - (D.L / 2) * Math.tan(out.pitch);
+    out.status = T >= rim ? 'sank' : out.free < 0 ? 'tipped' : 'ok';
+    return out;
+  }
+
+  // ---------- Load state ----------
+  const S = { rider:false, stones:0, failed:null, busy:false, passed:false };
+  function resetLoad(){ S.rider = false; S.stones = 0; S.failed = null; S.busy = false; S.passed = false; clearTimeout(S.timer); }
+
+  function designChanged(){
+    // Changing the frame takes the skin off: a new frame needs re-covering.
+    D.skin = false;
+    resetLoad();
+    $('Drow').style.display = isV() ? '' : 'none';
+    paintShape(); paintBaffle();
+    $('framenote').textContent = `Frame weighs ${frameMass()} kg` + (D.baffle !== 'none' ? ' (dividers included)' : '') + '.';
+    drawNet(); paintSkinMsg(); rebuildBoat(); refresh();
+  }
+
+  // ---------- The skin pattern ----------
+  function drawNet(){
+    const c = $('net'), ctx = c.getContext('2d'), px = c.width / 2.6, pad = 0.3 * px;
+    ctx.clearRect(0, 0, c.width, c.height);
+    const X = v => pad + v * px;
+    const sk = skinInfo();
+    // The sheet
+    ctx.fillStyle = D.skin ? '#8a5a9a' : '#b996c4'; ctx.fillRect(X(0), X(0), 2 * px, 2 * px);
+    ctx.strokeStyle = '#4a2b55'; ctx.lineWidth = 2; ctx.strokeRect(X(0), X(0), 2 * px, 2 * px);
+    // What the boat needs, centered on the sheet
+    const nl = sk.needL, nw = sk.needW, ox = 1 - nl / 2, oy = 1 - nw / 2;
+    ctx.setLineDash([5, 3]); ctx.lineWidth = 1.5;
+    ctx.strokeStyle = (nl > SHEET + 1e-9 || nw > SHEET + 1e-9) ? '#c1443a' : '#fff';
+    ctx.strokeRect(X(ox), X(oy), nl * px, nw * px);
+    // The bottom (flat) or the two slanted sides (V)
+    ctx.setLineDash([]);
+    const ends = isV() ? D.D + D.H : D.H, sides = D.H;
+    const bx = 1 - D.L / 2, bw = isV() ? 2 * slant() : D.W, by = 1 - bw / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(X(bx), X(by), D.L * px, bw * px);
+    ctx.strokeStyle = '#fff'; ctx.strokeRect(X(bx), X(by), D.L * px, bw * px);
+    if (isV()) { ctx.beginPath(); ctx.moveTo(X(bx), X(1)); ctx.lineTo(X(bx + D.L), X(1)); ctx.stroke(); }
+    // Overflow beyond the sheet in red
+    ctx.fillStyle = 'rgba(193,68,58,0.45)';
+    if (ox < 0) { ctx.fillRect(X(ox), X(Math.max(oy, 0)), -ox * px, Math.min(nw, 2) * px); ctx.fillRect(X(2), X(Math.max(oy, 0)), -ox * px, Math.min(nw, 2) * px); }
+    if (oy < 0) { ctx.fillRect(X(Math.max(ox, 0)), X(oy), Math.min(nl, 2) * px, -oy * px); ctx.fillRect(X(Math.max(ox, 0)), X(2), Math.min(nl, 2) * px, -oy * px); }
+    ctx.fillStyle = '#4a2b55'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('2 m', X(1), X(0) - 6);
+    ctx.fillText(`needs ${nl.toFixed(2)} × ${nw.toFixed(2)} m`, X(1), X(2) + 16);
+  }
+  function paintSkinMsg(){
+    const el = $('skinmsg'), sk = skinInfo(), btn = $('btn-skin');
+    btn.disabled = !sk.covers || D.skin;
+    btn.textContent = D.skin ? 'Skin on ✓' : 'Stretch the skin over the frame';
+    if (!sk.covers) { el.className = 'skinmsg bad'; el.textContent = 'The skin is too small for this frame. ' + sk.why; return; }
+    const full = sk.reach >= D.H - 1e-9;
+    if (!full) {
+      el.className = 'skinmsg warn';
+      el.textContent = `The skin only reaches ${sk.reach.toFixed(2)} m up the ${D.H.toFixed(2)} m walls. Above that, water gets in, so the walls are only as tall as the skin.`;
+    } else {
+      el.className = 'skinmsg ok';
+      el.textContent = 'The skin covers the bottom and all the walls.';
+    }
+    if (!D.skin) el.textContent += ' Not on yet.';
+  }
+  $('btn-skin').addEventListener('click', () => { D.skin = true; resetLoad(); drawNet(); paintSkinMsg(); rebuildBoat(); refresh(); });
+
+  // ---------- Loading ----------
+  $('btn-rider').addEventListener('click', () => { if (S.busy || S.rider) return; S.rider = true; check(); refresh(true); });
+  $('btn-reset').addEventListener('click', () => { resetLoad(); refresh(true); });
+  function loadStones(count){
+    if (S.busy || !S.rider || S.failed) return;
+    S.busy = true;
+    let left = count;
+    const step = () => {
+      S.stones++; left--;
+      check();
+      refresh(true);
+      if (S.failed || left <= 0) { S.busy = false; refresh(); return; }
+      S.timer = setTimeout(step, 90);
+    };
+    step();
+  }
+  $('btn-10').addEventListener('click', () => loadStones(10));
+  $('btn-all').addEventListener('click', () => loadStones(Math.max(1, GOAL - S.stones)));
+  function check(){
+    const p = physics(S.rider, S.stones);
+    if (p.status !== 'ok') S.failed = p.status;
+    if (!S.failed && S.rider && S.stones >= GOAL && !S.passed) {
+      S.passed = true;
+      if (IN_GAME) window.parent.postMessage({ type:'boat-passed', stones:S.stones,
+        design: `${isV() ? 'V bottom' : 'flat bottom'} ${D.L}x${D.W} m, walls ${D.H} m${isV() ? ', V ' + D.D + ' m' : ''}, dividers: ${D.baffle}` }, '*');
+    }
+  }
+
+  // ---------- Readouts ----------
+  function refresh(animate){
+    const p = physics(S.rider, S.stones);
+    const can = !S.busy && !S.failed;
+    $('btn-rider').disabled = !can || S.rider;
+    $('btn-10').disabled = !can || !S.rider;
+    $('btn-all').disabled = !can || !S.rider || S.stones >= GOAL;
+    $('btn-all').textContent = S.stones >= GOAL ? 'Load all 60' : S.stones ? `Load the rest (${GOAL - S.stones})` : 'Load all 60';
+    $('btn-10').textContent = S.stones >= GOAL ? 'Load 10 more' : 'Load 10 stones';
+    $('s-stones').textContent = S.stones;
+    $('s-mass').textContent = Math.round(p.M) + ' kg';
+    $('s-free').textContent = p.free == null ? '—' : p.free < 0 ? 'under!' : p.free.toFixed(2) + ' m';
+    $('s-tilt').textContent = (Math.max(Math.abs(p.roll), Math.abs(p.pitch)) * 180 / Math.PI).toFixed(1) + '°';
+    const r = $('result');
+    if (S.failed) {
+      const at = S.stones;
+      const msg = {
+        leak: ['Water pours straight through the frame!', 'A bare wooden frame can\'t keep water out. Stretch the skin over it first.'],
+        sank: [`Sank at stone ${at}.`, 'It sat level, but the water came up over the top of the skin. You need more volume, or a lighter load.'],
+        tipped: [`Sank at stone ${at}: it tipped and water came over the low side.`, 'The stones slid to one side. Dividers stop them sliding, or a V bottom keeps them in the middle side to side.'],
+        capsize: [S.stones ? `Rolled over at stone ${at}!` : 'Rolled over as soon as you climbed in!', 'The boat is too narrow and tall for the weight sitting high up in it. Make it wider or lower.'],
+      }[S.failed];
+      r.className = S.passed ? 'result good' : 'result bad';
+      r.innerHTML = S.passed
+        ? `It carried you and all ${GOAL} stones. Its limit: ${msg[0].charAt(0).toLowerCase() + msg[0].slice(1)}<div class="why">${IN_GAME ? 'You passed. Close this and walk onto the dock, just south of the lake, to sail to the island.' : 'You passed.'}</div>`
+        : `${msg[0]}<div class="why">${msg[1]} Change the design and test again.</div>`;
+    } else if (S.passed && S.stones >= GOAL) {
+      r.className = 'result good';
+      r.innerHTML = `It floats with you and all ${S.stones} stones! The lowest side is ${p.free.toFixed(2)} m above the water.`
+        + `<div class="why">${IN_GAME ? 'Close this and walk onto the dock, just south of the lake, to sail to the island. ' : ''}Want to know the limit? Keep loading 10 more.</div>`;
+    } else { r.className = 'result'; r.innerHTML = ''; }
+    setPose(p, animate);
+  }
+
+  // ---------- 3D ----------
+  const view = $('view');
+  let three = null;
+  if (window.THREE) { try { three = init3D(); } catch (e) { console.warn('[boat] 3D failed', e); three = null; } }
+  if (!three) { const d = document.createElement('div'); d.className = 'no3d'; d.textContent = 'The 3D view couldn\'t load on this computer. The test still works: the numbers below are the same.'; view.appendChild(d); }
+
+  function init3D(){
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    view.insertBefore(renderer.domElement, view.firstChild);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 100);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x406080, 0.85));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(3, 6, 4); scene.add(sun);
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(30, 30),
+      new THREE.MeshPhongMaterial({ color:0x2f6fb5, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false }));
+    water.rotation.x = -Math.PI / 2; water.renderOrder = 2; scene.add(water);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshLambertMaterial({ color:0x6a8a7a }));
+    floor.rotation.x = -Math.PI / 2; floor.position.y = -2.5; scene.add(floor);
+    const pivot = new THREE.Group(); scene.add(pivot);   // at the waterline; tilts
+    const boat = new THREE.Group(); pivot.add(boat);     // keel at y = 0 in here
+    const cargo = new THREE.Group(); boat.add(cargo);
+    const orbit = { theta:0.75, phi:1.05, r:4.2 };
+    function placeCamera(){
+      const t = new THREE.Vector3(0, 0.15, 0);
+      camera.position.set(t.x + orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta), t.y + orbit.r * Math.cos(orbit.phi), t.z + orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+      camera.lookAt(t);
+    }
+    // Drag to turn, wheel or pinch to zoom.
+    const pts = new Map(); let pinch0 = 0, r0 = 0;
+    const el = renderer.domElement;
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x:e.clientX, y:e.clientY }); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); r0 = orbit.r; } });
+    el.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId), now = { x:e.clientX, y:e.clientY }; pts.set(e.pointerId, now);
+      if (pts.size === 1) { orbit.theta -= (now.x - prev.x) * 0.01; orbit.phi = Math.max(0.15, Math.min(1.55, orbit.phi - (now.y - prev.y) * 0.01)); }
+      else if (pts.size === 2 && pinch0) { const [a, b] = [...pts.values()]; orbit.r = Math.max(1.5, Math.min(9, r0 * pinch0 / Math.hypot(a.x - b.x, a.y - b.y))); }
+    });
+    const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); orbit.r = Math.max(1.5, Math.min(9, orbit.r * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive:false });
+    document.querySelectorAll('.viewbtns button').forEach(b => b.addEventListener('click', () => {
+      Object.assign(orbit, { '3d':{ theta:0.75, phi:1.05 }, front:{ theta:Math.PI / 2, phi:1.5 }, side:{ theta:0, phi:1.5 }, top:{ theta:0, phi:0.16 } }[b.dataset.v]);
+    }));
+    function resize(){ const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    window.addEventListener('resize', resize); resize();
+    const pose = { y:0, roll:0, pitch:0 }, target = { y:0, roll:0, pitch:0 };
+    function frame(){
+      for (const k of ['y', 'roll', 'pitch']) pose[k] += (target[k] - pose[k]) * 0.12;
+      pivot.position.y = pose.y; pivot.rotation.set(pose.roll, 0, -pose.pitch);
+      placeCamera(); renderer.render(scene, camera);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    return { THREE, boat, cargo, target, pivot, orbit };
+  }
+
+  const MAT = {};
+  function mats(){
+    if (MAT.wood) return MAT;
+    MAT.wood = new THREE.MeshLambertMaterial({ color:0xa0703f });
+    MAT.skin = new THREE.MeshLambertMaterial({ color:0x6b3f7a, side:THREE.DoubleSide });
+    // Invisible lid at the top of the skin: drawn after the boat and before the water,
+    // it keeps the water surface from being painted across the dry inside of the hull.
+    MAT.mask = new THREE.MeshBasicMaterial({ colorWrite:false, side:THREE.DoubleSide });
+    MAT.divider = new THREE.MeshLambertMaterial({ color:0x7a5230 });
+    MAT.stone = new THREE.MeshLambertMaterial({ color:0x8c8f93 });
+    MAT.dummy = new THREE.MeshLambertMaterial({ color:0xe0a050 });
+    return MAT;
+  }
+  // A stick from a to b (both [x, y, z]), as a thin box.
+  function stick(a, b, t, mat){
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), len = A.distanceTo(B);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(t, len, t), mat || mats().wood);
+    m.position.copy(A.clone().add(B).multiplyScalar(0.5));
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+    return m;
+  }
+  function quad(p, mat){ // p: 4 corners [x,y,z]
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([...p[0], ...p[1], ...p[2], ...p[0], ...p[2], ...p[3]], 3));
+    g.computeVertexNormals();
+    return new THREE.Mesh(g, mat);
+  }
+  function poly(p, mat){ // convex polygon, fan from p[0]
+    const v = []; for (let i = 1; i < p.length - 1; i++) v.push(...p[0], ...p[i], ...p[i + 1]);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
+    return new THREE.Mesh(g, mat);
+  }
+  // Floor height (above the keel) at a point across the width.
+  const floorAt = z => isV() ? D.D * Math.min(1, Math.abs(z) / (D.W / 2)) : 0;
+
+  function rebuildBoat(){
+    if (!three) return;
+    const { boat, cargo } = three, m = mats();
+    for (let i = boat.children.length - 1; i >= 0; i--) if (boat.children[i] !== cargo) boat.remove(boat.children[i]);
+    const L2 = D.L / 2, W2 = D.W / 2, d = isV() ? D.D : 0, top = d + D.H, t = 0.05;
+    // Frame: rails round the top, posts at the corners, the bottom edges or keel, ribs.
+    const rail = y => [[[-L2, y, -W2], [L2, y, -W2]], [[-L2, y, W2], [L2, y, W2]], [[-L2, y, -W2], [-L2, y, W2]], [[L2, y, -W2], [L2, y, W2]]];
+    rail(top).forEach(([a, b]) => boat.add(stick(a, b, t)));
+    rail(d).forEach(([a, b]) => boat.add(stick(a, b, t)));
+    for (const x of [-L2, L2]) for (const z of [-W2, W2]) boat.add(stick([x, d, z], [x, top, z], t));
+    if (isV()) {
+      boat.add(stick([-L2, 0, 0], [L2, 0, 0], t));
+      for (const x of [-L2, 0, L2]) { boat.add(stick([x, 0, 0], [x, d, -W2], t)); boat.add(stick([x, 0, 0], [x, d, W2], t)); }
+    } else {
+      for (const x of [-L2 / 2, 0, L2 / 2]) boat.add(stick([x, 0, -W2], [x, 0, W2], t));
+    }
+    // Dividers on the floor
+    const { nx, nz } = comps(), bh = Math.min(0.25, D.H);
+    for (let i = 1; i < nx; i++) { const x = -L2 + i * D.L / nx;
+      boat.add(isV() ? poly([[x, 0, 0], [x, d, -W2], [x, d + bh, -W2], [x, d + bh, W2], [x, d, W2]], m.divider) : quad([[x, 0, -W2], [x, bh, -W2], [x, bh, W2], [x, 0, W2]], m.divider)); }
+    for (let j = 1; j < nz; j++) { const z = -W2 + j * D.W / nz, y0 = floorAt(z);
+      boat.add(quad([[-L2, y0, z], [-L2, y0 + bh, z], [L2, y0 + bh, z], [L2, y0, z]], m.divider)); }
+    // Skin, up to where it reaches
+    const sk = skinInfo();
+    if (D.skin && sk.covers) {
+      const h = d + sk.reach;
+      if (isV()) {
+        boat.add(quad([[-L2, 0, 0], [L2, 0, 0], [L2, d, -W2], [-L2, d, -W2]], m.skin));
+        boat.add(quad([[-L2, 0, 0], [-L2, d, W2], [L2, d, W2], [L2, 0, 0]], m.skin));
+        for (const x of [-L2, L2]) boat.add(poly([[x, 0, 0], [x, d, -W2], [x, h, -W2], [x, h, W2], [x, d, W2]], m.skin));
+      } else {
+        boat.add(quad([[-L2, 0, -W2], [L2, 0, -W2], [L2, 0, W2], [-L2, 0, W2]], m.skin));
+        for (const x of [-L2, L2]) boat.add(quad([[x, 0, -W2], [x, h, -W2], [x, h, W2], [x, 0, W2]], m.skin));
+      }
+      for (const z of [-W2, W2]) boat.add(quad([[-L2, d, z], [L2, d, z], [L2, h, z], [-L2, h, z]], m.skin));
+      const lid = quad([[-L2, h, -W2], [L2, h, -W2], [L2, h, W2], [-L2, h, W2]], m.mask);
+      lid.renderOrder = 1; boat.add(lid);
+    }
+    // Fit the camera to the boat when its size changes, not on every rebuild.
+    const size = Math.max(D.L, D.W);
+    if (three.orbit.size !== size) { three.orbit.size = size; three.orbit.r = 1.8 + size * 1.3; }
+    cargo.userData.built = -1;
+  }
+
+  // Stones fill each compartment from the end (and, on a flat bottom, the
+  // side) they slide to; the rider sits in the middle.
+  function placeCargo(){
+    if (!three) return;
+    const { cargo } = three, m = mats();
+    const key = `${S.rider}|${S.stones}`;
+    if (cargo.userData.key === key) return;
+    cargo.userData.key = key;
+    while (cargo.children.length) cargo.remove(cargo.children[0]);
+    if (S.rider) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.55, 12), m.dummy); body.position.y = 0.3;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), m.dummy); head.position.y = 0.7;
+      g.add(body, head); g.position.set(0, floorAt(0), 0); cargo.add(g);
+    }
+    if (!S.stones) return;
+    const { nx, nz } = comps(), sp = 0.14, geo = new THREE.DodecahedronGeometry(0.075);
+    const slots = [];
+    for (let ci = 0; ci < nx; ci++) for (let cj = 0; cj < nz; cj++) {
+      const x0 = -D.L / 2 + ci * D.L / nx, z0 = -D.W / 2 + cj * D.W / nz;
+      const cols = Math.max(1, Math.floor(D.L / nx / sp)), rows = Math.max(1, Math.floor(D.W / nz / sp));
+      const list = [];
+      for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
+        const x = x0 + (a + 0.5) * D.L / nx / cols, z = z0 + (b + 0.5) * D.W / nz / rows;
+        if (S.rider && Math.abs(x) < 0.22 && Math.abs(z) < 0.22) continue; // the rider's seat
+        list.push({ x, z, pri: -x * 3 + (isV() ? Math.abs(z) * 4 : -z) });
+      }
+      list.sort((p, q) => p.pri - q.pri);
+      if (list.length) slots.push(list); // a section the rider fills gets no stones drawn
+    }
+    if (!slots.length) slots.push([{ x:D.L / 2 - 0.1, z:0 }]);
+    for (let k = 0; k < S.stones; k++) {
+      const c = slots[k % slots.length], i = Math.floor(k / slots.length), s = c[i % c.length], layer = Math.floor(i / c.length);
+      const st = new THREE.Mesh(geo, m.stone);
+      st.position.set(s.x, floorAt(s.z) + 0.07 + layer * 0.13, s.z);
+      st.rotation.set(k * 1.3, k * 0.7, 0);
+      cargo.add(st);
+    }
+  }
+
+  function setPose(p){
+    placeCargo();
+    if (!three) return;
+    const tg = three.target;
+    if (S.failed) {
+      tg.y = -1.6; tg.roll = (p.ez > 0 || S.failed === 'capsize' ? 0.5 : 0.05); tg.pitch = p.ex > 0 ? 0.35 : 0.05;
+      if (S.failed === 'leak') { tg.roll = 0.05; tg.pitch = 0.05; }
+    } else { tg.y = -p.T; tg.roll = p.roll; tg.pitch = p.pitch; }
+  }
+
+  // ---------- Login handoff ----------
+  window.addEventListener('message', e => {
+    if (e.data && e.data.type === 'boat-login') { player = { loggedIn:true, ...e.data }; }
+  });
+
+  designChanged();
+  // For checking the model from the console; nothing in the page uses it.
+  window.__boat = { D, S, physics, skinInfo, designChanged, refresh };
+})();
+</script>
+</body>
+</html>
