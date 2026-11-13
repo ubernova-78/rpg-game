@@ -158,7 +158,7 @@
       <div class="panel tabpanel" id="p-skin">
         <h3>2. The monster skin</h3>
         <canvas class="net" id="net" width="200" height="200"></canvas>
-        <div class="note" style="text-align:center">Your 2 m × 2 m sheet, laid flat. The pattern shows where it folds up.</div>
+        <div class="note" style="text-align:center">Your 2.25 m × 2.25 m sheet, laid flat. The pattern shows where it folds up.</div>
         <div class="skinmsg" id="skinmsg"></div>
         <div style="margin-top:8px;text-align:center"><button class="btn skin" id="btn-skin">Stretch the skin over the frame</button></div>
       </div>
@@ -187,7 +187,7 @@
 (function(){
   // Boat Builder, the Lake Quest's design bench (Nick, 2026-11-13).
   // Students design a frame (flat box or V bottom with short walls, 0.25 m
-  // steps), choose floor dividers, cover it with one 2 m x 2 m monster skin,
+  // steps), choose floor dividers, cover it with one 2.25 m x 2.25 m monster skin,
   // then load themselves (60 kg) and 60 stones of 5 kg. One trip, pass/fail.
   //
   // It's the classroom foil-boat project scaled 10x in length: 5 g marbles
@@ -200,11 +200,12 @@
   //    over a box needs (L + 2H) x (W + 2H); a V hull needs its two slanted
   //    sides across, plus the walls, and its full depth at each end. Where the
   //    sheet runs out, water comes in, so the boat is only as tall as its skin.
-  //  - Tilt: loose stones slide toward one side or end as you row. The pile's
-  //    centre moves by SLIDE x (half the compartment, less a stone) x (1 - how
-  //    full the compartment is). Dividers make compartments smaller, so the
-  //    pile can't move as far. A V bottom rolls stones to its middle, so it
-  //    doesn't tilt side to side -- only end to end. The tilt angle comes from
+  //  - Tilt: loose stones roll toward one side or end as you row. The pile's
+  //    centre moves by SLIDE x (half the boat, less a stone) x (1 - how full
+  //    the compartment is). Dividers stop the rolling in the direction they
+  //    block (crosswise: end to end; lengthwise: side to side; grid: both), so
+  //    there the stones stay spread evenly. A V bottom rolls stones to its
+  //    middle, so it doesn't tilt side to side -- only end to end. The tilt angle comes from
   //    the metacentric height (GM = KB + I/V - KG), the standard small-angle
   //    model. It sinks when the lowest corner of the skin reaches the water.
   //  - SLIDE = 0.3 was tuned (2026-11-13) so that, at 60 stones: a wide flat
@@ -212,7 +213,11 @@
   //    1x1x0.5 box: 36 / 52 one way / 68 grid; the V with short walls: 56
   //    without, 73 with crosswise dividers. The best design can't be found
   //    by maximizing volume alone, which is the point.
-  const SHEET = 2.0, RHO = 1000, FRAME_KG = 40, DIVIDER_KG_PER_M = 4;
+  // The skin was 2 m square until 2026-11-13: only 8 distinct shapes passed and a V
+  // almost never paid off. At 2.25 m about 50 do, flat boxes need dividers and V
+  // bottoms mostly don't; at 2.5 m a quarter of all shapes passed and dividers
+  // barely mattered. (Counts in the commit.)
+  const SHEET = 2.25, RHO = 1000, FRAME_KG = 40, DIVIDER_KG_PER_M = 4;
   const RIDER = 60, STONE = 5, GOAL = 60, SLIDE = 0.3;
   const STONE_FOOT = 0.12 * 0.12, STONE_H = 0.12, RIDER_SIT = 0.30;
 
@@ -251,8 +256,8 @@
     }
     const s = slant(), needL = D.L + 2 * (D.D + D.H), needW = 2 * s + 2 * D.H;
     const across = (SHEET - 2 * s) / 2, ends = (SHEET - D.L) / 2 - D.D;
-    if (across < -1e-9) return { covers:false, needL, needW, why:`The two slanted sides need ${(2*s).toFixed(2)} m of skin across, more than the 2 m sheet.` };
-    if (ends < -1e-9) return { covers:false, needL, needW, why:`The ends of the V need ${(D.L + 2*D.D).toFixed(2)} m of skin lengthwise, more than the 2 m sheet.` };
+    if (across < -1e-9) return { covers:false, needL, needW, why:`The two slanted sides need ${(2*s).toFixed(2)} m of skin across, more than the ${SHEET} m sheet.` };
+    if (ends < -1e-9) return { covers:false, needL, needW, why:`The ends of the V need ${(D.L + 2*D.D).toFixed(2)} m of skin lengthwise, more than the ${SHEET} m sheet.` };
     return { covers:true, reach: Math.max(0, Math.min(D.H, across, ends)), needL, needW };
   }
   const depth = () => (isV() ? D.D : 0) + D.H;
@@ -285,7 +290,12 @@
     const layers = per > 0 ? Math.max(1, Math.ceil(per * STONE_FOOT / compA)) : 1;
     const stoneH = (isV() ? D.D * 0.35 : 0.02) + STONE_H * (layers - 0.5);
     const off = span => { if (per <= 0) return 0; const f = Math.min(1, per * STONE_FOOT / (compA * 2)); return SLIDE * Math.max(0, span / 2 - 0.06) * (1 - f); };
-    const ex = off(D.L / nx), ez = isV() ? 0 : off(D.W / nz);
+    // Stones roll only where nothing stops them (Nick, 2026-11-13): crosswise
+    // dividers hold them in place end to end, lengthwise ones side to side, a grid
+    // both; a V bottom rolls them to its middle, so never side to side. Where they
+    // can roll, they go to that end of the boat. (Until then they also slid within
+    // each compartment, so a grid still tilted a little.)
+    const ex = nx > 1 ? 0 : off(D.L), ez = (isV() || nz > 1) ? 0 : off(D.W);
     const mst = n * STONE;
     const KG = (FRAME_KG * depth() / 2 + (fm - FRAME_KG) * ((isV() ? D.D : 0) + 0.1)
       + (rider ? RIDER * ((isV() ? D.D * 0.5 : 0) + RIDER_SIT) : 0) + mst * stoneH) / M;
@@ -349,32 +359,32 @@
 
   // ---------- The skin pattern ----------
   function drawNet(){
-    const c = $('net'), ctx = c.getContext('2d'), px = c.width / 2.6, pad = 0.3 * px;
+    const c = $('net'), ctx = c.getContext('2d'), px = c.width / (SHEET + 0.6), pad = 0.3 * px;
     ctx.clearRect(0, 0, c.width, c.height);
     const X = v => pad + v * px;
     const sk = skinInfo();
     // The sheet
-    ctx.fillStyle = D.skin ? '#8a5a9a' : '#b996c4'; ctx.fillRect(X(0), X(0), 2 * px, 2 * px);
-    ctx.strokeStyle = '#4a2b55'; ctx.lineWidth = 2; ctx.strokeRect(X(0), X(0), 2 * px, 2 * px);
+    ctx.fillStyle = D.skin ? '#8a5a9a' : '#b996c4'; ctx.fillRect(X(0), X(0), SHEET * px, SHEET * px);
+    ctx.strokeStyle = '#4a2b55'; ctx.lineWidth = 2; ctx.strokeRect(X(0), X(0), SHEET * px, SHEET * px);
     // What the boat needs, centered on the sheet
-    const nl = sk.needL, nw = sk.needW, ox = 1 - nl / 2, oy = 1 - nw / 2;
+    const H2 = SHEET / 2, nl = sk.needL, nw = sk.needW, ox = H2 - nl / 2, oy = H2 - nw / 2;
     ctx.setLineDash([5, 3]); ctx.lineWidth = 1.5;
     ctx.strokeStyle = (nl > SHEET + 1e-9 || nw > SHEET + 1e-9) ? '#c1443a' : '#fff';
     ctx.strokeRect(X(ox), X(oy), nl * px, nw * px);
     // The bottom (flat) or the two slanted sides (V)
     ctx.setLineDash([]);
     const ends = isV() ? D.D + D.H : D.H, sides = D.H;
-    const bx = 1 - D.L / 2, bw = isV() ? 2 * slant() : D.W, by = 1 - bw / 2;
+    const bx = H2 - D.L / 2, bw = isV() ? 2 * slant() : D.W, by = H2 - bw / 2;
     ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(X(bx), X(by), D.L * px, bw * px);
     ctx.strokeStyle = '#fff'; ctx.strokeRect(X(bx), X(by), D.L * px, bw * px);
-    if (isV()) { ctx.beginPath(); ctx.moveTo(X(bx), X(1)); ctx.lineTo(X(bx + D.L), X(1)); ctx.stroke(); }
+    if (isV()) { ctx.beginPath(); ctx.moveTo(X(bx), X(H2)); ctx.lineTo(X(bx + D.L), X(H2)); ctx.stroke(); }
     // Overflow beyond the sheet in red
     ctx.fillStyle = 'rgba(193,68,58,0.45)';
-    if (ox < 0) { ctx.fillRect(X(ox), X(Math.max(oy, 0)), -ox * px, Math.min(nw, 2) * px); ctx.fillRect(X(2), X(Math.max(oy, 0)), -ox * px, Math.min(nw, 2) * px); }
-    if (oy < 0) { ctx.fillRect(X(Math.max(ox, 0)), X(oy), Math.min(nl, 2) * px, -oy * px); ctx.fillRect(X(Math.max(ox, 0)), X(2), Math.min(nl, 2) * px, -oy * px); }
+    if (ox < 0) { ctx.fillRect(X(ox), X(Math.max(oy, 0)), -ox * px, Math.min(nw, SHEET) * px); ctx.fillRect(X(SHEET), X(Math.max(oy, 0)), -ox * px, Math.min(nw, SHEET) * px); }
+    if (oy < 0) { ctx.fillRect(X(Math.max(ox, 0)), X(oy), Math.min(nl, SHEET) * px, -oy * px); ctx.fillRect(X(Math.max(ox, 0)), X(SHEET), Math.min(nl, SHEET) * px, -oy * px); }
     ctx.fillStyle = '#4a2b55'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('2 m', X(1), X(0) - 6);
-    ctx.fillText(`needs ${nl.toFixed(2)} × ${nw.toFixed(2)} m`, X(1), X(2) + 16);
+    ctx.fillText(`${SHEET} m`, X(H2), X(0) - 6);
+    ctx.fillText(`needs ${nl.toFixed(2)} × ${nw.toFixed(2)} m`, X(H2), X(SHEET) + 16);
   }
   function paintSkinMsg(){
     const el = $('skinmsg'), sk = skinInfo(), btn = $('btn-skin');
@@ -806,9 +816,32 @@
       for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
         const x = x0 + (a + 0.5) * D.L / nx / cols, z = z0 + (b + 0.5) * D.W / nz / rows;
         if (S.rider && Math.abs(x) < SEAT && Math.abs(z) < SEAT) continue; // the rider's seat
-        list.push({ x, z, pri: -x * 3 + (isV() ? Math.abs(z) * 4 : -z) });
+        list.push({ x, z });
       }
-      list.sort((p, q) => p.pri - q.pri);
+      // The order they fill in matches physics(): where they can roll, the end they
+      // roll to fills first; where a divider holds them, they go in evenly, each
+      // stone picked to keep that direction's pile centred on its compartment.
+      const rollX = nx === 1, rollZ = nz === 1 && !isV();
+      const cx0 = x0 + D.L / nx / 2, cz0 = z0 + D.W / nz / 2;
+      const roll = p => (rollX ? -p.x * 3 : 0) + (isV() ? Math.abs(p.z) * 4 : rollZ ? -p.z : 0);
+      // Held both ways (nothing rolls), they also spread out: each new stone goes
+      // as far as it can from the ones already in, so a few stones sit around the
+      // compartment rather than bunched in its middle.
+      const held = !rollX && !rollZ && !isV();
+      const ordered = [], far = list.map(() => 1); let sx = 0, sz = 0;
+      while (list.length) {
+        let best = 0, bestCost = Infinity;
+        const k = ordered.length + 1;
+        list.forEach((p, i) => {
+          const cost = roll(p) + (rollX ? 0 : 6 * Math.abs((sx + p.x) / k - cx0)) + (rollZ || isV() ? 0 : 6 * Math.abs((sz + p.z) / k - cz0))
+            - (held ? 3 * far[i] : 0) + 1e-6 * i;
+          if (cost < bestCost) { bestCost = cost; best = i; }
+        });
+        const p = list.splice(best, 1)[0]; far.splice(best, 1);
+        ordered.push(p); sx += p.x; sz += p.z;
+        if (held) list.forEach((q, i) => { far[i] = Math.min(far[i], Math.hypot(q.x - p.x, q.z - p.z)); });
+      }
+      list.push(...ordered);
       if (list.length) slots.push(list); // a section the rider fills gets no stones drawn
     }
     if (!slots.length) slots.push([{ x:D.L / 2 - 0.1, z:0 }]);
@@ -851,7 +884,7 @@
     const sk = skinInfo();
     let text, target = null;
     if (!D.skin && !sk.covers) {
-      text = '<b>Too big:</b> this frame needs more than your 2 m × 2 m skin. On <b>1. Frame</b>, make it shorter, narrower or lower until the skin fits.';
+      text = '<b>Too big:</b> this frame needs more than your 2.25 m × 2.25 m skin. On <b>1. Frame</b>, make it shorter, narrower or lower until the skin fits.';
       target = 'L';
     } else if (!D.skin) {
       text = '<b>Next:</b> your frame is ready. On <b>2. Skin</b>, press <b>Stretch the skin over the frame</b> to keep the water out. (Or change the frame first.)';
@@ -884,7 +917,7 @@
   const TOUR = [
     ['view', 'Your boat, on the lake', 'This is your boat. <b>Drag</b> to spin it around, <b>scroll or pinch</b> to zoom. The buttons in the corner jump to the Front, Side and Top views.'],
     ['p-frame', '1. Build the frame', 'Pick a shape and a size, in steps of 0.25 m. <b>Floor dividers</b> split the floor into compartments so the stones can\'t all slide to one side. They add a little weight.'],
-    ['p-skin', '2. The monster skin', 'You get <b>one 2 m × 2 m skin</b>. It has to cover the bottom <i>and</i> fold up the walls. The pattern shows how much your frame needs. Red means the frame is too big.'],
+    ['p-skin', '2. The monster skin', 'You get <b>one 2.25 m × 2.25 m skin</b>. It has to cover the bottom <i>and</i> fold up the walls. The pattern shows how much your frame needs. Red means the frame is too big.'],
     ['p-test', '3. Test it on the water', 'Climb in first, then load the stones <b>1, 10, or all at once</b>. Watch the <b>boat density</b> in the corner of the view: mass ÷ volume. Past 1.00 g/cm³, water\'s density, it sinks, and if it tips it can go under sooner. Carry <b>all 60</b> to pass.'],
     ['coach', 'If it sinks, try again', 'Sinking is part of it: press <b>Unload</b>, change something, and test again. This yellow line always tells you what to do next. Good luck, sailor!'],
   ];
