@@ -33,6 +33,17 @@
   .dream .bed{font-size:2.6rem;line-height:1;}
   .dream h4{margin:8px 0 4px;font-size:1.2rem;}
   .dream p{margin:0 0 12px;font-size:0.92rem;max-width:420px;line-height:1.4;}
+  /* Boat density gauge, top-left of the view: mass / volume in g/cm3, against water's 1.00. */
+  .dens{position:absolute;left:8px;top:8px;width:min(230px,calc(100% - 150px));background:rgba(255,255,255,0.9);border-radius:8px;
+    padding:6px 9px 7px;font-size:0.76rem;line-height:1.3;color:#20313d;box-shadow:0 1px 4px rgba(0,0,0,0.15);}
+  .dens .big{font-weight:800;font-size:0.95rem;}
+  .dens .calc{font-family:ui-monospace,Menlo,monospace;font-size:0.7rem;color:#4a5660;}
+  .dens .bar{position:relative;height:8px;border-radius:4px;background:#dfe6ea;margin:5px 0 2px;}
+  .dens .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--good);transition:width .15s;}
+  .dens .fill.over{background:var(--bad);}
+  .dens .line{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--water);}
+  .dens .ticks{position:relative;height:11px;font-size:0.64rem;color:var(--dim);}
+  .dens .ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
   .no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);}
   /* Side by side: the viewer fills the screen's height (less the title, goal and
      coach line), and the tab panel beside it scrolls on its own if it must. */
@@ -115,6 +126,7 @@
           <button data-v="3d">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
         </div>
         <div class="viewhint">Drag to turn · scroll or pinch to zoom</div>
+    <div class="dens" id="dens"></div>
         <div class="gulp" id="gulp">GULP! 🐉</div>
         <div class="dream" id="dream"><div class="wake">
           <div class="bed">📐😵‍💫</div>
@@ -291,8 +303,34 @@
     out.roll = Math.atan(mst * ez / (M * GMr));
     out.pitch = Math.atan(mst * ex / (M * GMp));
     out.free = rim - T - (sec.w / 2) * Math.tan(out.roll) - (D.L / 2) * Math.tan(out.pitch);
-    out.status = T >= rim ? 'sank' : out.free < 0 ? 'tipped' : 'ok';
+    // At density exactly 1.00 the rim is at the water: sunk. (draftFor's bisection
+    // lands a hair under the rim, which let a V boat float at 1.0000 g/cm3.)
+    out.status = T >= rim - 1e-6 ? 'sank' : out.free < 0 ? 'tipped' : 'ok';
     return out;
+  }
+
+  // The boat's density: everything aboard and the frame, over the volume the skin
+  // keeps the water out of (up to where it reaches). A level boat sinks exactly when
+  // this passes water's 1.00 g/cm3, since then T >= rim in physics() above. A boat
+  // that tips goes under sooner, while its density is still below 1.
+  function hullVolume(){
+    const sk = skinInfo();
+    if (!sk.covers || !D.skin) return 0;
+    return section((isV() ? D.D : 0) + sk.reach).a * D.L; // m3
+  }
+  const gPerCm3 = M => { const v = hullVolume(); return v > 0 ? M / (v * 1000) : null; }; // kg/m3 / 1000
+  const DENS_MAX = 1.5; // the gauge runs 0 to 1.5 g/cm3
+  function paintDensity(M){
+    const el = $('dens'), v = hullVolume(), d = gPerCm3(M), fmt = x => Math.round(x).toLocaleString('en-US');
+    if (d == null) {
+      el.innerHTML = '<div class="big">Boat density: —</div><div class="calc">No skin yet: water flows straight through the frame.</div>';
+      return;
+    }
+    const pct = x => Math.min(100, x / DENS_MAX * 100);
+    el.innerHTML = `<div class="big">Boat density: ${d.toFixed(2)} g/cm³</div>`
+      + `<div class="calc">${fmt(M * 1000)} g ÷ ${fmt(v * 1e6)} cm³</div>`
+      + `<div class="bar"><div class="fill${d >= 1 ? ' over' : ''}" style="width:${pct(d)}%"></div><div class="line" style="left:${pct(1)}%"></div></div>`
+      + `<div class="ticks"><span style="left:0;transform:none">0</span><span style="left:${pct(1)}%">1.00 water</span><span style="right:0;transform:none">${DENS_MAX.toFixed(1)}</span></div>`;
   }
 
   // ---------- Load state ----------
@@ -399,13 +437,15 @@
     $('s-mass').textContent = Math.round(p.M) + ' kg';
     $('s-free').textContent = p.free == null ? '—' : p.free < 0 ? 'under!' : p.free.toFixed(2) + ' m';
     $('s-tilt').textContent = (Math.max(Math.abs(p.roll), Math.abs(p.pitch)) * 180 / Math.PI).toFixed(1) + '°';
+    paintDensity(p.M);
+    const dens = (gPerCm3(p.M) || 0).toFixed(2);
     const r = $('result');
     if (S.failed) {
       const at = S.stones;
       const msg = {
         leak: ['Water pours straight through the frame!', 'A bare wooden frame can\'t keep water out. Stretch the skin over it first.'],
-        sank: [`Sank at stone ${at}.`, 'It sat level, but the water came up over the top of the skin. You need more volume, or a lighter load.'],
-        tipped: [`Sank at stone ${at}: it tipped and water came over the low side.`, 'The stones slid to one side. Dividers stop them sliding, or a V bottom keeps them in the middle side to side.'],
+        sank: [`Sank at stone ${at}: it got as dense as water.`, `Its density reached ${dens} g/cm³. At water's 1.00 or more, it goes straight down. You need more volume, or a lighter load.`],
+        tipped: [`Sank at stone ${at}: it tipped and water came over the low side.`, `Its density was only ${dens} g/cm³, light enough to float. But the stones slid to one side and the low side went under. Dividers stop them sliding, or a V bottom keeps them in the middle side to side.`],
         capsize: [S.stones ? `Rolled over at stone ${at}!` : 'Rolled over as soon as you climbed in!', 'The boat is too narrow and tall for the weight sitting high up in it. Make it wider or lower.'],
       }[S.failed];
       r.className = S.passed ? 'result good' : 'result bad';
@@ -415,7 +455,7 @@
       r.innerHTML += '<div class="why">🐉 …then a lake monster swallowed you, and you woke up at your desk. Just a dream!</div>';
     } else if (S.passed && S.stones >= GOAL) {
       r.className = 'result good';
-      r.innerHTML = `It floats with you and all ${S.stones} stones! The lowest side is ${p.free.toFixed(2)} m above the water.`
+      r.innerHTML = `It floats with you and all ${S.stones} stones! Density ${dens} g/cm³; the lowest side is ${p.free.toFixed(2)} m above the water.`
         + `<div class="why">${IN_GAME ? 'Close this, head outside, and step onto the dock beside the hut to row across. ' : ''}Want to know the limit? Keep loading 10 more.</div>`;
     } else { r.className = 'result'; r.innerHTML = ''; }
     coach();
@@ -794,7 +834,7 @@
     } else if (S.busy) {
       text = 'Loading…';
     } else {
-      text = `<b>Next:</b> load the stones: 1, 10, or all at once. Watch the sides above water and the tilt. <b>${S.stones} of ${GOAL}</b> loaded.`;
+      text = `<b>Next:</b> load the stones: 1, 10, or all at once. Watch the <b>boat density</b> climb toward water's 1.00, and the tilt. <b>${S.stones} of ${GOAL}</b> loaded.`;
       target = S.stones ? 'btn-10' : 'btn-1';
     }
     $('coach').innerHTML = text;
@@ -812,7 +852,7 @@
     ['view', 'Your boat, on the lake', 'This is your boat. <b>Drag</b> to spin it around, <b>scroll or pinch</b> to zoom. The buttons in the corner jump to the Front, Side and Top views.'],
     ['p-frame', '1. Build the frame', 'Pick a shape and a size, in steps of 0.25 m. <b>Floor dividers</b> split the floor into compartments so the stones can\'t all slide to one side. They add a little weight.'],
     ['p-skin', '2. The monster skin', 'You get <b>one 2 m × 2 m skin</b>. It has to cover the bottom <i>and</i> fold up the walls. The pattern shows how much your frame needs. Red means the frame is too big.'],
-    ['p-test', '3. Test it on the water', 'Climb in first, then load the stones <b>1, 10, or all at once</b>. Watch how high the lowest side sits above the water, and how much it tilts. Carry <b>all 60</b> to pass.'],
+    ['p-test', '3. Test it on the water', 'Climb in first, then load the stones <b>1, 10, or all at once</b>. Watch the <b>boat density</b> in the corner of the view: mass ÷ volume. Past 1.00 g/cm³, water\'s density, it sinks, and if it tips it can go under sooner. Carry <b>all 60</b> to pass.'],
     ['coach', 'If it sinks, try again', 'Sinking is part of it: press <b>Unload</b>, change something, and test again. This yellow line always tells you what to do next. Good luck, sailor!'],
   ];
   let tourAt = -1, tourEls = null;
@@ -850,7 +890,7 @@
   let seen = false; try { seen = localStorage.getItem('boatTourSeen') === '1'; } catch (e) {}
   if (!seen) setTimeout(() => tourShow(0), 400);
   // For checking the model from the console; nothing in the page uses it.
-  window.__boat = { D, S, physics, skinInfo, designChanged, refresh, three };
+  window.__boat = { D, S, physics, skinInfo, hullVolume, designChanged, refresh, three };
 })();
 </script>
 </body>
