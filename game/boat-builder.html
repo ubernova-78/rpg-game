@@ -210,7 +210,11 @@
 
   // ---------- Design ----------
   const steps = (lo, hi) => { const a = []; for (let v = lo; v <= hi + 1e-9; v += 0.25) a.push(+v.toFixed(2)); return a; };
-  const D = { shape:'box', L:1.0, W:1.0, H:0.5, D:0.25, baffle:'none', skin:false };
+  // The starting frame is deliberately a poor one: 1 x 1 x 0.25 m holds 10 stones bare
+  // and 19 with a grid, so no single click passes. (It began at 1 x 1 x 0.5, which
+  // passes with just a grid -- 68 -- one click from done; Nick, 2026-11-13. Of 2,000
+  // skin-covered designs, 54 pass.)
+  const D = { shape:'box', L:1.0, W:1.0, H:0.25, D:0.25, baffle:'none', skin:false };
   const fill = (sel, vals, cur) => { sel.innerHTML = vals.map(v => `<option value="${v}"${v===cur?' selected':''}>${v.toFixed(2)} m</option>`).join(''); };
   fill($('L'), steps(0.25, 2), D.L); fill($('W'), steps(0.25, 2), D.W);
   fill($('H'), steps(0.25, 1), D.H); fill($('D'), steps(0.25, 1), D.D);
