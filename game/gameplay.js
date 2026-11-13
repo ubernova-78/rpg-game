@@ -158,20 +158,25 @@ function drawWorld() {
   drawSorted(items);
 
   // Labels draw last, on top of trees/buildings/NPCs, so nothing can cover the text.
+  // Each name is on a wooden signboard on the front wall, just under the roof's edge
+  // and above the door (Nick, 2026-11-13: above the roof it was off the top of the
+  // screen when you stood at the door). It sits above your head at the door.
+  mapCtx.font = 'bold 12px Trebuchet MS, sans-serif';
+  mapCtx.textAlign = 'center';
+  mapCtx.textBaseline = 'middle';
   for (const b of BUILDING_DEFS) {
     if (!b.label) continue;
-    const bx = b.tileX * TILE - camera.x, by = b.tileY * TILE - camera.y;
-    const bw = b.tilesWide * TILE;
-    if (by < -20 || by > mapCanvas.height) continue;
-    const labelX = bx + bw / 2;
-    mapCtx.font = 'bold 12px Trebuchet MS, sans-serif';
-    mapCtx.textAlign = 'center';
-    mapCtx.lineWidth = 3;
-    mapCtx.strokeStyle = 'rgba(10,14,20,0.85)';
-    mapCtx.strokeText(b.label, labelX, by - 6);
-    mapCtx.fillStyle = '#f4f7fa';
-    mapCtx.fillText(b.label, labelX, by - 6);
+    const bx = b.tileX * TILE - camera.x, bw = b.tilesWide * TILE;
+    const sy = (b.tileY + (b.roofRows || 0)) * TILE - camera.y + 11; // the board's middle
+    if (sy < -20 || sy > mapCanvas.height + 20 || bx > mapCanvas.width || bx + bw < 0) continue;
+    const labelX = bx + bw / 2, w = Math.min(bw - 6, mapCtx.measureText(b.label).width + 14);
+    mapCtx.fillStyle = 'rgba(0,0,0,0.35)'; mapCtx.fillRect(labelX - w / 2 + 2, sy - 9 + 2, w, 18); // shadow
+    mapCtx.fillStyle = '#6b4a2b'; mapCtx.fillRect(labelX - w / 2, sy - 9, w, 18);
+    mapCtx.strokeStyle = '#3d2814'; mapCtx.lineWidth = 2; mapCtx.strokeRect(labelX - w / 2, sy - 9, w, 18);
+    mapCtx.fillStyle = '#f6ecd2';
+    mapCtx.fillText(b.label, labelX, sy + 1, bw - 14);
   }
+  mapCtx.textBaseline = 'alphabetic';
 }
 
 let interiorOrigin = { x: 0, y: 0 };

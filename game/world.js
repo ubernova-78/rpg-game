@@ -220,6 +220,7 @@ function addBuilding(id, name, tileX, tileY, spec, img) {
   BUILDING_DEFS.push({
     id, name, label: name, img: img || buildingPiece(spec),
     tileX, tileY, tilesWide: spec.w, tilesTall: tall, doorCol: (spec.w - 1) / 2, doorRow: tall - 1,
+    roofRows: spec.roofRows, // the name's signboard hangs on the wall just under the roof (gameplay.js)
   });
 }
 // North of the main street, doors onto it:
