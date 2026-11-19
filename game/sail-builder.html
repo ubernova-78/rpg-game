@@ -181,7 +181,7 @@
         <button data-tab="p-frame">1. Frame</button><button data-tab="p-skin">2. Length</button><button data-tab="p-sail">3. Sail</button><button data-tab="p-go">4. Sail out</button>
       </div>
       <div class="panel tabpanel" id="p-frame">
-        <div class="note" style="margin-top:0">Draw your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle. <b>Drag</b> from one point to another to glue in a stick (or click one end, then the other).</div>
+        <div class="note" style="margin-top:0">Draw your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle and looked from behind. <b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). You start with a small, simple box: change it, or <b>Clear all</b> and draw your own.</div>
         <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button></div></div>
         <div class="btnrow"><button class="btn alt small" id="btn-undo">↶ Undo</button><button class="btn alt small" id="btn-clear">Clear all</button></div>
         <div class="note">Every stick can be cut shorter, never longer than 1.13 m, and has to be glued to another stick. The grid squares are 10 cm. You sit in the middle (the dashed line) and need 50 cm of room; the mast stands there too.</div>
@@ -455,6 +455,7 @@
       if (!xs.length) a.ch.hulls.forEach(h => { const l = h.reduce((m, p) => p[1] < m[1] ? p : m, h[0]); if (Math.abs(l[1] - lowY) < 0.01) xs.push(l[0]); });
       g.fillStyle = '#8c8f93'; g.strokeStyle = '#4b4e52'; g.lineWidth = 1;
       for (const x of xs) { const [sx, sy] = S([x, y]); g.beginPath(); g.arc(sx, sy, Math.max(3, P.STONE_R * k), 0, 7); g.fill(); g.stroke(); }
+      if (xs.length) { const [sx, sy] = S([Math.min(...xs) - P.STONE_R, y]); g.fillStyle = '#4b4e52'; g.font = 'bold 11px system-ui'; g.textAlign = 'right'; g.fillText('stones (6 × 5 kg)', sx - 6, sy + 4); g.fillStyle = '#8c8f93'; }
     }
     if (a && a.mf != null) {
       const [sx, sy] = S([0, a.mf]); g.fillStyle = '#20313d';
@@ -488,14 +489,29 @@
       g.fillStyle = '#fff'; g.fillText(t, (x1 + x2) / 2, (y1 + y2) / 2 - 11);
     }
     function drawRider(seat) {
-      // Seated, legs forward (seen from behind: legs toward the viewer, so just the body).
+      // You, seated, seen from behind (your legs point forward, away from us, so
+      // they're hidden behind you): head with hair, shoulders, back, arms down to
+      // the floor. See-through, so it doesn't read as part of the frame (Nick,
+      // 2026-11-19: 'is this a person?'), and labelled.
       const [sx, sy] = S([0, seat]), u = k / 100; // u px per cm
-      g.fillStyle = 'rgba(224,160,80,0.9)'; g.strokeStyle = '#7a5020'; g.lineWidth = 1;
-      g.beginPath(); g.ellipse(sx, sy - 22 * u, 17 * u, 22 * u, 0, 0, 7); g.fill(); g.stroke();   // hips and body
-      g.beginPath(); g.ellipse(sx, sy - 50 * u, 14 * u, 18 * u, 0, 0, 7); g.fill(); g.stroke();   // chest
-      g.beginPath(); g.arc(sx, sy - 77 * u, 11 * u, 0, 7); g.fill(); g.stroke();                  // head
-      g.strokeStyle = 'rgba(122,80,32,0.9)'; g.lineWidth = Math.max(2, 7 * u);
-      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(sx + s * 13 * u, sy - 60 * u); g.lineTo(sx + s * 25 * u, sy - 8 * u); g.stroke(); } // arms down to the floor
+      const X = x => sx + x * u, Y = y => sy - y * u;
+      g.save();
+      g.fillStyle = 'rgba(224,160,80,0.42)'; g.strokeStyle = 'rgba(122,80,32,0.85)'; g.lineWidth = 1.5; g.lineJoin = 'round'; g.lineCap = 'round';
+      // Arms first, behind the body: shoulder, elbow, hand flat on the floor.
+      for (const sd of [-1, 1]) {
+        g.lineWidth = Math.max(3, 9 * u); g.strokeStyle = 'rgba(122,80,32,0.55)';
+        g.beginPath(); g.moveTo(X(sd * 19), Y(57)); g.lineTo(X(sd * 27), Y(31)); g.lineTo(X(sd * 29), Y(2)); g.stroke();
+      }
+      g.lineWidth = 1.5; g.strokeStyle = 'rgba(122,80,32,0.85)';
+      g.beginPath(); // neck, shoulders, back, hips
+      g.moveTo(X(-5), Y(68)); g.quadraticCurveTo(X(-21), Y(65), X(-21), Y(55));
+      g.quadraticCurveTo(X(-15), Y(30), X(-19), Y(6)); g.quadraticCurveTo(X(0), Y(-2), X(19), Y(6));
+      g.quadraticCurveTo(X(15), Y(30), X(21), Y(55)); g.quadraticCurveTo(X(21), Y(65), X(5), Y(68)); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.arc(X(0), Y(79), 11 * u, 0, 7); g.fill(); g.stroke();                   // head
+      g.fillStyle = 'rgba(80,50,25,0.55)'; g.beginPath(); g.arc(X(0), Y(79), 11 * u, Math.PI * 0.95, Math.PI * 2.05); g.fill(); // hair (the back of the head)
+      g.font = 'bold 11px system-ui'; g.textAlign = 'left'; g.fillStyle = '#7a5020';
+      g.fillText('you (60 kg)', X(15), Y(84));
+      g.restore();
       g.strokeStyle = 'rgba(26,147,111,0.6)'; g.lineWidth = 1; g.setLineDash([3, 3]);
       g.beginPath(); g.moveTo(sx - P.HIPS / 2 * k, sy); g.lineTo(sx + P.HIPS / 2 * k, sy); g.stroke(); g.setLineDash([]);
     }
