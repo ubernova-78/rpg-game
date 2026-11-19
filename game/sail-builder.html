@@ -1167,7 +1167,14 @@
       + `<div class="result ${pl.fail ? 'bad' : 'good'}" style="display:block">${res[0]}<div class="why">${res[1]}</div></div>`
       + `<div class="btnrow">${!pl.fail && IN_GAME ? '<button class="btn" id="btn-use">⛵ Use this boat</button>' : ''}<button class="btn ${pl.fail ? '' : 'alt'}" id="m-done">${pl.fail ? 'Back to work' : 'Done'}</button></div>`;
     $('m-done').addEventListener('click', () => { stopRace(); setMode('3d'); refresh(); });
-    const use = $('btn-use'); if (use) use.addEventListener('click', () => { window.parent.postMessage({ type: 'sail-passed', distance: pl.D, design: JSON.stringify(D) }, '*'); use.disabled = true; use.textContent = '⛵ Boat saved'; });
+    // To the game (lake-quest.js): the distance, the time, and a short summary of
+    // the boat for the student's record (its rule allows 200 characters).
+    const use = $('btn-use'); if (use) use.addEventListener('click', () => {
+      const r = A.r, n = A.ch.hulls.length;
+      const design = `${n} hull${n > 1 ? 's' : ''}, ${D.L.toFixed(2)} m long, ${D.bow} bow, ${A.wood.sticks} sticks, sail ${r.sailA.toFixed(2)} m2 on a ${D.sail.mastH.toFixed(2)} m mast, ${r.speedKt.toFixed(1)} kt`;
+      window.parent.postMessage({ type: 'sail-passed', distance: pl.D, seconds: race.elapsed ? race.elapsed.H / 100 : null, design }, '*');
+      use.disabled = true; use.textContent = '⛵ Boat saved';
+    });
     refresh();
   }
   let lastRun = null;

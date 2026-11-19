@@ -474,7 +474,8 @@ const scene = {
   wasOnNpcId: null,       // same idea, for NPC dialogue proximity
   wasOnMonsterId: null,   // same idea, for wandering-monster battle triggers
   wasOnCaveMonsterId: null, // same idea, for the cave's own wandering monsters
-  wasOnDojoMaster: false,   // same idea, for the Dojo Master's battle-menu prompt
+  wasOnDojoMaster: false,
+  wasOnBoatwright: false,   // and for the Boatwright's talk (lake-quest.js)   // same idea, for the Dojo Master's battle-menu prompt
   activeObjectId: null,   // id of the interactive object tile currently under the player, or null
 };
 
@@ -763,7 +764,9 @@ const INTERIOR_OBJECTS = {
   // The Boatwright's Hut: the drafting desk opens the Boat Builder (lake-quest.js).
   // Falling asleep over it is how the builder's sinking ends: it was all a dream.
   boathouse: [
-    { id: 'boatDesk', kind: 'desk', img: workbenchImg, col: 4, row: 1, label: "Boatwright's Drafting Desk", src: 'boat-builder.html', messageType: 'boat-login', wide: true },
+    { id: 'boatDesk', kind: 'desk', img: workbenchImg, col: 4, row: 1, label: "Boatwright's Drafting Desk", shortLabel: 'Boat Builder', src: 'boat-builder.html', messageType: 'boat-login', wide: true },
+    // The Sail Race's desk (lake-quest.js), there once the altar is rebuilt.
+    { id: 'sailDesk', kind: 'desk', img: workbenchImg, col: 6, row: 4, label: "Boatwright's Sail Desk", shortLabel: 'Sail Builder', src: 'sail-builder.html', messageType: 'sail-login', wide: true },
     { id: 'bhBarrel', kind: 'decor', img: PROP.barrel.img, col: 1, row: 1, solidRows: 1 },
     { id: 'bhCrates', kind: 'decor', img: PROP.crates.img, col: 7, row: 1, solidRows: 1 },
   ],
@@ -780,6 +783,7 @@ function caveTunnelOpen() {
 function objectsFor(buildingId) {
   const list = INTERIOR_OBJECTS[buildingId] || [];
   if (buildingId === 'cave' && caveTunnelOpen()) return list.filter(o => !o.id.startsWith('boulder'));
+  if (buildingId === 'boathouse' && !(typeof sailRaceOpen === 'function' && sailRaceOpen())) return list.filter(o => o.id !== 'sailDesk');
   return list;
 }
 
@@ -889,7 +893,7 @@ function enterBuilding(b) {
   // spawn is well clear of every interactive object, so these should reflect that — NOT
   // be pre-set true, or a continuous walk-in-and-approach-something motion would
   // silently eat the first trigger.
-  scene.wasOnDoor = false; scene.wasOnExit = false; scene.activeObjectId = null; scene.wasOnCaveMonsterId = null; scene.wasOnDojoMaster = false;
+  scene.wasOnDoor = false; scene.wasOnExit = false; scene.activeObjectId = null; scene.wasOnCaveMonsterId = null; scene.wasOnDojoMaster = false; scene.wasOnBoatwright = false;
   const interior = interiorFor(b.id);
   const spawn = placeFeetAtTile(interior.exitCol, interior.spawnRow);
   player.x = spawn.x;

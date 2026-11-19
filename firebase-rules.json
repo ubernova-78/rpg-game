@@ -45,6 +45,15 @@
           "ts":      { ".validate": "newData.isNumber()" },
           "$other":  { ".validate": false }
         },
+        "sailRace": {
+          ".validate": "newData.hasChildren(['passed','ts'])",
+          "passed":   { ".validate": "newData.isBoolean()" },
+          "distance": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "seconds":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+          "design":   { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "ts":       { ".validate": "newData.isNumber()" },
+          "$other":   { ".validate": false }
+        },
         "runeCircle": {
           ".validate": "newData.hasChildren(['done','score'])",
           "done":    { ".validate": "newData.isBoolean()" },

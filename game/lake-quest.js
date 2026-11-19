@@ -264,8 +264,11 @@ let lqHeardStory = false; // this session only: not saved
 function witchTalk() {
   const s = lqState();
   if (!lqHeardStory && !s.boat && !s.altar) { witchStory(0); return; }
-  const hint = s.altar
-    ? `You did it! The altar glows again, and the crystal taught you the <strong>Heal spell</strong>. Once in every battle, it gives you back ${HEAL_HP} HP.`
+  const sr = typeof srState === 'function' ? srState() : null;
+  const hint = sr && sr.passed
+    ? 'The serpent has gone home to its colony, all thanks to you. Our lake is peaceful at last.'
+    : s.altar
+    ? `You did it! The altar glows again, and the crystal taught you the <strong>Heal spell</strong>. Once in every battle, it gives you back ${HEAL_HP} HP.<br><br>And I hear the <strong>Boatwright</strong> is back in the hut by the lake, looking for someone brave, but also smart. Something about the serpent...`
     : s.boat
       ? 'You built a boat that can carry it all! It\'s tied up at the pier by the Boatwright\'s Hut. Row it to the island and rebuild the altar.'
       : 'Head north to the lake. The <strong>Boatwright\'s Hut</strong> is on the north-west shore: design your boat at the drafting desk inside.';
@@ -276,7 +279,7 @@ const WITCH_STORY = [
   { text: 'An altar stood on that island, with a crystal that could heal any wound. Then, one stormy night, a <strong>lake serpent</strong> rose out of the water. It smashed the altar to rubble, swallowed the altar\'s keeper whole, and splintered the only boat we had.', scene: true },
   { text: 'Nobody has crossed since. We have no boat, and nobody knows how to build one strong enough. To rebuild the altar, someone must carry <strong>60 stones of 5 kg</strong> each, and themselves, across the lake in <strong>one trip</strong>.' },
   { text: `Whoever rebuilds the altar will be rewarded. The crystal will teach them the <strong>Heal spell</strong>: once in every battle, they can cast it to get back ${HEAL_HP} HP.` },
-  { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!<br><br><em>Oh, and one more thing. No one has seen the serpent since that night, but some people think it\'s still down there. Let\'s hope it has gone back to the depths forever...</em>', last: true },
+  { text: 'Where to start? Walk north to the lake. On its north-west shore is the old <strong>Boatwright\'s Hut</strong>. Use the drafting desk inside to design a boat that can carry you and all 60 stones. Good luck, dear!<br><br><em>Oh, and one more thing. No one has seen the serpent since that night, but some people think it\'s still down there. Sailors say serpents like it live in a colony far out in the ocean. How this one ended up alone in our lake, nobody knows...</em>', last: true },
 ];
 function witchStory(i) {
   const p = WITCH_STORY[i];
@@ -482,3 +485,82 @@ function drawLakeCutscene() {
   }
   ctx.restore();
 }
+
+// ---------- The Sail Race (Nick, 2026-11-18) ----------
+// After the altar is rebuilt, the Boatwright is back in the hut. The serpent isn't
+// evil: it's lost, cut off from its colony far out in the ocean, and lashes out
+// because it can't get home. If someone sails out of the lake's inlet faster than
+// it swims, it will chase them all the way out to sea, and be free. The sail desk
+// (sail-builder.html) opens then; a boat that gets away posts 'sail-passed', and
+// that's saved as sailRace { passed, distance, seconds, design, ts }
+// (firebase-rules.json, students/$nameKey/sailRace: its own path, because
+// lakeQuest's rule refuses any field it doesn't list).
+// Built at load, as the Dojo Master is: a sheet built on first sight came out
+// blank (seen 2026-11-19: every image loaded, nothing drawn).
+const BOATWRIGHT = { spec: { head: 'head2', hair: 'hair4', top: 'top5', bottom: 'bottom3', hat: 'hat2', skinTone: 3 }, sheet: null, col: 1, row: 3 };
+BOATWRIGHT.sheet = buildStaticSheet(BOATWRIGHT.spec);
+let srLocal = null;
+function srState() {
+  if (lqCounts() && session.record && session.record.sailRace) return session.record.sailRace;
+  return srLocal;
+}
+// Only onto the record once the server has taken it: students/$nameKey refuses any
+// field its rule doesn't list, and a refused field left on session.record would
+// make every later whole-record save for that student fail too. Until the rule is
+// published, the result lasts for this session only.
+function srSave(v) {
+  srLocal = v;
+  if (!lqCounts() || !session.record) return;
+  Shared.updateStudent(session.nameKey, { sailRace: v }).then(ok => {
+    if (ok) { session.record.sailRace = v; console.log('[sail] saved to the student record'); }
+    else console.warn('[sail] NOT saved: is the sailRace rule published? (firebase-rules.json)');
+  });
+}
+// The Boatwright and the sail desk are there once the altar glows.
+function sailRaceOpen() { return lqHasHeal(); }
+
+function boathouseDrawables() {
+  if (!sailRaceOpen()) return [];
+  const size = FRAME * SCALE, x = BOATWRIGHT.col * TILE, y = BOATWRIGHT.row * TILE;
+  return [{ y: y + size * 0.85, draw: () => mapCtx.drawImage(BOATWRIGHT.sheet, WALK_COLS[1] * FRAME, DIR_ROW.south * FRAME, FRAME, FRAME, x, y, size, size) }];
+}
+function nearbyBoatwright(x, y) {
+  if (!sailRaceOpen()) return false;
+  const s = FRAME * SCALE, cx = x + s / 2, cy = y + s / 2;
+  return Math.hypot(cx - (BOATWRIGHT.col * TILE + s / 2), cy - (BOATWRIGHT.row * TILE + s / 2)) < s * 0.4;
+}
+
+const BOATWRIGHT_TALK = [
+  'Ah, you\'re the one who rebuilt the altar! I\'m the <strong>Boatwright</strong>. This was my hut, before the serpent splintered my boat.',
+  'I\'ve watched that serpent for years. It isn\'t evil, you know. It\'s <strong>lost</strong>. Its colony lives far out in the ocean, and it\'s been trapped in our lake since it was small. It lashes out because it can\'t get home.',
+  'The lake runs out to the ocean through a narrow <strong>inlet</strong>. If someone sails out of it, fast, the serpent will chase them all the way out to sea, and then it will be free.',
+  'But it swims at <strong>6 knots</strong>. I\'m looking for someone brave, but also smart, to design a sailboat faster than that, carrying themselves (60 kg) and <strong>6 stones of 5 kg</strong> to keep it steady. The wind blows <strong>20 knots</strong> straight out the inlet, with gusts.',
+  'You\'ll have <strong>70 sticks</strong>, <strong>two pieces of monster skin</strong> and <strong>one sheet of sail cloth</strong>. Use the <strong>Sail Desk</strong>. And after every run, write down how long it took and how far you got. A good boatwright always measures.',
+];
+function boatwrightTalk() {
+  const done = srState() && srState().passed;
+  if (done) { boatwrightPage(`You did it! The serpent followed you all the way out of the inlet, and swam home to its colony. The lake is safe, and so is it. Your boat got away in <strong>${Number(srState().seconds || 0).toFixed(2)} seconds</strong>.`, [['Thanks!', closeWorkbench]]); return; }
+  const page = i => boatwrightPage(BOATWRIGHT_TALK[i], i < BOATWRIGHT_TALK.length - 1 ? [['Next', () => page(i + 1)]] : [['I\'ll build it!', closeWorkbench]], `${i + 1} of ${BOATWRIGHT_TALK.length}`);
+  page(0);
+}
+function boatwrightPage(html, buttons, step) {
+  scene.modalOpen = true;
+  wbModal.classList.add('story');
+  wbModalCloseHook = () => wbModal.classList.remove('story');
+  wbTitle.textContent = 'The Boatwright' + (step ? ` (${step})` : '');
+  wbBody.innerHTML = '';
+  const p = document.createElement('p'); p.innerHTML = html; p.style.margin = '0 0 6px'; wbBody.appendChild(p);
+  for (const [label, fn] of buttons) wbBody.appendChild(gateButton(label, fn));
+  wbModal.classList.remove('hidden');
+}
+
+// The Sail Builder's "Use this boat": save it, close the builder, and the ending.
+window.addEventListener('message', e => {
+  if (!e.data || e.data.type !== 'sail-passed') return;
+  const num = (v, hi) => Math.max(0, Math.min(hi, Number(v) || 0));
+  srSave({ passed: true, distance: num(e.data.distance, 100), seconds: num(e.data.seconds, 1000), design: String(e.data.design || '').slice(0, 200), ts: Date.now() });
+  console.log('[sail] race saved');
+  gameOverlayEls.btnBack.click();
+  lqModal('🌊 The serpent goes home',
+    'You shot out of the inlet into the open ocean, the serpent right behind you. Then it slowed, lifted its head, and called. Far out at sea, something called back. The serpent dove under the waves and swam away, toward home.', [['🎉 Wonderful!']]);
+});

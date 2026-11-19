@@ -110,6 +110,11 @@ function updatePlayer(dt) {
         if (onCaveMonster && onCaveMonster !== scene.wasOnCaveMonsterId) openCaveMonsterBattle(caveMonster);
         scene.wasOnCaveMonsterId = onCaveMonster;
       }
+      if (scene.buildingId === 'boathouse') {
+        const onBw = nearbyBoatwright(player.x, player.y);
+        if (onBw && !scene.wasOnBoatwright) boatwrightTalk();
+        scene.wasOnBoatwright = onBw;
+      }
       if (scene.buildingId === 'dojo') {
         const onDojoMaster = nearbyDojoMaster(player.x, player.y);
         if (onDojoMaster && !scene.wasOnDojoMaster) openDojoKiosk();
@@ -259,6 +264,7 @@ function drawInterior() {
     } });
   }
   if (scene.buildingId === 'caveDeep') items.push(...caveMonsterDrawables());
+  if (scene.buildingId === 'boathouse') items.push(...boathouseDrawables());
   items.push({ y: playerSortY(), draw: () => drawPlayerAt(0, 0) });
   drawSorted(items);
   if (style && style.dark) drawRoomDarkness(style, ox, oy);
@@ -274,7 +280,7 @@ function drawInterior() {
   mapCtx.font = 'bold 11px Trebuchet MS, sans-serif';
   mapCtx.textAlign = 'center';
   for (const obj of objectsFor(scene.buildingId)) {
-    if (obj.kind !== 'workbench' || !obj.shortLabel) continue;
+    if ((obj.kind !== 'workbench' && obj.kind !== 'desk') || !obj.shortLabel) continue;
     const f = objFootprint(obj);
     const labelX = f.dx + f.dw / 2, labelY = Math.max(12, f.dy - 6);
     mapCtx.lineWidth = 3;
