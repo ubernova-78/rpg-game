@@ -1219,7 +1219,7 @@
     const a = A, n = a.wood.sticks, over = n > P.STICKS;
     $('counter').innerHTML = `<div>Sticks: <span class="big" style="color:${over ? 'var(--bad)' : 'inherit'}">${n}</span> of ${P.STICKS}</div>`
       + `<div class="bar"><div class="fill${over ? ' over' : ''}" style="width:${Math.min(100, n / P.STICKS * 100)}%"></div></div>`
-      + `<div style="font-size:0.7rem;color:var(--dim)">${a.wood.nRib} ribs, ${a.wood.stringers} long stringers, the mast</div>`;
+      + `<div style="font-size:0.7rem;color:var(--dim)">${a.wood.nRib} ribs (copies of your drawing), ${a.wood.stringers} long sticks along the boat, the mast</div>`;
   }
   function paintMsgs() {
     const a = A, fm = $('framemsg'), sm = $('skinmsg');
@@ -1230,7 +1230,7 @@
       : a.ch.hulls.length ? `<div class="ok">✓ The skin fits and keeps the water out.</div>` : '';
     const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
     fm.innerHTML += seatMsg;
-    $('sailnote').innerHTML = `The boat is ${a.wood.nRib} copies of your cross-section (ribs), at most 1 m apart, joined by long sticks along it at every corner of the skin. Your sail is ${(a.r.sailA || sailGeom(D.sail).A).toFixed(2)} m². The mast is ${D.sail.mastH.toFixed(2)} m tall, and the sail has to start at least 0.50 m up it, over your head.`
+    $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, at most 1 m apart, joined by long sticks at every corner of the skin. Your sail is ${(a.r.sailA || sailGeom(D.sail).A).toFixed(2)} m². The mast is ${D.sail.mastH.toFixed(2)} m tall, and the sail has to start at least 0.50 m up it, over your head.`
       + (D.bow === 'pointed' ? ` The front ${Math.round(P.TAPER * 100)}% narrows to a point.` : '');
   }
   function coach() {
@@ -1457,7 +1457,7 @@
   const TOUR = [
     ['view', 'Your drawing board', 'This is your boat\'s <b>cross-section</b>, drawn to scale: each square is 10 cm. The dashed line is the middle, where you sit and the mast stands. Press <b>3D</b> in the corner to see the whole boat.'],
     ['p-frame', '1. Glue in sticks', '<b>Drag</b> from one point to another to add a stick. Ends snap to the grid and to other sticks. A stick can be cut shorter, but never longer than <b>1.13 m</b>, and it has to be glued to another stick.'],
-    ['counter', 'Count your sticks', 'You have <b>70 sticks</b>. The boat is many copies of your cross-section along its length, joined by long sticks, plus the mast. This counter adds them all up as you build.'],
+    ['counter', 'Count your sticks', 'You have <b>70 sticks</b>. Your drawing is one slice of the boat. The builder copies that slice <b>at least every 1 m</b> along the boat to make its <b>ribs</b>: a 2.5 m boat has 4 ribs, and each rib uses every stick you drew. Long sticks run the length of the boat at each corner of the skin to hold the ribs together, and the mast is one more. This counter adds them all up.'],
     ['p-skin', '2. Length and skin', 'Pick the boat\'s length and a square or pointed front. The monster skin wraps itself round the outside of your frame; each piece has to come from one <b>3.05 × 2.73 m</b> sheet, and the pattern shows whether it fits.'],
     ['p-sail', '3. The sail', '<b>Cut your sail</b> out of the 2.16 × 2.79 m cloth: any shape you like. Then choose how tall the mast is and how high the sail hangs on it. The wind blows from behind and pushes on the sail.'],
     ['coach', 'Then sail out!', 'The serpent swims at <b>6 knots</b>: your boat has to be faster, and not dive or tip over. This yellow line always says what to do next. Good luck, sailor!'],
