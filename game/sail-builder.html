@@ -473,6 +473,8 @@
     }
     // A point on a sloping stick is kept to the mm, so it stays on the stick.
     if (best) return { p: [r3(best[0]), r3(best[1])], on: 'stick' };
+    // (With Mirror on, an end pulled within 6 cm of the middle snaps onto it, so the two sides meet.)
+    if (mirrorOn() && Math.abs(m[0]) < 0.06) return { p: [0, r3(Math.round(m[1] / GRID) * GRID)], on: 'grid' };
     return { p: [r3(Math.round(m[0] / GRID) * GRID), r3(Math.round(m[1] / GRID) * GRID)], on: 'grid' };
   }
   function nearestSeg(m) {
@@ -491,11 +493,24 @@
   let mirror = true;
   const flipSeg = s => ({ a: [r3(-s.a[0]) || 0, s.a[1]], b: [r3(-s.b[0]) || 0, s.b[1]] });
   const mirrorOn = () => mirror || !!demo; // the intro always draws mirrored
+  // What Mirror makes of a stick from a to b. A level stick across the middle line
+  // becomes one even stick, as wide as its far end (Nick, 2026-11-19: a floor
+  // started off-center was copied on top of itself); two meeting in the middle if
+  // that's longer than a stick. A sloping one across the middle mirrors into an X
+  // (a cross-brace). Anything else gets its copy on the other side.
+  function mirrorPlan(a, b) {
+    if (!mirrorOn()) return [{ a, b }];
+    if (a[0] * b[0] < -1e-9 && Math.abs(a[1] - b[1]) < 0.011) {
+      const far = Math.abs(a[0]) >= Math.abs(b[0]) ? a : b, m = Math.abs(far[0]), y = far[1];
+      return 2 * m <= P.STICK_L + 1e-6 ? [{ a: [-m, y], b: [m, y] }] : [{ a: [-m, y], b: [0, y] }, { a: [0, y], b: [m, y] }];
+    }
+    const f = flipSeg({ a, b });
+    return segKey(f.a, f.b) !== segKey(a, b) ? [{ a, b }, f] : [{ a, b }];
+  }
   function addStick(a, b, quiet) {
     if (dist(a, b) < 0.02) return;
     if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long: a stick is only 1.13 m. Cut it shorter, or glue two together.` }; return; }
-    const add = [{ a, b }];
-    if (mirrorOn()) { const f = flipSeg({ a, b }); if (segKey(f.a, f.b) !== segKey(a, b)) add.push(f); }
+    const add = mirrorPlan(a, b);
     const fresh = add.filter((s, i) => !D.segs.some(t => segKey(t.a, t.b) === segKey(s.a, s.b)));
     if (!fresh.length) return;
     if (!quiet) remember();
@@ -616,11 +631,14 @@
       const L = dist(from, to), over = L > P.STICK_L + 1e-6;
       g.strokeStyle = over ? '#c1443a' : '#20313d'; g.lineWidth = 3; g.setLineDash([6, 4]);
       g.beginPath(); g.moveTo(...S(from)); g.lineTo(...S(to)); g.stroke(); g.setLineDash([]);
-      if (mirrorOn() && (Math.abs(from[0]) > 1e-6 || Math.abs(to[0]) > 1e-6) && !(Math.abs(from[0] + to[0]) < 1e-6 && Math.abs(from[1] - to[1]) < 1e-6)) {
-        g.strokeStyle = over ? 'rgba(193,68,58,0.5)' : 'rgba(32,49,61,0.4)'; g.setLineDash([6, 4]); g.lineWidth = 3;
-        g.beginPath(); g.moveTo(...S([-from[0], from[1]])); g.lineTo(...S([-to[0], to[1]])); g.stroke(); g.setLineDash([]);
+      if (mirrorOn() && !over) for (const sk of mirrorPlan(from, to)) {
+        if (segKey(sk.a, sk.b) === segKey(from, to)) continue; // (that one's drawn already)
+        g.strokeStyle = 'rgba(32,49,61,0.4)'; g.setLineDash([6, 4]); g.lineWidth = 3;
+        g.beginPath(); g.moveTo(...S(sk.a)); g.lineTo(...S(sk.b)); g.stroke(); g.setLineDash([]);
       }
-      label(from, to, L, over);
+      // Across the middle, label the even stick it becomes, not the stretch you've dragged.
+      const even = mirrorOn() && !over ? mirrorPlan(from, to).find(sk => sk.a[0] * sk.b[0] < -1e-9 || (Math.abs(sk.a[0] + sk.b[0]) < 1e-9 && Math.abs(sk.a[1] - sk.b[1]) < 1e-9 && sk.a[0])) : null;
+      if (even && segKey(even.a, even.b) !== segKey(from, to)) label(even.a, even.b, dist(even.a, even.b), false); else label(from, to, L, over);
     }
     if (from) { const [sx, sy] = S(from); g.strokeStyle = '#20313d'; g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 6, 0, 7); g.stroke(); }
     if (hover && tool === 'stick') {
