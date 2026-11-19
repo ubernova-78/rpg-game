@@ -448,6 +448,22 @@ function leakRun(vs, tFill) {
 // Where a leaking boat is at t: along the run worked out above, coasting on past it.
 function leakX(run, t) { const i = Math.min(run.xs.length - 1, Math.floor(t / run.dt)); const vEnd = run.vs[run.vs.length - 1]; return run.xs[i] + (t > (run.xs.length - 1) * run.dt ? (t - (run.xs.length - 1) * run.dt) * vEnd : 0); }
 
+// The sail the wind sees (Nick, 2026-11-19: "adding more sails seems to make the
+// boat go way faster, but the sails would block each other"). The wind comes from
+// straight behind, so what pushes is the sails as seen from behind, each centered
+// on its mast at its height: where one is in front of another, that cloth is in its
+// wind shadow and only counts once. Returns the area of that silhouette and the
+// height of its middle (where the push acts). Worked out on a 2.5 cm grid.
+function windArea(d, sgs) {
+  if (sgs.length <= 1) { const g = sgs[0]; return g ? { A: g.A, cy: footOf(d, g) + g.hang + g.ceUp } : { A: 0, cy: d.mastFoot[1] }; }
+  const polys = sgs.map(g => { const xs = g.poly.map(p => p[0]), ys = g.poly.map(p => p[1]), cx = (Math.max(...xs) + Math.min(...xs)) / 2 - (g.x || 0), y0 = Math.min(...ys), f = footOf(d, g) + g.hang;
+    return g.poly.map(p => [p[0] - cx, f + p[1] - y0]); });
+  const all = polys.flat(), x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+  const st = 0.025; let n = 0, my = 0;
+  for (let x = x0 + st / 2; x < x1; x += st) for (let y = y0 + st / 2; y < y1; y += st) if (polys.some(pl => inPoly(x, y, pl))) { n++; my += y; }
+  return { A: n * st * st, cy: n ? my / n : y0 };
+}
+
 function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow);
   const r = { ok: true, problems: [] };
@@ -501,7 +517,9 @@ function sailAnalyze(d) {
   d.hulls.forEach(h => { for (let i = 0; i < h.length - 1; i++) { const a = sLen(h[i], h[i + 1]) * L * tp.c1; skinA += a; skinMy += a * (h[i][1] + h[i + 1][1]) / 2; } });
   items.push({ m: skinA * P.SKIN_KG_M2, y: skinA ? skinMy / skinA : 0, what: 'skin' });
   // Where the wind pushes: the area-weighted middle of all the sails together.
-  r.ceY = sailA ? sgs.reduce((t, g) => t + g.A * (footOf(d, g) + g.hang + g.ceUp), 0) / sailA : d.mastFoot[1];
+  // (The push comes from the sail the wind sees: overlapping sails shade each other.)
+  const wind = windArea(d, sgs); r.windA = wind.A;
+  r.ceY = wind.A ? wind.cy : d.mastFoot[1];
   sgs.forEach(g => items.push({ m: g.A * P.CLOTH_KG_M2, y: footOf(d, g) + g.hang + g.ceUp, what: 'sail' }));
   // The rider sits in the middle: on a stick across it (a seat or a beam), or
   // down in the hull where it's at least HIPS wide, whichever is lower.
@@ -590,7 +608,7 @@ function sailAnalyze(d) {
     return R;
   };
   const Vw = P.WIND_KT * P.KT;
-  const push = v => 0.5 * P.RHO_AIR * P.CD_SAIL * sailA * Math.pow(Math.max(0, Vw - v), 2);
+  const push = v => 0.5 * P.RHO_AIR * P.CD_SAIL * r.windA * Math.pow(Math.max(0, Vw - v), 2);
   let va = 0, vb = Vw;
   for (let i = 0; i < 60; i++) { const m = (va + vb) / 2; if (push(m) > drag(m)) va = m; else vb = m; }
   const v = (va + vb) / 2;
@@ -599,7 +617,7 @@ function sailAnalyze(d) {
 
   // Bow dive, in a gust: the push acts at the sail's center, the water resists
   // about half the draft down; the hull trims bow-down until the moments balance.
-  r.gustPush = 0.5 * P.RHO_AIR * P.CD_SAIL * sailA * Math.pow(Math.max(0, P.GUST_KT * P.KT - v), 2);
+  r.gustPush = 0.5 * P.RHO_AIR * P.CD_SAIL * r.windA * Math.pow(Math.max(0, P.GUST_KT * P.KT - v), 2);
   r.pitchNm = r.gustPush * (r.ceY - (T + lo0) / 2);
   // ...and when the bow dips, loose stones roll forward along the floor to the front
   // of their compartment, pushing it down further. Dividers across the boat (d.cross,
@@ -773,4 +791,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, floorCompartments, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, windArea, floorCompartments, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
