@@ -126,12 +126,38 @@ function packSticks(pieces) { // first-fit decreasing: whole sticks used
   return bins.length;
 }
 
+// The sail: either a shape cut from the cloth, poly [[x, y], ...] in cloth meters
+// (x across 0..2.16, y up 0..2.79), hung with its lowest point `hang` up a mast
+// of height mastH; or (the tuning sweep) a plain w x h rectangle or triangle
+// with its foot MAST_GAP up and the mast MAST_GAP taller than the sail.
+function sailGeom(sail) {
+  if (sail.poly) {
+    const p = sail.poly, c = polyArea(p), ys = p.map(q => q[1]), xs = p.map(q => q[0]);
+    const lo = Math.min(...ys), hi = Math.max(...ys);
+    return { A: c.A, ceUp: c.cy - lo, h: hi - lo, w: Math.max(...xs) - Math.min(...xs), hang: sail.hang, mastH: sail.mastH,
+      inCloth: xs.every(x => x >= -1e-9 && x <= SAIL.SAIL_W + 1e-9) && ys.every(y => y >= -1e-9 && y <= SAIL.SAIL_H + 1e-9) };
+  }
+  const tri = sail.shape === 'tri';
+  return { A: tri ? sail.w * sail.h / 2 : sail.w * sail.h, ceUp: tri ? sail.h / 3 : sail.h / 2, h: sail.h, w: sail.w,
+    hang: SAIL.MAST_GAP, mastH: sail.h + SAIL.MAST_GAP, inCloth: sail.w <= SAIL.SAIL_W + 1e-9 && sail.h <= SAIL.SAIL_H + 1e-9 };
+}
+
+// A stick is part of a hull (not a seat or a beam) when it lies along the hull's
+// skin line. Checked by its midpoint, since the builder's skin line can split or
+// merge sticks where others are glued to them.
+function onChain(p, h) {
+  for (let i = 0; i < h.length - 1; i++) {
+    const a = h[i], b = h[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+    if (Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]) < 0.004) return true;
+  }
+  return false;
+}
 function riderSeat(d) {
   let best = null;
-  const hullKeys = new Set();
-  for (const h of d.hulls) for (let i = 0; i < h.length - 1; i++) hullKeys.add(segKey(h[i], h[i + 1]));
   for (const s of d.segs) {
-    if (hullKeys.has(segKey(s.a, s.b))) continue;
+    const mid = [(s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2];
+    if (d.hulls.some(h => onChain(mid, h))) continue;
     const [a, b] = s.a[0] <= s.b[0] ? [s.a, s.b] : [s.b, s.a];
     if (a[0] > 1e-6 || b[0] < -1e-6 || b[0] - a[0] < 1e-6) continue;
     const y = a[1] + (0 - a[0]) / (b[0] - a[0]) * (b[1] - a[1]);
@@ -167,7 +193,7 @@ function sailWood(d) {
   const verts = new Map();
   for (const h of d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
-  const mastH = d.sail.h + P.MAST_GAP;
+  const mastH = sailGeom(d.sail).mastH;
   for (const pc of splicedPieces(mastH)) pieces.push(pc);
   addWood(mastH, d.mastFoot[1] + mastH / 2);
   return { sticks: packSticks(pieces), nRib, mastH, woodM, woodMy, tooLong, stringers: verts.size };
@@ -181,7 +207,7 @@ function sailAnalyze(d) {
   // Wood: pieces and their heights (for the center of gravity).
   const w = sailWood(d), woodM = w.woodM, woodMy = w.woodMy;
   if (w.tooLong) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
-  const sailA = d.sail.shape === 'tri' ? d.sail.w * d.sail.h / 2 : d.sail.w * d.sail.h;
+  const sg = sailGeom(d.sail), sailA = sg.A;
   r.sticks = w.sticks; r.nRib = w.nRib; r.mastH = w.mastH;
   if (r.sticks > P.STICKS) r.problems.push(`That takes ${r.sticks} sticks; you have ${P.STICKS}.`);
 
@@ -194,7 +220,10 @@ function sailAnalyze(d) {
   });
   if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 pieces of monster skin.');
   r.skins.forEach((s, i) => { if (!s.fits) r.problems.push(`Hull ${d.hulls.length > 1 ? i + 1 + ' ' : ''}needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece of skin; a sheet is 3.05 x 2.73 m.`); });
-  if (d.sail.w > P.SAIL_W + 1e-9 || d.sail.h > P.SAIL_H + 1e-9) r.problems.push('The sail is bigger than the cloth.');
+  if (!sg.inCloth) r.problems.push('The sail is bigger than the cloth.');
+  if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push('The bottom of the sail must be at least 0.5 m up the mast, over your head.');
+  if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push('The sail goes higher than the top of the mast.');
+  if (sailA < 0.01) r.problems.push('There is no sail.');
 
   // Masses and heights.
   const items = [];
@@ -202,8 +231,8 @@ function sailAnalyze(d) {
   let skinA = 0, skinMy = 0;
   d.hulls.forEach(h => { for (let i = 0; i < h.length - 1; i++) { const a = sLen(h[i], h[i + 1]) * L * tp.c1; skinA += a; skinMy += a * (h[i][1] + h[i + 1][1]) / 2; } });
   items.push({ m: skinA * P.SKIN_KG_M2, y: skinA ? skinMy / skinA : 0, what: 'skin' });
-  const sailFoot = d.mastFoot[1] + P.MAST_GAP;
-  r.ceY = sailFoot + (d.sail.shape === 'tri' ? d.sail.h / 3 : d.sail.h / 2);
+  const sailFoot = d.mastFoot[1] + sg.hang;
+  r.ceY = sailFoot + sg.ceUp;
   items.push({ m: sailA * P.CLOTH_KG_M2, y: r.ceY, what: 'sail' });
   // The rider sits in the middle: on a stick across it (a seat or a beam), or
   // down in the hull where it's at least HIPS wide, whichever is lower.
@@ -296,4 +325,115 @@ function sailAnalyze(d) {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, sailAnalyze, sailWood, splicedPieces, packSticks, ribCount };
+// ---------- The skin, wrapped automatically (Nick, 2026-11-19) ----------
+// The skin goes round the OUTSIDE of the frame: from its left-most top edge,
+// down and under the boat, and up to its right-most top edge. Walking that
+// outline is a wall-follow with the outside always on the walker's right (at each
+// joint, take the sharpest right turn). Where the outline climbs at least
+// SPLIT_RISE to a high point and drops again (a beam between two hulls), the skin
+// stops and a new piece starts: that's how a second hull gets its own skin.
+// Returns { hulls: [chain, ...], path } with each chain from one top edge to the other.
+const SPLIT_RISE = 0.1;
+function sailSkin(segs) {
+  const K = p => p[0].toFixed(3) + ',' + p[1].toFixed(3), r3 = v => Math.round(v * 1000) / 1000;
+  // Planar graph: split every stick where another one's end touches it or crosses it.
+  const cuts = segs.map(() => []);
+  segs.forEach((s, i) => {
+    cuts[i].push(0, 1);
+    const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], l2 = dx * dx + dy * dy || 1;
+    segs.forEach((t, j) => {
+      if (i === j) return;
+      for (const p of [t.a, t.b]) {
+        const u = ((p[0] - s.a[0]) * dx + (p[1] - s.a[1]) * dy) / l2;
+        if (u > 0 && u < 1 && Math.hypot(s.a[0] + u * dx - p[0], s.a[1] + u * dy - p[1]) < 0.004) cuts[i].push(u);
+      }
+      const ex = t.b[0] - t.a[0], ey = t.b[1] - t.a[1], den = dx * ey - dy * ex;
+      if (Math.abs(den) > 1e-12) {
+        const u = ((t.a[0] - s.a[0]) * ey - (t.a[1] - s.a[1]) * ex) / den, v = ((t.a[0] - s.a[0]) * dy - (t.a[1] - s.a[1]) * dx) / den;
+        if (u > 1e-6 && u < 1 - 1e-6 && v > -1e-6 && v < 1 + 1e-6) cuts[i].push(u);
+      }
+    });
+  });
+  const pt = new Map(), adj = new Map();
+  const node = p => { const q = [r3(p[0]), r3(p[1])], k = K(q); if (!pt.has(k)) { pt.set(k, q); adj.set(k, new Set()); } return k; };
+  segs.forEach((s, i) => {
+    const us = [...new Set(cuts[i].map(u => +u.toFixed(6)))].sort((a, b) => a - b);
+    for (let n = 0; n < us.length - 1; n++) {
+      const at = u => [s.a[0] + (s.b[0] - s.a[0]) * u, s.a[1] + (s.b[1] - s.a[1]) * u];
+      const a = node(at(us[n])), b = node(at(us[n + 1]));
+      if (a !== b) { adj.get(a).add(b); adj.get(b).add(a); }
+    }
+  });
+  if (!pt.size) return { hulls: [], path: [] };
+  const all = [...pt.keys()];
+  const pick = (dir) => all.reduce((m, k) => { const p = pt.get(k), q = pt.get(m);
+    return dir * p[0] > dir * q[0] + 0.0005 || (Math.abs(p[0] - q[0]) <= 0.0005 && p[1] > q[1]) ? k : m; }, all[0]);
+  const start = pick(-1), goal = pick(1);
+  // The walk. Arrive at the start heading straight down, as if from above it.
+  const path = [start]; let at = start, dir = [0, -1], from = null;
+  for (let step = 0; step < 4 * all.length + 10 && at !== goal; step++) {
+    let best = null, bestTurn = Infinity;
+    const nb = [...adj.get(at)];
+    for (const k of nb) {
+      if (k === from && nb.length > 1) continue;
+      const p = pt.get(at), q = pt.get(k), d = [q[0] - p[0], q[1] - p[1]], l = Math.hypot(d[0], d[1]);
+      const cr = dir[0] * d[1] - dir[1] * d[0], dt = dir[0] * d[0] + dir[1] * d[1];
+      const turn = Math.atan2(cr, dt) / 1; // + left, - right
+      const tt = k === from ? Math.PI : turn; // a dead end turns straight back
+      if (tt < bestTurn) { bestTurn = tt; best = k; }
+    }
+    if (best == null) break;
+    const p = pt.get(at), q = pt.get(best), l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    dir = [(q[0] - p[0]) / l, (q[1] - p[1]) / l]; from = at; at = best; path.push(at);
+  }
+  const P = path.map(k => pt.get(k));
+  // Cut the outline into hulls at high points between dips.
+  const pieces = []; let s0 = 0;
+  for (let i = 1; i < P.length - 1; i++) {
+    let j = i; while (j + 1 < P.length - 1 && Math.abs(P[j + 1][1] - P[i][1]) < 0.001) j++;
+    const y = P[i][1];
+    if (P[i - 1][1] < y - 0.001 && P[j + 1][1] < y - 0.001) {
+      const leftLow = Math.min(...P.slice(s0, i + 1).map(p => p[1])), rightLow = Math.min(...P.slice(j).map(p => p[1]));
+      if (y - leftLow >= SPLIT_RISE && y - rightLow >= SPLIT_RISE) { pieces.push(P.slice(s0, i + 1)); s0 = j; }
+    }
+    i = j;
+  }
+  pieces.push(P.slice(s0));
+  // Where a piece stops at a beam partway up a wall, the skin carries on up that
+  // wall to its top: follow any stick that continues straight on, upward.
+  const extend = (h, end) => {
+    for (let n = 0; n < 50; n++) {
+      const e = end ? h.length - 1 : 0, last = h[e], prev = h[end ? e - 1 : 1];
+      if (!prev) return h;
+      const d = [last[0] - prev[0], last[1] - prev[1]], l = Math.hypot(d[0], d[1]);
+      const nx = [...adj.get(K(last))].map(k => pt.get(k)).find(q => {
+        const e2 = [q[0] - last[0], q[1] - last[1]], l2 = Math.hypot(e2[0], e2[1]);
+        return e2[1] > 0.001 && Math.abs(d[0] * e2[1] - d[1] * e2[0]) < 1e-6 * l * l2 + 1e-9 && d[0] * e2[0] + d[1] * e2[1] > 0;
+      });
+      if (!nx) return h;
+      h = end ? h.concat([nx]) : [nx].concat(h);
+    }
+    return h;
+  };
+  const hulls = [];
+  for (let h0 of pieces) {
+    let h = h0;
+    if (h.length >= 2 && h[h.length - 1][1] > h[h.length - 2][1]) h = extend(h, true);
+    if (h.length >= 2 && h[0][1] > h[1][1]) h = extend(h, false);
+    // A flat run at either end (an arm sticking out past the hull) isn't skinned.
+    while (h.length > 2 && Math.abs(h[0][1] - h[1][1]) < 0.001 && h[1][1] > Math.min(...h.map(p => p[1])) + 0.001) h = h.slice(1);
+    while (h.length > 2 && Math.abs(h[h.length - 1][1] - h[h.length - 2][1]) < 0.001 && h[h.length - 2][1] > Math.min(...h.map(p => p[1])) + 0.001) h = h.slice(0, -1);
+    // Corners only: a straight run of several sticks is one fold in the skin.
+    const c = [h[0]];
+    for (let i = 1; i < h.length - 1; i++) {
+      const a = c[c.length - 1], b = h[i], n = h[i + 1];
+      if (Math.abs((b[0] - a[0]) * (n[1] - a[1]) - (b[1] - a[1]) * (n[0] - a[0])) > 1e-7 || (b[0] - a[0]) * (n[0] - b[0]) + (b[1] - a[1]) * (n[1] - b[1]) < 0) c.push(b);
+    }
+    c.push(h[h.length - 1]);
+    const low = Math.min(...c.map(p => p[1]));
+    if (c.length >= 3 && c[0][1] > low + 0.01 && c[c.length - 1][1] > low + 0.01) hulls.push(c);
+  }
+  return { hulls, path: P };
+}
+
+if (typeof module !== 'undefined') module.exports = { SAIL, sailSkin, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
