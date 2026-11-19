@@ -25,7 +25,7 @@ const SAIL = {
   SPLICE: 0.15,             // overlap when two sticks are glued end to end
   SHEET_A: 3.05, SHEET_B: 2.73, SKIN_KG_M2: 0.43, SKINS: 2, // foil 3.6 kg a sheet
   SAIL_W: 2.16, SAIL_H: 2.79, CLOTH_KG_M2: 0.8,
-  RIDER_KG: 60, RIDER_SIT: 0.22, HIPS: 0.5, // the rider needs 50 cm of room to sit
+  RIDER_KG: 60, RIDER_SIT: 0.25, HIPS: 0.5, // the rider needs 50 cm of room to sit
   STONES: 6, STONE_KG: 5, STONE_R: 0.08,
   RIB_GAP: 1.0,             // ribs at least every 1 m along the hull
   TAPER: 0.35,              // a pointed bow tapers the front 35% of the length
