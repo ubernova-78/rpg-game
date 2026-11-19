@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sail Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="sail-physics.js"></script>
+<style>
+  :root{
+    --ink:#1f2a33; --dim:#6b7780; --paper:#f2efe7; --line:#d6d0c2;
+    --teal:#1a936f; --gold:#f6c90e; --bad:#c1443a; --good:#2d936c; --water:#2f6fb5; --skin:#6b3f7a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);}
+  .app{max-width:1180px;margin:0 auto;padding:10px 14px 12px;}
+  .titlebar{display:flex;justify-content:space-between;align-items:center;background:#20313d;color:#f2efe7;
+    border-radius:10px;padding:10px 14px;margin-bottom:10px;}
+  .titlebar h1{margin:0;font-size:1.1rem;}
+  .badge{background:var(--gold);color:#20313d;font-weight:800;font-size:0.72rem;padding:3px 8px;border-radius:6px;}
+  .helpbtn{font:inherit;font-size:0.78rem;font-weight:700;padding:3px 9px;border-radius:6px;border:none;background:#f2efe7;color:#20313d;cursor:pointer;margin-left:8px;}
+  .goal{background:#fff;border:2px solid var(--line);border-radius:10px;padding:6px 12px;font-size:0.86rem;line-height:1.4;margin-bottom:8px;}
+  .goal .sup{color:var(--dim);font-size:0.8rem;}
+  :root{--viewH:clamp(260px, calc(100vh - 205px), 580px);}
+  .main{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(310px,1fr);gap:10px;align-items:start;}
+  .right{display:flex;flex-direction:column;max-height:calc(var(--viewH) + 64px);}
+  @media (max-width:760px){ :root{--viewH:320px;} .main{grid-template-columns:1fr;} .right{max-height:none;} }
+  .view{position:relative;height:var(--viewH);border-radius:10px;overflow:hidden;background:#fbfaf6;border:2px solid var(--line);touch-action:none;}
+  .view canvas{display:block;width:100%;height:100%;position:absolute;inset:0;}
+  #cad{cursor:crosshair;}
+  .view.three{background:linear-gradient(#cfe6f7,#eaf4fb);}
+  .modebtns{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:3;}
+  .modebtns button,.viewbtns button{font:inherit;font-size:0.76rem;padding:4px 9px;border-radius:6px;border:1px solid #9bb;background:rgba(255,255,255,0.9);cursor:pointer;}
+  .modebtns button.on{background:#20313d;color:#fff;border-color:#20313d;}
+  .viewbtns{position:absolute;top:38px;right:8px;display:none;gap:4px;z-index:3;}
+  .view.three .viewbtns{display:flex;}
+  .counter{position:absolute;left:8px;top:8px;z-index:3;background:rgba(255,255,255,0.93);border-radius:8px;padding:5px 9px;
+    font-size:0.78rem;line-height:1.3;box-shadow:0 1px 4px rgba(0,0,0,0.15);}
+  .counter .big{font-weight:800;font-size:0.98rem;font-family:ui-monospace,Menlo,monospace;}
+  .counter .bar{height:7px;border-radius:4px;background:#dfe6ea;margin-top:3px;width:150px;overflow:hidden;}
+  .counter .fill{height:100%;background:var(--good);}
+  .counter .fill.over{background:var(--bad);}
+  .readout{position:absolute;left:8px;bottom:6px;z-index:3;font-size:0.74rem;color:#355;background:rgba(255,255,255,0.85);padding:2px 7px;border-radius:5px;font-family:ui-monospace,Menlo,monospace;}
+  .no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);}
+  .tabs{display:flex;gap:3px;}
+  .tabs button{flex:1;font:inherit;font-weight:700;font-size:0.82rem;padding:8px 4px;border:2px solid var(--line);border-bottom:none;
+    border-radius:10px 10px 0 0;background:#e6e1d4;color:#5b6770;cursor:pointer;white-space:nowrap;}
+  .tabs button.on{background:#fff;color:#20313d;}
+  .panel{background:#fff;border:2px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .tabpanel{display:none;border-top-left-radius:0;border-top-right-radius:0;overflow:auto;}
+  .tabpanel.on{display:block;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:0.9rem;}
+  .row select{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid #bbb;min-width:110px;}
+  .seg{display:flex;flex-wrap:wrap;gap:4px;}
+  .seg button{font:inherit;font-size:0.84rem;padding:5px 9px;border-radius:6px;border:1px solid #bbb;background:#f6f6f6;cursor:pointer;}
+  .seg button.on{background:#20313d;color:#fff;border-color:#20313d;}
+  .note{font-size:0.8rem;color:var(--dim);margin-top:6px;line-height:1.4;}
+  .msgs{margin-top:8px;font-size:0.85rem;line-height:1.4;}
+  .msgs div{margin:3px 0;}
+  .msgs .bad{color:var(--bad);font-weight:600;}
+  .msgs .ok{color:var(--good);font-weight:600;}
+  .btn{font:inherit;font-weight:700;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;background:var(--teal);color:#fff;}
+  .btn.alt{background:#5b6770;}
+  .btn.small{padding:5px 10px;font-size:0.84rem;}
+  .btn:disabled{opacity:0.45;cursor:not-allowed;}
+  .btnrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  canvas.small{display:block;width:100%;background:#fbfaf6;border:1px solid var(--line);border-radius:6px;margin-top:6px;}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px;}
+  .stat{background:#f4f6f7;border-radius:8px;padding:6px 8px;text-align:center;}
+  .stat .v{font-weight:800;font-size:1.0rem;font-family:ui-monospace,Menlo,monospace;}
+  .stat .k{font-size:0.72rem;color:var(--dim);}
+  .stat.bad .v{color:var(--bad);} .stat.good .v{color:var(--good);}
+  .result{margin-top:8px;padding:8px 12px;border-radius:10px;font-weight:700;line-height:1.4;display:none;}
+  .result.good{display:block;background:#d9f2e6;color:#145c3f;border:2px solid var(--good);}
+  .result.bad{display:block;background:#fbe1de;color:#7a221a;border:2px solid var(--bad);}
+  .result .why{font-weight:400;font-size:0.88rem;margin-top:4px;}
+  .coach{margin-top:8px;padding:8px 12px;border-radius:10px;background:#fff8d6;border:2px solid var(--gold);font-size:0.9rem;line-height:1.4;}
+  .next{animation:nextpulse 1.2s ease-in-out infinite;}
+  @keyframes nextpulse{0%,100%{box-shadow:0 0 0 0 rgba(246,201,14,0.9);}50%{box-shadow:0 0 0 6px rgba(246,201,14,0);}}
+  .tour-block{position:fixed;inset:0;z-index:50;background:rgba(15,25,33,0.62);}
+  .tour-spot{position:relative;z-index:51;box-shadow:0 0 0 4px var(--gold) !important;border-radius:10px;}
+  .tour-card{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:52;width:min(460px,calc(100% - 32px));
+    background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 8px 28px rgba(0,0,0,0.35);font-size:0.95rem;line-height:1.45;}
+  .tour-card.top{bottom:auto;top:16px;}
+  .tour-card h4{margin:0 0 6px;font-size:1rem;}
+  .tour-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+  .tour-card .dots{font-size:0.8rem;color:var(--dim);}
+  .tour-card .skip{font:inherit;font-size:0.85rem;background:none;border:none;color:var(--dim);cursor:pointer;text-decoration:underline;margin-right:8px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar"><h1>⛵ Sail Builder</h1><div><span class="badge">SAIL RACE</span><button class="helpbtn" id="btn-help">❓ How it works</button></div></div>
+
+  <div class="goal">
+    <strong>The job:</strong> sail out the inlet to the ocean <strong>faster than the serpent (6 knots)</strong>, carrying
+    <strong>yourself (60 kg)</strong> and <strong>6 stones (5 kg each)</strong>. The wind blows 20 knots from behind you.
+    <div class="sup">Supplies: 70 sticks (1.13 m each, cut them shorter if you like) · Monster skin ×2 (3.05 × 2.73 m) · one cloth sail (2.16 × 2.79 m)</div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="view" id="view">
+        <canvas id="cad"></canvas>
+        <div class="modebtns"><button data-m="cad" class="on">✏️ Drawing</button><button data-m="3d">3D</button></div>
+        <div class="viewbtns"><button data-v="3d">Angle</button><button data-v="side">Side</button><button data-v="front">Back</button><button data-v="top">Top</button></div>
+        <div class="counter" id="counter"></div>
+        <div class="readout" id="readout"></div>
+      </div>
+      <div class="coach" id="coach"></div>
+    </div>
+    <div class="right">
+      <div class="tabs" id="tabs">
+        <button data-tab="p-frame">1. Frame</button><button data-tab="p-skin">2. Skin</button><button data-tab="p-sail">3. Length &amp; sail</button><button data-tab="p-go">4. Sail out</button>
+      </div>
+      <div class="panel tabpanel" id="p-frame">
+        <div class="note" style="margin-top:0">Draw your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle. <b>Drag</b> from one point to another to glue in a stick (or click one end, then the other).</div>
+        <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button></div></div>
+        <div class="btnrow"><button class="btn alt small" id="btn-undo">↶ Undo</button><button class="btn alt small" id="btn-clear">Clear all</button></div>
+        <div class="note">Every stick can be cut shorter, never longer than 1.13 m, and has to be glued to another stick. The grid squares are 10 cm. You sit in the middle (the dashed line) and need 50 cm of room; the mast stands there too.</div>
+        <div class="msgs" id="framemsg"></div>
+      </div>
+      <div class="panel tabpanel" id="p-skin">
+        <div class="note" style="margin-top:0"><b>Click the sticks the skin wraps around</b>, from one top edge of the hull to the other. Click again to take it off. The skin goes under the boat and up its sides, and closes off both ends.</div>
+        <canvas class="small" id="pattern" width="320" height="180"></canvas>
+        <div class="msgs" id="skinmsg"></div>
+      </div>
+      <div class="panel tabpanel" id="p-sail">
+        <div class="row"><span>Length</span><select id="L"></select></div>
+        <div class="row"><span>Front (bow)</span><div class="seg" id="bow"><button data-v="square">Square</button><button data-v="pointed">Pointed</button></div></div>
+        <div class="row"><span>Sail shape</span><div class="seg" id="shape"><button data-v="rect">Rectangle</button><button data-v="tri">Triangle</button></div></div>
+        <div class="row"><span>Sail width</span><select id="SW"></select></div>
+        <div class="row"><span>Sail height</span><select id="SH"></select></div>
+        <canvas class="small" id="side" width="320" height="230"></canvas>
+        <div class="note" id="sailnote"></div>
+      </div>
+      <div class="panel tabpanel" id="p-go">
+        <div class="stats" id="stats"></div>
+        <div class="btnrow"><button class="btn" id="btn-go">⛵ Test sail</button></div>
+        <div class="result" id="result"></div>
+        <div class="note">(Coming next: the chase out of the inlet, with the serpent behind you.)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Sail Builder, the Sail Race's design bench (Nick, 2026-11-18). The student
+  // draws a cross-section in sticks like a CAD sketch, wraps monster skin over
+  // some of them (up to two separate pieces: the secret catamaran, never hinted
+  // at), picks a length, bow and sail, and the boat goes to sailAnalyze()
+  // (sail-physics.js), the same model the tuning sweep runs.
+  //
+  // Section coordinates: x across (0 = the middle), y up, meters. Points snap to
+  // a 5 cm grid, or onto existing wood. A design is
+  //   { segs:[{a:[x,y], b:[x,y], skin:bool}], L, bow, sail:{w,h,shape} }
+  // and design() turns it into sailAnalyze's input.
+  const P = SAIL, $ = id => document.getElementById(id);
+  const IN_GAME = window.parent !== window;
+  const GRID = 0.05, EPS = 0.004;
+  const r3 = v => Math.round(v * 1000) / 1000;
+  const key = p => p[0].toFixed(3) + ',' + p[1].toFixed(3);
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  function onSeg(p, s) { // is point p on stick s (ends included)?
+    const [ax, ay] = s.a, [bx, by] = s.b, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / l2)) : 0;
+    return Math.hypot(ax + t * dx - p[0], ay + t * dy - p[1]) < EPS;
+  }
+
+  // ---------- The design ----------
+  // The starting boat is deliberately poor (as in the first Boat Builder): a small
+  // box, short, square-fronted, with a small sail, and no skin on yet.
+  const START = () => ({
+    segs: [{ a:[-0.4, 0.3], b:[-0.4, 0] }, { a:[-0.4, 0], b:[0.4, 0] }, { a:[0.4, 0], b:[0.4, 0.3] }],
+    L: 1.5, bow: 'square', sail: { w: 1.0, h: 1.0, shape: 'rect' },
+  });
+  let D = START();
+  try { const s = JSON.parse(localStorage.getItem('sailDesign') || 'null'); if (s && Array.isArray(s.segs) && s.sail && s.L) D = s; } catch (e) {}
+  const undo = [];
+  const remember = () => { undo.push(JSON.stringify(D)); if (undo.length > 80) undo.shift(); };
+  function save() { try { localStorage.setItem('sailDesign', JSON.stringify(D)); } catch (e) {} }
+
+  // ---------- Checking the frame ----------
+  // Each stick must be glued to another (some end of one touches the other), and
+  // the whole frame must be one piece.
+  function frameCheck() {
+    const n = D.segs.length, loose = [], par = [...Array(n).keys()];
+    const find = i => par[i] === i ? i : (par[i] = find(par[i]));
+    for (let i = 0; i < n; i++) {
+      let glued = false;
+      for (let j = 0; j < n; j++) if (i !== j) {
+        const a = D.segs[i], b = D.segs[j];
+        if (onSeg(a.a, b) || onSeg(a.b, b) || onSeg(b.a, a) || onSeg(b.b, a)) { glued = true; par[find(i)] = find(j); }
+      }
+      if (!glued) loose.push(i);
+    }
+    const pieces = new Set([...Array(n).keys()].map(find)).size;
+    const long = D.segs.map((s, i) => dist(s.a, s.b) > P.STICK_L + 1e-6 ? i : -1).filter(i => i >= 0);
+    return { loose, pieces, long };
+  }
+  // The skinned sticks as hull chains, each from one top edge to the other.
+  function chains() {
+    const sk = D.segs.filter(s => s.skin), out = [], errs = [];
+    if (!sk.length) return { hulls: out, errs };
+    // Skin over a stick glued to the middle of another skinned stick is a branch too.
+    for (const s of sk) for (const t of sk) if (s !== t) for (const p of [s.a, s.b])
+      if (onSeg(p, t) && dist(p, t.a) > EPS && dist(p, t.b) > EPS) { errs.push('The skin has to go over one line of sticks, end to end, with no branches. Take it off the sticks that branch off.'); return { hulls: out, errs }; }
+    const adj = new Map(), pt = new Map();
+    const link = (p, q, i) => { const k = key(p); pt.set(k, p); if (!adj.has(k)) adj.set(k, []); adj.get(k).push({ to: key(q), i }); };
+    sk.forEach((s, i) => { link(s.a, s.b, i); link(s.b, s.a, i); });
+    const seen = new Set();
+    for (const k0 of adj.keys()) {
+      if (seen.has(k0)) continue;
+      const comp = [], stack = [k0]; seen.add(k0);
+      while (stack.length) { const k = stack.pop(); comp.push(k); for (const e of adj.get(k)) if (!seen.has(e.to)) { seen.add(e.to); stack.push(e.to); } }
+      if (comp.some(k => adj.get(k).length > 2)) { errs.push('The skin has to go over one line of sticks, end to end, with no branches. Take it off the sticks that branch off.'); continue; }
+      const ends = comp.filter(k => adj.get(k).length === 1);
+      if (!ends.length) { errs.push('The skin goes all the way round, so the boat has a lid and nowhere to sit. Leave the top open.'); continue; }
+      ends.sort((a, b) => pt.get(a)[0] - pt.get(b)[0]);
+      const pts = [pt.get(ends[0])], used = new Set(); let at = ends[0];
+      for (;;) { const e = adj.get(at).find(e => !used.has(e.i)); if (!e) break; used.add(e.i); at = e.to; pts.push(pt.get(at)); }
+      if (pts.length < 3) { errs.push('A single flat stick of skin is a raft, not a hull: wrap the skin over the bottom <i>and</i> up the sides.'); continue; }
+      const low = Math.min(...pts.map(p => p[1]));
+      if (pts[0][1] <= low + 0.01 || pts[pts.length - 1][1] <= low + 0.01) { errs.push('Each end of the skin must be a top edge of the hull, higher than its bottom.'); continue; }
+      out.push(pts);
+    }
+    return { hulls: out, errs };
+  }
+  // The mast stands on the lowest wood across the middle.
+  function mastFoot() {
+    let y = null;
+    for (const s of D.segs) {
+      const [a, b] = s.a[0] <= s.b[0] ? [s.a, s.b] : [s.b, s.a];
+      if (a[0] > EPS || b[0] < -EPS) continue;
+      const yy = Math.abs(b[0] - a[0]) < 1e-9 ? Math.min(a[1], b[1]) : a[1] + (0 - a[0]) / (b[0] - a[0]) * (b[1] - a[1]);
+      if (y == null || yy < y) y = yy;
+    }
+    return y;
+  }
+  // Everything worked out from D: the input to sailAnalyze, the result, and the problems.
+  let A = null;
+  function analyze() {
+    const fc = frameCheck(), ch = chains(), mf = mastFoot();
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, L: D.L, bow: D.bow, sail: D.sail, mastFoot: [0, mf == null ? 0 : mf] };
+    const wood = sailWood(d);
+    const frame = [];
+    if (!D.segs.length) frame.push('No sticks yet.');
+    if (fc.long.length) frame.push(`${fc.long.length === 1 ? 'A stick is' : fc.long.length + ' sticks are'} longer than 1.13 m.`);
+    if (fc.loose.length) frame.push(`${fc.loose.length === 1 ? 'A stick isn\'t' : fc.loose.length + ' sticks aren\'t'} glued to anything (red). Make an end touch another stick.`);
+    else if (fc.pieces > 1) frame.push(`The frame is in ${fc.pieces} separate pieces. Glue them together with a stick.`);
+    if (D.segs.length && mf == null) frame.push('The mast stands in the middle (the dashed line), and no stick crosses there for it to stand on.');
+    const skin = ch.errs.slice();
+    const r = sailAnalyze(d);
+    if (ch.hulls.length > P.SKINS) skin.push('You only have 2 pieces of monster skin.');
+    A = { d, r, fc, ch, mf, wood, frame, skin, seat: ch.hulls.length ? r.seatY : riderSeat(d) };
+    A.ready = !frame.length && !skin.length && ch.hulls.length > 0;
+    return A;
+  }
+
+  // ---------- The drawing (CAD) view ----------
+  const view = $('view'), cad = $('cad'), cx = cad.getContext('2d');
+  const VX = 1.65, VY0 = -0.2, VY1 = 1.3; // what the drawing shows, m
+  let tool = 'stick', drag = null, pend = null, hover = null, hoverSeg = -1, W = 0, H = 0, k = 1, ox = 0, oy = 0;
+  function cadSize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = view.clientWidth; H = view.clientHeight;
+    cad.width = W * dpr; cad.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    k = Math.min((W - 30) / (2 * VX), (H - 70) / (VY1 - VY0));
+    ox = W / 2; oy = H / 2 + (VY0 + VY1) / 2 * k + 12;
+  }
+  const S = p => [ox + p[0] * k, oy - p[1] * k];
+  const M = (sx, sy) => [(sx - ox) / k, (oy - sy) / k];
+  // Snap: an existing stick end, else a point on a stick, else the grid.
+  function snap(m) {
+    let best = null, bd = 12 / k;
+    for (const s of D.segs) for (const p of [s.a, s.b]) { const dd = dist(p, m); if (dd < bd) { bd = dd; best = p.slice(); } }
+    if (best) return { p: best, on: 'end' };
+    bd = 8 / k;
+    for (const s of D.segs) {
+      const [ax, ay] = s.a, dx = s.b[0] - ax, dy = s.b[1] - ay, l2 = dx * dx + dy * dy; if (!l2) continue;
+      const t = Math.max(0, Math.min(1, ((m[0] - ax) * dx + (m[1] - ay) * dy) / l2)), q = [ax + t * dx, ay + t * dy], dd = dist(q, m);
+      if (dd < bd) { bd = dd; best = q; }
+    }
+    // A point on a sloping stick is kept to the mm, so it stays on the stick.
+    if (best) return { p: [r3(best[0]), r3(best[1])], on: 'stick' };
+    return { p: [r3(Math.round(m[0] / GRID) * GRID), r3(Math.round(m[1] / GRID) * GRID)], on: 'grid' };
+  }
+  function nearestSeg(m) {
+    let bi = -1, bd = 10 / k;
+    D.segs.forEach((s, i) => {
+      const [ax, ay] = s.a, dx = s.b[0] - ax, dy = s.b[1] - ay, l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((m[0] - ax) * dx + (m[1] - ay) * dy) / l2)), dd = Math.hypot(ax + t * dx - m[0], ay + t * dy - m[1]);
+      if (dd < bd) { bd = dd; bi = i; }
+    });
+    return bi;
+  }
+  function addStick(a, b) {
+    if (dist(a, b) < 0.02) return;
+    if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long: a stick is only 1.13 m. Cut it shorter, or glue two together.` }; return; }
+    const kk = segKey(a, b);
+    if (D.segs.some(s => segKey(s.a, s.b) === kk)) return;
+    remember(); D.segs.push({ a, b }); changed();
+  }
+  let flash = null;
+  const evPt = e => { const r = cad.getBoundingClientRect(); return M(e.clientX - r.left, e.clientY - r.top); };
+  cad.addEventListener('pointerdown', e => {
+    const m = evPt(e);
+    if (tool === 'stick') {
+      const p = snap(m).p;
+      if (pend) { addStick(pend, p); pend = null; drawCad(); return; }
+      cad.setPointerCapture(e.pointerId); drag = { a: p, b: p };
+    } else {
+      const i = nearestSeg(m); if (i < 0) return;
+      remember();
+      if (tool === 'erase') D.segs.splice(i, 1); else D.segs[i].skin = !D.segs[i].skin;
+      changed();
+    }
+  });
+  cad.addEventListener('pointermove', e => {
+    const m = evPt(e); hover = tool === 'stick' ? snap(m) : null; hoverSeg = tool === 'stick' ? -1 : nearestSeg(m);
+    if (drag) drag.b = hover.p;
+    drawCad();
+  });
+  cad.addEventListener('pointerup', () => {
+    if (!drag) return;
+    if (dist(drag.a, drag.b) < 0.02) pend = drag.a; // a click: wait for the other end
+    else addStick(drag.a, drag.b);
+    drag = null; drawCad();
+  });
+  cad.addEventListener('pointerleave', () => { hover = null; hoverSeg = -1; drawCad(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { pend = null; drag = null; drawCad(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); doUndo(); }
+  });
+
+  function drawCad() {
+    if (mode !== 'cad') return;
+    const g = cx; g.clearRect(0, 0, W, H);
+    const a = A;
+    // Water, at the waterline the boat floats at (once it has skin and floats).
+    const T = a && a.ch.hulls.length && a.r.T != null && a.r.fail !== 'sinks' ? a.r.T : null;
+    if (T != null) {
+      const [, sy] = S([0, T]);
+      g.fillStyle = 'rgba(47,111,181,0.13)'; g.fillRect(0, sy, W, H - sy);
+      g.strokeStyle = 'rgba(47,111,181,0.8)'; g.lineWidth = 1.5; g.setLineDash([8, 4]);
+      g.beginPath(); g.moveTo(0, sy); g.lineTo(W, sy); g.stroke(); g.setLineDash([]);
+      g.fillStyle = '#2f6fb5'; g.font = '11px system-ui'; g.textAlign = 'left'; g.fillText('waterline (with you and the stones aboard)', 8, sy - 4);
+    }
+    // Grid: 10 cm squares, a darker line every 50 cm, labelled in meters.
+    g.lineWidth = 1;
+    for (let i = Math.ceil(-VX * 10); i <= VX * 10; i++) {
+      const [sx] = S([i / 10, 0]); g.strokeStyle = i % 5 ? '#ece8dc' : '#d3ccba';
+      g.beginPath(); g.moveTo(sx, S([0, VY1])[1]); g.lineTo(sx, S([0, VY0])[1]); g.stroke();
+    }
+    for (let i = Math.ceil(VY0 * 10); i <= VY1 * 10; i++) {
+      const [, sy] = S([0, i / 10]); g.strokeStyle = i % 5 ? '#ece8dc' : '#d3ccba';
+      g.beginPath(); g.moveTo(S([-VX, 0])[0], sy); g.lineTo(S([VX, 0])[0], sy); g.stroke();
+    }
+    g.fillStyle = '#8a8270'; g.font = '10px system-ui'; g.textAlign = 'center';
+    for (let i = -3; i <= 3; i++) { const v = i / 2, [sx] = S([v, 0]); g.fillText((v === 0 ? '0' : v.toFixed(1)) + ' m', sx, S([0, VY0])[1] + 12); }
+    g.textAlign = 'right';
+    for (let v = 0; v <= VY1 + 1e-9; v += 0.5) { const [, sy] = S([0, v]); g.fillText(v.toFixed(1) + ' m', S([-VX, 0])[0] - 2 + 30, sy - 3); }
+    // The middle: the rider and the mast.
+    g.strokeStyle = 'rgba(26,147,111,0.7)'; g.setLineDash([6, 5]); g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(ox, S([0, VY1])[1]); g.lineTo(ox, S([0, VY0])[1]); g.stroke(); g.setLineDash([]);
+    g.fillStyle = 'rgba(26,147,111,0.9)'; g.textAlign = 'center'; g.font = '11px system-ui'; g.fillText('middle', ox, S([0, VY1])[1] + 2);
+    // Skin under the sticks it covers, drawn on their outside (a wide purple band).
+    for (const s of D.segs) if (s.skin) {
+      g.strokeStyle = 'rgba(107,63,122,0.85)'; g.lineWidth = 12; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(...S(s.a)); g.lineTo(...S(s.b)); g.stroke();
+    }
+    // Sticks: wood, red when loose or too long, highlighted under the eraser.
+    const bad = new Set(a ? a.fc.loose.concat(a.fc.long) : []);
+    D.segs.forEach((s, i) => {
+      const hi = i === hoverSeg;
+      g.lineCap = 'round';
+      g.strokeStyle = '#4a3018'; g.lineWidth = 7; g.beginPath(); g.moveTo(...S(s.a)); g.lineTo(...S(s.b)); g.stroke();
+      g.strokeStyle = bad.has(i) ? '#e05545' : hi ? (tool === 'erase' ? '#ff9a8a' : '#d9b3e6') : '#c48a4e'; g.lineWidth = 4.5;
+      g.beginPath(); g.moveTo(...S(s.a)); g.lineTo(...S(s.b)); g.stroke();
+      if (hi) label(s.a, s.b, dist(s.a, s.b));
+    });
+    for (const s of D.segs) for (const p of [s.a, s.b]) { const [sx, sy] = S(p); g.fillStyle = '#4a3018'; g.beginPath(); g.arc(sx, sy, 2.6, 0, 7); g.fill(); }
+    // The rider, seated where the physics puts them, and the stones and the mast foot.
+    if (a && a.seat != null) drawRider(a.seat);
+    if (a && a.ch.hulls.length && a.r.stoneY) {
+      const low = a.ch.hulls.map(h => h.reduce((m, p) => p[1] < m[1] ? p : m, h[0]));
+      a.r.stoneY.forEach((y, i) => { const l = low.length > 1 && Math.abs(low[1][1] - low[0][1]) < 0.01 ? low[i % 2] : low.reduce((m, p) => p[1] < m[1] ? p : m);
+        const [sx, sy] = S([l[0] + ((i % 3) - 1) * 0.06 * (low.length > 1 ? 0 : 1), y]); g.fillStyle = '#8c8f93'; g.strokeStyle = '#4b4e52'; g.lineWidth = 1;
+        g.beginPath(); g.arc(sx, sy, Math.max(3, P.STONE_R * k * 0.9), 0, 7); g.fill(); g.stroke(); });
+    }
+    if (a && a.mf != null) {
+      const [sx, sy] = S([0, a.mf]); g.fillStyle = '#20313d';
+      g.beginPath(); g.moveTo(sx, sy - 2); g.lineTo(sx - 6, sy - 12); g.lineTo(sx + 6, sy - 12); g.fill();
+      g.font = '10px system-ui'; g.textAlign = 'left'; g.fillText('mast', sx + 8, sy - 6);
+    }
+    // Drawing a stick: a dashed line with its length; red past 1.13 m.
+    const from = drag ? drag.a : pend, to = drag ? drag.b : pend && hover ? hover.p : null;
+    if (from && to) {
+      const L = dist(from, to), over = L > P.STICK_L + 1e-6;
+      g.strokeStyle = over ? '#c1443a' : '#20313d'; g.lineWidth = 3; g.setLineDash([6, 4]);
+      g.beginPath(); g.moveTo(...S(from)); g.lineTo(...S(to)); g.stroke(); g.setLineDash([]);
+      label(from, to, L, over);
+    }
+    if (from) { const [sx, sy] = S(from); g.strokeStyle = '#20313d'; g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 6, 0, 7); g.stroke(); }
+    if (hover && tool === 'stick') {
+      const [sx, sy] = S(hover.p); g.strokeStyle = hover.on === 'grid' ? '#1a936f' : '#d4a017'; g.lineWidth = 2;
+      g.beginPath(); g.arc(sx, sy, hover.on === 'grid' ? 4 : 7, 0, 7); g.stroke();
+    }
+    if (flash && performance.now() - flash.t < 2600) {
+      g.font = 'bold 13px system-ui'; g.textAlign = 'center'; const w = g.measureText(flash.text).width + 20;
+      g.fillStyle = 'rgba(193,68,58,0.95)'; g.fillRect(W / 2 - w / 2, H - 58, w, 24); g.fillStyle = '#fff'; g.fillText(flash.text, W / 2, H - 41);
+      setTimeout(drawCad, 2700);
+    }
+    const rd = $('readout');
+    rd.textContent = hover ? `x ${hover.p[0].toFixed(2)} m   y ${hover.p[1].toFixed(2)} m` + (from && to ? `   stick ${dist(from, to).toFixed(2)} m` : '') : 'Each square is 10 cm';
+    function label(p, q, L, over) {
+      const [x1, y1] = S(p), [x2, y2] = S(q), t = L.toFixed(2) + ' m' + (over ? ' (too long!)' : '');
+      g.font = 'bold 12px system-ui'; g.textAlign = 'center'; const w = g.measureText(t).width + 10;
+      g.fillStyle = over ? '#c1443a' : '#20313d'; g.fillRect((x1 + x2) / 2 - w / 2, (y1 + y2) / 2 - 24, w, 17);
+      g.fillStyle = '#fff'; g.fillText(t, (x1 + x2) / 2, (y1 + y2) / 2 - 11);
+    }
+    function drawRider(seat) {
+      // Seated, legs forward (seen from behind: legs toward the viewer, so just the body).
+      const [sx, sy] = S([0, seat]), u = k / 100; // u px per cm
+      g.fillStyle = 'rgba(224,160,80,0.9)'; g.strokeStyle = '#7a5020'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(sx, sy - 22 * u, 17 * u, 22 * u, 0, 0, 7); g.fill(); g.stroke();   // hips and body
+      g.beginPath(); g.ellipse(sx, sy - 50 * u, 14 * u, 18 * u, 0, 0, 7); g.fill(); g.stroke();   // chest
+      g.beginPath(); g.arc(sx, sy - 77 * u, 11 * u, 0, 7); g.fill(); g.stroke();                  // head
+      g.strokeStyle = 'rgba(122,80,32,0.9)'; g.lineWidth = Math.max(2, 7 * u);
+      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(sx + s * 13 * u, sy - 60 * u); g.lineTo(sx + s * 25 * u, sy - 8 * u); g.stroke(); } // arms down to the floor
+      g.strokeStyle = 'rgba(26,147,111,0.6)'; g.lineWidth = 1; g.setLineDash([3, 3]);
+      g.beginPath(); g.moveTo(sx - P.HIPS / 2 * k, sy); g.lineTo(sx + P.HIPS / 2 * k, sy); g.stroke(); g.setLineDash([]);
+    }
+  }
+
+  // ---------- Skin cutting pattern ----------
+  function drawPattern() {
+    const c = $('pattern'), g = c.getContext('2d'), a = A, hs = a.ch.hulls;
+    const dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, n = Math.max(1, hs.length), ch = n * 132 + 6;
+    c.width = cw * dpr; c.height = ch * dpr; c.style.height = ch + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, cw, ch);
+    if (!hs.length) { g.fillStyle = '#8a8270'; g.font = '12px system-ui'; g.textAlign = 'center'; g.fillText('No skin yet: click the sticks it wraps around.', cw / 2, 66); return; }
+    hs.forEach((h, i) => {
+      const sk = a.r.skins ? a.r.skins[i] : null; if (!sk) return;
+      const y0 = i * 132 + 18, px = Math.min((cw - 20) / Math.max(P.SHEET_A, sk.long), 100 / Math.max(P.SHEET_B, sk.G)), x0 = 10;
+      // Lay the piece the way it fits (long side along the sheet's 3.05 m if it can).
+      const along = sk.long <= P.SHEET_A + 1e-9 && sk.G <= P.SHEET_B + 1e-9;
+      const pw = along ? sk.long : sk.G, ph = along ? sk.G : sk.long;
+      g.fillStyle = '#b996c4'; g.fillRect(x0, y0, P.SHEET_A * px, P.SHEET_B * px);
+      g.strokeStyle = '#4a2b55'; g.lineWidth = 2; g.strokeRect(x0, y0, P.SHEET_A * px, P.SHEET_B * px);
+      g.fillStyle = sk.fits ? 'rgba(255,255,255,0.45)' : 'rgba(193,68,58,0.45)';
+      g.fillRect(x0, y0, pw * px, ph * px);
+      g.setLineDash([5, 3]); g.strokeStyle = sk.fits ? '#fff' : '#c1443a'; g.lineWidth = 1.5; g.strokeRect(x0, y0, pw * px, ph * px); g.setLineDash([]);
+      // Fold lines: one along the length at each corner of the section.
+      g.strokeStyle = 'rgba(74,43,85,0.6)'; g.lineWidth = 1; let acc = 0;
+      for (let j = 1; j < h.length - 1; j++) {
+        acc += dist(h[j - 1], h[j]);
+        g.beginPath();
+        if (along) { g.moveTo(x0, y0 + acc * px); g.lineTo(x0 + pw * px, y0 + acc * px); } else { g.moveTo(x0 + acc * px, y0); g.lineTo(x0 + acc * px, y0 + ph * px); }
+        g.stroke();
+      }
+      g.fillStyle = '#4a2b55'; g.font = '11px system-ui'; g.textAlign = 'left';
+      g.fillText(`${hs.length > 1 ? 'Sheet ' + (i + 1) + ': ' : ''}needs ${sk.long.toFixed(2)} × ${sk.G.toFixed(2)} m of the 3.05 × 2.73 m sheet`, x0, y0 - 5);
+    });
+  }
+
+  // ---------- Side, top and back views of the whole boat ----------
+  function drawSide() {
+    const c = $('side'), g = c.getContext('2d'), a = A, dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, chh = 230;
+    c.width = cw * dpr; c.height = chh * dpr; c.style.height = chh + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, cw, chh);
+    const hs = a.ch.hulls, pts = hs.flat().concat(D.segs.flatMap(s => [s.a, s.b]));
+    const ylo = pts.length ? Math.min(...pts.map(p => p[1])) : 0, yhi = pts.length ? Math.max(...pts.map(p => p[1])) : 0.3;
+    const xlo = pts.length ? Math.min(...pts.map(p => p[0])) : -0.4, xhi = pts.length ? Math.max(...pts.map(p => p[0])) : 0.4;
+    const foot = (a.mf == null ? 0 : a.mf), top = foot + P.MAST_GAP + D.sail.h;
+    // Side view on the left (stern left, bow right), back view on the right; one scale.
+    const totalW = D.L + Math.max(xhi - xlo, D.sail.w) + 0.6, totalH = top - ylo + 0.25;
+    const s = Math.min((cw - 20) / totalW, (chh - 50) / totalH), base = chh - 28 - (0 - ylo) * s * 0, y = v => chh - 26 - (v - ylo) * s;
+    const sx0 = 10, bx0 = sx0 + D.L * s + 0.6 * s + (Math.max(xhi - xlo, D.sail.w) * s) / 2;
+    g.font = '10px system-ui'; g.textAlign = 'center'; g.fillStyle = '#6b7780';
+    g.fillText('side', sx0 + D.L * s / 2, chh - 6); g.fillText('from behind', bx0, chh - 6);
+    // Water
+    if (a.r.T != null && hs.length) { g.strokeStyle = 'rgba(47,111,181,0.7)'; g.setLineDash([6, 3]); g.beginPath(); g.moveTo(0, y(a.r.T)); g.lineTo(cw, y(a.r.T)); g.stroke(); g.setLineDash([]); }
+    // Side: the hull's profile, the mast (about 55% along) and the sail edge-on.
+    g.fillStyle = hs.length ? 'rgba(107,63,122,0.85)' : 'rgba(196,138,78,0.5)'; g.strokeStyle = '#4a3018'; g.lineWidth = 1.5;
+    g.beginPath(); g.rect(sx0, y(yhi), D.L * s, (yhi - ylo) * s); g.fill(); g.stroke();
+    const mz = sx0 + D.L * 0.55 * s;
+    g.strokeStyle = '#7a5230'; g.lineWidth = 3; g.beginPath(); g.moveTo(mz, y(foot)); g.lineTo(mz, y(top)); g.stroke();
+    g.strokeStyle = '#e8dcc0'; g.lineWidth = 4; g.beginPath(); g.moveTo(mz + 3, y(foot + P.MAST_GAP)); g.quadraticCurveTo(mz + 3 + D.sail.h * s * 0.12, y(foot + P.MAST_GAP + D.sail.h / 2), mz + 3, y(top)); g.stroke();
+    // Ribs, as tick marks along the side.
+    g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 1;
+    const nr = ribCount(D.L); for (let i = 0; i < nr; i++) { const x = sx0 + D.L * s * i / (nr - 1); g.beginPath(); g.moveTo(x, y(yhi)); g.lineTo(x, y(ylo)); g.stroke(); }
+    // Length dimension
+    dimLine(sx0, y(ylo) + 12, sx0 + D.L * s, D.L.toFixed(2) + ' m');
+    // Top view of the bow shape, small, above the side view.
+    const ty = 16, tw = Math.min(28, (xhi - xlo) * s);
+    g.fillStyle = 'rgba(107,63,122,0.35)'; g.strokeStyle = '#4a2b55'; g.beginPath();
+    if (D.bow === 'pointed') { const t0 = sx0 + D.L * (1 - P.TAPER) * s; g.moveTo(sx0, ty); g.lineTo(t0, ty); g.lineTo(sx0 + D.L * s, ty + tw / 2); g.lineTo(t0, ty + tw); g.lineTo(sx0, ty + tw); }
+    else g.rect(sx0, ty, D.L * s, tw);
+    g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#6b7780'; g.textAlign = 'left'; g.fillText('top: ' + (D.bow === 'pointed' ? 'pointed bow' : 'square bow') + ' →', sx0, ty - 4);
+    // From behind: the section and the sail, full width.
+    const bxs = v => bx0 + v * s;
+    g.strokeStyle = '#4a3018'; g.lineWidth = 2;
+    for (const sg of D.segs) { g.strokeStyle = sg.skin ? '#6b3f7a' : '#a0703f'; g.lineWidth = sg.skin ? 4 : 2; g.beginPath(); g.moveTo(bxs(sg.a[0]), y(sg.a[1])); g.lineTo(bxs(sg.b[0]), y(sg.b[1])); g.stroke(); }
+    g.strokeStyle = '#7a5230'; g.lineWidth = 3; g.beginPath(); g.moveTo(bxs(0), y(foot)); g.lineTo(bxs(0), y(top)); g.stroke();
+    const sf = foot + P.MAST_GAP, hw = D.sail.w / 2;
+    g.fillStyle = 'rgba(245,236,214,0.95)'; g.strokeStyle = '#a89a78'; g.lineWidth = 1.2; g.beginPath();
+    if (D.sail.shape === 'tri') { g.moveTo(bxs(-hw), y(sf)); g.lineTo(bxs(hw), y(sf)); g.lineTo(bxs(0), y(top)); }
+    else g.rect(bxs(-hw), y(top), D.sail.w * s, D.sail.h * s);
+    g.closePath(); g.fill(); g.stroke();
+    dimLine(bxs(-hw), y(top) - 8, bxs(hw), D.sail.w.toFixed(2) + ' m');
+    g.save(); g.translate(bxs(hw) + 10, y(sf + D.sail.h / 2)); g.rotate(-Math.PI / 2); g.fillStyle = '#20313d'; g.textAlign = 'center'; g.font = '10px system-ui'; g.fillText(D.sail.h.toFixed(2) + ' m', 0, 0); g.restore();
+    function dimLine(x1, yy, x2, t) {
+      g.strokeStyle = '#20313d'; g.lineWidth = 1; g.beginPath(); g.moveTo(x1, yy); g.lineTo(x2, yy); g.moveTo(x1, yy - 4); g.lineTo(x1, yy + 4); g.moveTo(x2, yy - 4); g.lineTo(x2, yy + 4); g.stroke();
+      g.fillStyle = '#20313d'; g.font = '10px system-ui'; g.textAlign = 'center'; const w = g.measureText(t).width + 6;
+      g.fillStyle = '#fbfaf6'; g.fillRect((x1 + x2) / 2 - w / 2, yy - 6, w, 12); g.fillStyle = '#20313d'; g.fillText(t, (x1 + x2) / 2, yy + 3);
+    }
+  }
+
+  // ---------- Controls ----------
+  const steps = (lo, hi, st, extra) => { const o = []; for (let v = lo; v <= hi + 1e-9; v += st) o.push(+v.toFixed(2)); if (extra && !o.includes(extra)) o.push(extra); return o; };
+  const fill = (sel, vals, cur) => { sel.innerHTML = vals.map(v => `<option value="${v}"${Math.abs(v - cur) < 1e-9 ? ' selected' : ''}>${v.toFixed(2)} m</option>`).join(''); };
+  function paintSelects() {
+    fill($('L'), steps(0.5, 3.0, 0.25), D.L);
+    fill($('SW'), steps(0.25, 2.0, 0.25, P.SAIL_W), D.sail.w);
+    fill($('SH'), steps(0.25, 2.75, 0.25, P.SAIL_H), D.sail.h);
+  }
+  $('L').addEventListener('change', e => { remember(); D.L = +e.target.value; changed(); });
+  $('SW').addEventListener('change', e => { remember(); D.sail.w = +e.target.value; changed(); });
+  $('SH').addEventListener('change', e => { remember(); D.sail.h = +e.target.value; changed(); });
+  function seg(id, get, set) {
+    const el = $(id);
+    el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { set(b.dataset.v); }));
+    return () => el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === get()));
+  }
+  const paintBow = seg('bow', () => D.bow, v => { remember(); D.bow = v; changed(); });
+  const paintShape = seg('shape', () => D.sail.shape, v => { remember(); D.sail.shape = v; changed(); });
+  const paintTool = seg('tool', () => tool, v => { setTool(v); });
+  function setTool(v) { tool = v; pend = null; drag = null; paintTool(); cad.style.cursor = v === 'stick' ? 'crosshair' : 'pointer'; drawCad(); }
+  function doUndo() { if (!undo.length) return; D = JSON.parse(undo.pop()); changed(); }
+  $('btn-undo').addEventListener('click', doUndo);
+  $('btn-clear').addEventListener('click', () => { if (!D.segs.length) return; remember(); D.segs = []; changed(); });
+
+  // ---------- Tabs and the view mode ----------
+  let mode = 'cad', tab = 'p-frame';
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.modebtns button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    view.classList.toggle('three', m === '3d');
+    cad.style.display = m === 'cad' ? '' : 'none';
+    if (three) three.el.style.display = m === '3d' ? '' : 'none';
+    if (no3d) no3d.style.display = m === '3d' ? '' : 'none';
+    $('readout').style.display = m === 'cad' ? '' : 'none';
+    if (m === 'cad') { cadSize(); drawCad(); } else if (three) three.resize();
+  }
+  document.querySelectorAll('.modebtns button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+  function showTab(id) {
+    tab = id;
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('on', p.id === id));
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+    // The frame and skin are worked on in the drawing; the sail is easier to judge in 3D.
+    if (id === 'p-frame') { setTool(tool === 'skin' ? 'stick' : tool); setMode('cad'); }
+    if (id === 'p-skin') { setTool('skin'); setMode('cad'); }
+    if (id === 'p-sail' || id === 'p-go') { if (tool === 'skin') setTool('stick'); setMode(three ? '3d' : 'cad'); }
+    refresh();
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+  // ---------- The test sail (numbers only, until the chase is built) ----------
+  let tested = false;
+  $('btn-go').addEventListener('click', () => { tested = true; refresh(); });
+  function paintGo() {
+    const a = A, r = a.r, el = $('stats'), res = $('result');
+    const st = (v, k, cls) => `<div class="stat ${cls || ''}"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    el.innerHTML = st(r.mass ? Math.round(r.mass) + ' kg' : '—', 'boat + you + stones')
+      + st(a.wood.sticks + ' / 70', 'sticks used', a.wood.sticks > 70 ? 'bad' : '');
+    $('btn-go').disabled = !a.ready;
+    if (!tested || !a.ready) { res.className = 'result'; res.innerHTML = ''; return; }
+    const kt = v => v.toFixed(1) + ' kt';
+    const lines = r.speedKt != null ? [
+      st(kt(r.speedKt), 'top speed (serpent: 6 kt)', r.speedKt >= P.MONSTER_KT ? 'good' : 'bad'),
+      st(r.bowDip.toFixed(2) + ' m', `bow dips in a 30 kt gust (sides ${r.freeboard.toFixed(2)} m up)`, r.bowDip < r.freeboard ? 'good' : 'bad'),
+      st(r.heelDeg.toFixed(0) + '°', `tips in the serpent's waves (side goes under at ${r.floodDeg.toFixed(0)}°)`, r.heelDeg < r.floodDeg ? 'good' : 'bad'),
+      st(r.freeboard.toFixed(2) + ' m', 'sides above the water'),
+    ].join('') : '';
+    el.innerHTML += lines;
+    const msg = {
+      sinks: ['It sinks at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
+      capsize: ['It rolls over as soon as you climb in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
+      slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and catches you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
+      bow: ['A 30-knot gust drives the bow under!', 'The sail pushes high up, and that tips the front down. A shorter sail, a longer hull, or higher sides at the front.'],
+      roll: ['The serpent\'s waves roll it until the side goes under!', 'It needs to be steadier side to side: wider, with the weight lower, or with higher sides.'],
+      rules: ['This boat breaks a rule.', r.problems.join(' ')],
+    }[r.fail];
+    if (r.ok) { res.className = 'result good'; res.innerHTML = `${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!<div class="why">It would get away. (The chase comes next.)</div>`; }
+    else { res.className = 'result bad'; res.innerHTML = `${msg[0]}<div class="why">${msg[1]}</div>`; }
+  }
+
+  // ---------- Readouts ----------
+  function paintCounter() {
+    const a = A, n = a.wood.sticks, over = n > P.STICKS;
+    $('counter').innerHTML = `<div>Sticks: <span class="big" style="color:${over ? 'var(--bad)' : 'inherit'}">${n}</span> of ${P.STICKS}</div>`
+      + `<div class="bar"><div class="fill${over ? ' over' : ''}" style="width:${Math.min(100, n / P.STICKS * 100)}%"></div></div>`
+      + `<div style="font-size:0.7rem;color:var(--dim)">${a.wood.nRib} ribs, ${a.wood.stringers} long stringers, the mast</div>`;
+  }
+  function paintMsgs() {
+    const a = A, fm = $('framemsg'), sm = $('skinmsg');
+    fm.innerHTML = a.frame.length ? a.frame.map(t => `<div class="bad">⚠ ${t}</div>`).join('') : `<div class="ok">✓ The frame holds together.</div>`;
+    const sk = a.skin.slice();
+    if (a.ch.hulls.length && a.r.skins) a.r.skins.forEach((s, i) => { if (!s.fits) sk.push(`${a.ch.hulls.length > 1 ? 'Sheet ' + (i + 1) + ': the' : 'The'} skin needs a ${s.long.toFixed(2)} × ${s.G.toFixed(2)} m piece, and a sheet is 3.05 × 2.73 m. Each piece of skin must be cut from one sheet, in one piece.`); });
+    sm.innerHTML = sk.length ? sk.map(t => `<div class="bad">⚠ ${t}</div>`).join('')
+      : a.ch.hulls.length ? `<div class="ok">✓ The skin fits and keeps the water out.</div>` : '';
+    const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
+    fm.innerHTML += seatMsg;
+    $('sailnote').innerHTML = `The boat is ${a.wood.nRib} copies of your cross-section (ribs), at most 1 m apart, joined by long sticks along it at every corner of the skin. The mast is ${a.wood.mastH.toFixed(2)} m: the sail's height plus 0.50 m, so the sail clears your head.`
+      + (D.bow === 'pointed' ? ` The front ${Math.round(P.TAPER * 100)}% narrows to a point.` : '');
+  }
+  function coach() {
+    document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
+    const a = A; let text, target = null, tabTo = null;
+    if (a.frame.length || a.seat == null) { text = '<b>Next:</b> on <b>1. Frame</b>, fix what\'s marked in red. ' + (a.frame[0] || 'Give yourself somewhere to sit.'); tabTo = 'p-frame'; }
+    else if (!a.ch.hulls.length) { text = '<b>Next:</b> on <b>2. Skin</b>, click the sticks the monster skin wraps around: from one top edge of the hull, down under it, and up to the other.'; tabTo = 'p-skin'; }
+    else if (!a.ready || (a.r.skins && a.r.skins.some(s => !s.fits))) { text = '<b>The skin:</b> ' + (a.skin[0] || 'one piece doesn\'t fit its sheet. Make the hull shorter or shallower, or narrower.'); tabTo = 'p-skin'; }
+    else if (tab !== 'p-go' && !tested) { text = '<b>Next:</b> on <b>3. Length &amp; sail</b>, choose how long the boat is and how big a sail, then <b>4. Sail out</b> to test it.'; tabTo = tab === 'p-sail' ? 'p-go' : 'p-sail'; }
+    else if (!tested) { text = '<b>Next:</b> press <b>⛵ Test sail</b>.'; target = 'btn-go'; }
+    else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing at a time to see what matters most.';
+    else text = '<b>It didn\'t make it.</b> Read why on <b>4. Sail out</b>, change one thing, and test again.';
+    $('coach').innerHTML = text;
+    if (target && $(target) && !$(target).disabled) $(target).classList.add('next');
+    if (tabTo && tabTo !== tab) document.querySelector(`#tabs [data-tab="${tabTo}"]`).classList.add('next');
+  }
+
+  function changed() { tested = false; save(); refresh(); if (three) three.rebuild(); }
+  function refresh() {
+    analyze();
+    paintSelects(); paintBow(); paintShape(); paintTool();
+    paintCounter(); paintMsgs(); drawPattern(); drawSide(); paintGo(); coach();
+    drawCad();
+  }
+
+  // ---------- 3D ----------
+  let three = null, no3d = null;
+  if (window.THREE) { try { three = init3D(); } catch (e) { console.warn('[sail] 3D failed', e); three = null; } }
+  if (!three) { no3d = document.createElement('div'); no3d.className = 'no3d'; no3d.textContent = 'The 3D view couldn\'t load on this computer. The drawing still works, and the test uses the same numbers.'; no3d.style.display = 'none'; view.appendChild(no3d); }
+
+  function init3D() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const el = renderer.domElement; el.style.display = 'none'; view.insertBefore(el, view.firstChild);
+    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x406080, 0.85));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(4, 7, 3); scene.add(sun);
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshPhongMaterial({ color: 0x2f6fb5, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+    water.rotation.x = -Math.PI / 2; water.renderOrder = 2; scene.add(water);
+    const boat = new THREE.Group(); scene.add(boat);
+    const MAT = {
+      wood: new THREE.MeshLambertMaterial({ color: 0xa0703f }), skin: new THREE.MeshLambertMaterial({ color: 0x6b3f7a, side: THREE.DoubleSide }),
+      cloth: new THREE.MeshLambertMaterial({ color: 0xf2e8cf, side: THREE.DoubleSide }), mast: new THREE.MeshLambertMaterial({ color: 0x7a5230 }),
+      rider: new THREE.MeshLambertMaterial({ color: 0xe0a050 }), stone: new THREE.MeshLambertMaterial({ color: 0x8c8f93 }),
+    };
+    const orbit = { theta: 0.9, phi: 1.15, r: 6 };
+    function stick(a, b, t, mat) { // a, b: [x,y,z]
+      const Av = new THREE.Vector3(...a), Bv = new THREE.Vector3(...b), len = Av.distanceTo(Bv);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(t, len, t), mat || MAT.wood);
+      m.position.copy(Av.clone().add(Bv).multiplyScalar(0.5));
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), Bv.clone().sub(Av).normalize());
+      return m;
+    }
+    // Plan-view width scale along the hull: z from stern (-L/2) to bow (+L/2).
+    const sAt = z => { if (D.bow !== 'pointed') return 1; const f = (z + D.L / 2) / D.L; return Math.max(0, Math.min(1, (1 - f) / P.TAPER)); };
+    function rebuild() {
+      while (boat.children.length) boat.remove(boat.children[0]);
+      const a = A; if (!a) return;
+      const L = D.L, hs = a.ch.hulls, nR = a.wood.nRib, t = 0.05;
+      const hullOf = new Map(); // which hull each skinned stick belongs to, for tapering about its middle
+      const centers = hs.map(h => (h[0][0] + h[h.length - 1][0]) / 2);
+      for (const sg of D.segs) { let best = 0, bd = Infinity; centers.forEach((c, i) => { const d = Math.abs((sg.a[0] + sg.b[0]) / 2 - c); if (d < bd) { bd = d; best = i; } }); hullOf.set(sg, best); }
+      const tx = (p, z, c) => [c + (p[0] - c) * sAt(z), p[1], z];
+      // Ribs: every section stick, at each rib. In a pointed nose only hull sticks, narrowed.
+      for (let i = 0; i < nR; i++) {
+        const z = -L / 2 + L * i / (nR - 1), s = sAt(z);
+        if (s < 0.05) continue;
+        for (const sg of D.segs) {
+          if (s < 0.999 && !sg.skin) continue;
+          const c = hs.length ? centers[hullOf.get(sg)] : 0;
+          boat.add(stick(tx(sg.a, z, c), tx(sg.b, z, c), t));
+        }
+      }
+      // Stringers along every corner of the skin, and the skin itself.
+      const NZ = D.bow === 'pointed' ? 14 : 1;
+      hs.forEach((h, hi) => {
+        const c = centers[hi], zs = [...Array(NZ + 1).keys()].map(j => -L / 2 + L * j / NZ);
+        for (const p of h) for (let j = 0; j < NZ; j++) boat.add(stick(tx(p, zs[j], c), tx(p, zs[j + 1], c), t * 0.8));
+        // Skin: strips between neighbouring corners, along the length; pushed out a little.
+        const pos = [];
+        for (let j = 0; j < NZ; j++) for (let q = 0; q < h.length - 1; q++) {
+          const p1 = tx(h[q], zs[j], c), p2 = tx(h[q + 1], zs[j], c), p3 = tx(h[q + 1], zs[j + 1], c), p4 = tx(h[q], zs[j + 1], c);
+          pos.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4);
+        }
+        const gm = new THREE.BufferGeometry(); gm.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gm.computeVertexNormals();
+        boat.add(new THREE.Mesh(gm, MAT.skin));
+        // End flaps: the stern always, the bow if it's square.
+        const shape = new THREE.Shape(h.map(p => new THREE.Vector2(p[0], p[1])));
+        for (const z of D.bow === 'pointed' ? [-L / 2] : [-L / 2, L / 2]) { const cap = new THREE.Mesh(new THREE.ShapeGeometry(shape), MAT.skin); cap.position.z = z; boat.add(cap); }
+      });
+      // Mast, yard and sail, about 55% of the way along; the rider sits behind it.
+      const foot = a.mf == null ? 0 : a.mf, zM = -L / 2 + L * 0.55, sf = foot + P.MAST_GAP, top = sf + D.sail.h;
+      boat.add(stick([0, foot, zM], [0, top + 0.05, zM], 0.06, MAT.mast));
+      boat.add(stick([-D.sail.w / 2, top, zM - 0.04], [D.sail.w / 2, top, zM - 0.04], 0.04, MAT.mast));
+      const sg = new THREE.PlaneGeometry(D.sail.w, D.sail.h, 10, 10), pa = sg.attributes.position;
+      for (let i = 0; i < pa.count; i++) {
+        const x = pa.getX(i), y = pa.getY(i), u = x / (D.sail.w / 2), v = y / (D.sail.h / 2);
+        if (D.sail.shape === 'tri') pa.setX(i, x * (0.5 - v / 2));   // wide at the foot, a point at the top
+        pa.setZ(i, 0.18 * Math.min(D.sail.w, D.sail.h) * (1 - u * u) * (1 - v * v)); // filled by the wind from behind
+      }
+      sg.computeVertexNormals();
+      const sail = new THREE.Mesh(sg, MAT.cloth); sail.position.set(0, sf + D.sail.h / 2, zM - 0.08); boat.add(sail);
+      if (a.seat != null) { const rd = makeRider(); rd.position.set(0, a.seat, Math.max(-L / 2 + 0.3, zM - 0.75)); boat.add(rd); }
+      if (hs.length && a.r.stoneY) {
+        const low = hs.map(h => h.reduce((m, p) => p[1] < m[1] ? p : m, h[0])), geo = new THREE.DodecahedronGeometry(P.STONE_R);
+        a.r.stoneY.forEach((y, i) => { const l = low.length > 1 && Math.abs(low[1][1] - low[0][1]) < 0.01 ? low[i % 2] : low.reduce((m, p) => p[1] < m[1] ? p : m);
+          const st = new THREE.Mesh(geo, MAT.stone); st.position.set(l[0], y, zM + 0.25 + Math.floor(i / (low.length > 1 ? 2 : 1)) * 0.18 - 0.2); st.rotation.set(i, i * 0.7, 0); boat.add(st); });
+      }
+      // Float it at its waterline once it has skin; a bare frame sits on the water.
+      const lowY = Math.min(...D.segs.flatMap(s => [s.a[1], s.b[1]]).concat([0]));
+      boat.position.y = hs.length && a.r.T != null ? -a.r.T : -lowY - 0.03;
+      const size = Math.max(L, D.sail.h + 1, 2 * VX * 0.8);
+      if (orbit.size !== size) { orbit.size = size; orbit.r = 1.5 + size * 1.6; }
+    }
+    // The rider: seated, legs forward (+z), hands on the floor, like the printed one.
+    function makeRider() {
+      const g = new THREE.Group(), m = MAT.rider;
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.5, 12), m); torso.position.y = 0.3; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), m); head.position.y = 0.68; g.add(head);
+      for (const x of [-0.09, 0.09]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.42, 8), m); leg.rotation.x = Math.PI / 2; leg.position.set(x, 0.06, 0.24); g.add(leg); }
+      for (const x of [-0.2, 0.2]) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), m); arm.position.set(x, 0.27, 0.03); arm.rotation.z = x > 0 ? 0.25 : -0.25; g.add(arm); }
+      return g;
+    }
+    function place() {
+      const tg = new THREE.Vector3(0, 0.7, 0);
+      camera.position.set(orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta), tg.y + orbit.r * Math.cos(orbit.phi), orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+      camera.lookAt(tg);
+    }
+    const pts = new Map(); let pinch0 = 0, r0 = 0;
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) { const [p, q] = [...pts.values()]; pinch0 = Math.hypot(p.x - q.x, p.y - q.y); r0 = orbit.r; } });
+    el.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId), now = { x: e.clientX, y: e.clientY }; pts.set(e.pointerId, now);
+      if (pts.size === 1) { orbit.theta -= (now.x - prev.x) * 0.01; orbit.phi = Math.max(0.15, Math.min(1.55, orbit.phi - (now.y - prev.y) * 0.01)); }
+      else if (pinch0) { const [p, q] = [...pts.values()]; orbit.r = Math.max(2, Math.min(16, r0 * pinch0 / Math.hypot(p.x - q.x, p.y - q.y))); }
+    });
+    const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); orbit.r = Math.max(2, Math.min(16, orbit.r * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: false });
+    document.querySelectorAll('.viewbtns button').forEach(b => b.addEventListener('click', () => {
+      Object.assign(orbit, { '3d': { theta: 0.9, phi: 1.15 }, side: { theta: Math.PI / 2, phi: 1.5 }, front: { theta: Math.PI, phi: 1.45 }, top: { theta: 0, phi: 0.16 } }[b.dataset.v]);
+    }));
+    function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    function frame() { if (mode === '3d') { place(); renderer.render(scene, camera); } requestAnimationFrame(frame); }
+    requestAnimationFrame(frame);
+    return { el, rebuild, resize, orbit, scene, boat };
+  }
+  window.addEventListener('resize', () => { if (mode === 'cad') { cadSize(); drawCad(); } else if (three) three.resize(); drawPattern(); drawSide(); });
+
+  // ---------- First-time tour ----------
+  const TOUR = [
+    ['view', 'Your drawing board', 'This is your boat\'s <b>cross-section</b>, drawn to scale: each square is 10 cm. The dashed line is the middle, where you sit and the mast stands. Press <b>3D</b> in the corner to see the whole boat.'],
+    ['p-frame', '1. Glue in sticks', '<b>Drag</b> from one point to another to add a stick. Ends snap to the grid and to other sticks. A stick can be cut shorter, but never longer than <b>1.13 m</b>, and it has to be glued to another stick.'],
+    ['counter', 'Count your sticks', 'You have <b>70 sticks</b>. The boat is many copies of your cross-section along its length, joined by long sticks, plus the mast. This counter adds them all up as you build.'],
+    ['p-skin', '2. The monster skin', 'Click the sticks the skin wraps around. It has to be cut from a <b>3.05 × 2.73 m</b> sheet, in one piece; the pattern shows whether it fits.'],
+    ['p-sail', '3. Length and sail', 'Pick the boat\'s length, a square or pointed front, and the sail\'s size. The wind blows from behind and pushes on the sail.'],
+    ['coach', 'Then sail out!', 'The serpent swims at <b>6 knots</b>: your boat has to be faster, and not dive or tip over. This yellow line always says what to do next. Good luck, sailor!'],
+  ];
+  let tourAt = -1, tourEls = null;
+  function tourShow(i) {
+    tourEnd(true); tourAt = i;
+    const [id, title, body] = TOUR[i], target = $(id);
+    if (target.classList.contains('tabpanel')) showTab(id);
+    const block = document.createElement('div'); block.className = 'tour-block';
+    const card = document.createElement('div'); card.className = 'tour-card';
+    card.innerHTML = `<h4>${title}</h4><div>${body}</div><div class="foot"><span class="dots">${i + 1} of ${TOUR.length}</span>`
+      + `<span>${i < TOUR.length - 1 ? '<button class="skip">Skip</button>' : ''}<button class="btn">${i < TOUR.length - 1 ? 'Next' : 'Start building'}</button></span></div>`;
+    document.body.append(block, card);
+    target.classList.add('tour-spot');
+    requestAnimationFrame(() => { const r = target.getBoundingClientRect(); if (r.top + r.height / 2 > innerHeight * 0.55 || r.bottom > innerHeight - 190) card.classList.add('top'); });
+    card.querySelector('.btn').addEventListener('click', () => i < TOUR.length - 1 ? tourShow(i + 1) : tourEnd());
+    const skip = card.querySelector('.skip'); if (skip) skip.addEventListener('click', () => tourEnd());
+    tourEls = { block, card, target };
+  }
+  function tourEnd(moving) {
+    if (tourEls) { tourEls.block.remove(); tourEls.card.remove(); tourEls.target.classList.remove('tour-spot'); tourEls = null; }
+    if (!moving) { tourAt = -1; try { localStorage.setItem('sailTourSeen', '1'); } catch (e) {} showTab('p-frame'); }
+  }
+  $('btn-help').addEventListener('click', () => tourShow(0));
+  document.addEventListener('keydown', e => { if (tourAt >= 0 && e.key === 'Escape') tourEnd(); });
+
+  cadSize(); showTab('p-frame'); if (three) three.rebuild();
+  let seen = false; try { seen = localStorage.getItem('sailTourSeen') === '1'; } catch (e) {}
+  if (!seen) setTimeout(() => tourShow(0), 400);
+  // For checking from the console; nothing in the page uses it.
+  window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three };
+})();
+</script>
+</body>
+</html>

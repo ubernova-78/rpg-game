@@ -152,26 +152,37 @@ const segKey = (a, b) => { const k1 = a[0].toFixed(3) + ',' + a[1].toFixed(3), k
 // d = { segs:[{a:[x,y], b:[x,y]}], hulls:[[pt,...]], L, bow, sail:{w,h,shape}, mastFoot:[x,y] }
 // hulls are the skinned chains (gunwale to gunwale); segs is every stick in the
 // section (hull sticks, beams, seats). Returns everything the page shows.
-function sailAnalyze(d) {
-  const P = SAIL, L = d.L, tp = taper(d.bow), nRib = ribCount(L);
-  const r = { ok: true, problems: [] };
-
-  // Wood: pieces and their heights (for the center of gravity).
-  const pieces = []; let woodM = 0, woodMy = 0;
+// The wood alone: every piece cut, whole sticks used, and its mass and height.
+// The builder's live stick counter calls this too, so it can't drift from the
+// physics. (Before any skin is on, there are no hulls and so no stringers yet.)
+function sailWood(d) {
+  const P = SAIL, L = d.L, nRib = ribCount(L);
+  const pieces = []; let woodM = 0, woodMy = 0, tooLong = false;
   const addWood = (len, y) => { const m = len / P.STICK_L * P.STICK_KG; woodM += m; woodMy += m * y; };
   for (const s of d.segs) {
     const len = sLen(s.a, s.b), y = (s.a[1] + s.b[1]) / 2;
     for (let k = 0; k < nRib; k++) { pieces.push(len); addWood(len, y); }
-    if (len > P.STICK_L + 1e-6) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
+    if (len > P.STICK_L + 1e-6) tooLong = true;
   }
   const verts = new Map();
   for (const h of d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
-  const sailA = d.sail.shape === 'tri' ? d.sail.w * d.sail.h / 2 : d.sail.w * d.sail.h;
   const mastH = d.sail.h + P.MAST_GAP;
   for (const pc of splicedPieces(mastH)) pieces.push(pc);
   addWood(mastH, d.mastFoot[1] + mastH / 2);
-  r.sticks = packSticks(pieces); r.nRib = nRib; r.mastH = mastH;
+  return { sticks: packSticks(pieces), nRib, mastH, woodM, woodMy, tooLong, stringers: verts.size };
+}
+
+function sailAnalyze(d) {
+  const P = SAIL, L = d.L, tp = taper(d.bow);
+  const r = { ok: true, problems: [] };
+  if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin on the boat yet, so the water comes straight through.'); return r; }
+
+  // Wood: pieces and their heights (for the center of gravity).
+  const w = sailWood(d), woodM = w.woodM, woodMy = w.woodMy;
+  if (w.tooLong) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
+  const sailA = d.sail.shape === 'tri' ? d.sail.w * d.sail.h / 2 : d.sail.w * d.sail.h;
+  r.sticks = w.sticks; r.nRib = w.nRib; r.mastH = w.mastH;
   if (r.sticks > P.STICKS) r.problems.push(`That takes ${r.sticks} sticks; you have ${P.STICKS}.`);
 
   // Skin: each hull's net (bottom and sides, plus end flaps) on one sheet.
@@ -285,4 +296,4 @@ function sailAnalyze(d) {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, sailAnalyze, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, sailAnalyze, sailWood, splicedPieces, packSticks, ribCount };
