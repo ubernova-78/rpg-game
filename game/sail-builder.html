@@ -280,6 +280,9 @@
     segs: [],
     L: 1.5, bow: 'square', sails: [],
   });
+  // sail-builder.html?new starts over as a first-time student: no saved boat, and
+  // the intro plays (for the teacher, to see what a new student sees).
+  if (/[?&]new\b/.test(location.search)) { try { localStorage.removeItem('sailDesign'); localStorage.removeItem('sailIntroSeen'); } catch (e) {} history.replaceState(null, '', location.pathname); }
   let D = START();
   try { const s = JSON.parse(localStorage.getItem('sailDesign') || 'null'); if (s && Array.isArray(s.segs) && s.L && (Array.isArray(s.sails) || (s.sail && Array.isArray(s.sail.poly)))) { if (!s.sails) s.sails = [Object.assign({ sheet: 0 }, s.sail)]; delete s.sail; D = s; } } catch (e) {}
   const sailH = sl => { const ys = sl.poly.map(p => p[1]); return Math.max(...ys) - Math.min(...ys); };
