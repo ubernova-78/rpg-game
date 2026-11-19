@@ -32,6 +32,11 @@ const SAIL = {
   RISE: 0.2,                // a sloped bottom rises over the front 20% of it
   MAST_GAP: 0.5,            // the sail's foot sits this far up the mast (over the rider's head)
   WIND_KT: 20, GUST_KT: 30, MONSTER_KT: 6, KT: 0.5144,
+  COURSE: 20, GAP: 1.5,      // the race: start line to the inlet, and the serpent's head start behind you
+  // A patched skin (Nick, 2026-11-19): the second sheet glued on, overlapping by
+  // PATCH_OV; the seam leaks LEAK cubic meters a second per meter of seam, which
+  // fills a small boat in about 3 s and a big one in about 5.
+  PATCH_OV: 0.1, LEAK: 0.12,
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
   FORM: 1.2,                // friction form factor
   KW: 7, FN0: 0.45, SQUARE_BOW: 2.0, // wave drag: KW rho g Ax^2 / L * h(Fn)
@@ -334,18 +339,31 @@ function cutAt(h, y) {
   if (j < n - 1) out.push(at(h[j + 1], h[j]));
   return out.length >= 2 ? out : null;
 }
-function skinTrim(h, L, bow, rise, stern, sRise) {
+// Can a long x G piece of skin be cut from one sheet, or (patch) from two glued
+// together with an overlap? The seam it needs: 0 on one sheet; else the shortest
+// join that works, around the boat (G) if the sheets join end to end, along it
+// (long) if side by side. null if it can't.
+function sheetSeam(long, G, patch) {
+  const P = SAIL, A = P.SHEET_A, B = P.SHEET_B, fit = (w, h) => long <= w + 1e-9 && G <= h + 1e-9;
+  if (fit(A, B) || fit(B, A)) return 0;
+  if (!patch) return null;
+  const two = 2 * A - P.PATCH_OV, twoB = 2 * B - P.PATCH_OV, seams = [];
+  if (fit(two, B) || fit(2 * B - P.PATCH_OV, A)) seams.push(G);   // end to end: the seam runs round the boat
+  if (fit(A, twoB) || fit(B, 2 * A - P.PATCH_OV)) seams.push(long); // side by side: it runs along the boat
+  return seams.length ? Math.min(...seams) : null;
+}
+function skinTrim(h, L, bow, rise, stern, sRise, patch) {
   const P = SAIL, lo = lowest(h)[1], top = Math.min(h[0][1], h[h.length - 1][1]), dd = { L, bow, bowRise: rise, stern, sternRise: sRise };
-  const fitsAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return false; const G = girth(c), long = skinLong(dd, y - lo);
-    return (long <= P.SHEET_A + 1e-9 && G <= P.SHEET_B + 1e-9) || (long <= P.SHEET_B + 1e-9 && G <= P.SHEET_A + 1e-9); };
+  const seamAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return null; return sheetSeam(skinLong(dd, y - lo), girth(c), patch); };
+  const fitsAt = y => seamAt(y) != null;
   // (Measured from the lower gunwale: a taller side above it is wasted anyway.)
-  if (fitsAt(top) && Math.max(h[0][1], h[h.length - 1][1]) - top < 1e-9) return { h, cut: null };
-  if (fitsAt(top)) return { h: cutAt(h, top) || h, cut: null };
+  if (fitsAt(top) && Math.max(h[0][1], h[h.length - 1][1]) - top < 1e-9) return { h, cut: null, seam: seamAt(top) };
+  if (fitsAt(top)) return { h: cutAt(h, top) || h, cut: null, seam: seamAt(top) };
   let a = lo, b = top;
-  if (!fitsAt(a + 0.01)) return { h, cut: null, short: true };
+  if (!fitsAt(a + 0.01)) return { h, cut: null, short: true, seam: 0 };
   for (let k = 0; k < 40; k++) { const m = (a + b) / 2; if (fitsAt(m)) a = m; else b = m; }
   const y = Math.floor(a * 1000) / 1000;
-  return { h: cutAt(h, y), cut: y };
+  return { h: cutAt(h, y), cut: y, seam: seamAt(y) || 0 };
 }
 
 function sailAnalyze(d) {
@@ -353,7 +371,10 @@ function sailAnalyze(d) {
   const r = { ok: true, problems: [] };
   if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin on the boat yet, so the water comes straight through.'); return r; }
   // The skin goes as high as its sheet reaches; above that the sticks stick out.
-  const trims = d.hulls.map(h => skinTrim(h, L, d.bow, d.bowRise, d.stern, d.sternRise));
+  const patch = !!d.patch && d.hulls.length === 1;
+  if (d.patch && d.hulls.length > 1) r.problems.push('Both sheets of skin are used for your two hulls, so there\'s none left to patch with.');
+  const trims = d.hulls.map(h => skinTrim(h, L, d.bow, d.bowRise, d.stern, d.sternRise, patch));
+  r.seam = trims.reduce((t, x) => t + (x.seam || 0), 0);
   r.skinCut = trims.map(t => t.cut);
   d = Object.assign({}, d, { hulls: trims.map(t => t.h), frameHulls: d.frameHulls || d.hulls });
 
@@ -369,7 +390,7 @@ function sailAnalyze(d) {
   r.skins = d.hulls.map(h => {
     const G = girth(h), D = Math.max(...h.map(p => p[1])) - lowest(h)[1];
     const long = skinLong(d, D);
-    const fits = (long <= P.SHEET_A + 1e-9 && G <= P.SHEET_B + 1e-9) || (long <= P.SHEET_B + 1e-9 && G <= P.SHEET_A + 1e-9);
+    const fits = sheetSeam(long, G, patch) != null;
     return { G, D, long, fits };
   });
   if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 pieces of monster skin.');
@@ -514,6 +535,15 @@ function sailAnalyze(d) {
   r.offNm = Math.abs(sgs.reduce((t, g) => t + (g.mastH / P.STICK_L * P.STICK_KG + g.A * P.CLOTH_KG_M2) * P.G * (g.x || 0), 0));
   r.heelDeg = (P.WAVE_NM + r.rollNm + r.offNm) / (W * r.GMT) * 180 / Math.PI;
 
+  // A glued seam leaks: the boat fills its spare room (what it could still hold up
+  // before going under) at LEAK per meter of seam, and sinks when it's full. That
+  // matters if it comes before the finish, or before the serpent catches it.
+  if (r.seam > 0) {
+    r.reserve = Math.max(0, vol(top) - need);
+    r.tFill = r.reserve / (P.LEAK * r.seam);
+    const tOut = P.COURSE / v, tCatch = v < P.MONSTER_KT * P.KT ? P.GAP / (P.MONSTER_KT * P.KT - v) : Infinity;
+    if (r.tFill < Math.min(tOut, tCatch) && r.bowDip < r.freeboard && r.heelDeg < r.floodDeg) { r.ok = false; r.fail = 'leak'; return finish(r); }
+  }
   if (r.speedKt < P.MONSTER_KT) { r.ok = false; r.fail = 'slow'; }
   else if (r.bowDip >= r.freeboard) { r.ok = false; r.fail = 'bow'; }
   else if (r.heelDeg >= r.floodDeg) { r.ok = false; r.fail = 'roll'; }
@@ -636,4 +666,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };

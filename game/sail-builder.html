@@ -237,6 +237,7 @@
         <div class="note">The monster skin wraps round the outside of your frame by itself: under the boat, up its sides, and round its ends (a flap up a flat end). Each piece is cut from one 3.05 × 2.73 m sheet.</div>
         <canvas class="small" id="pattern" width="320" height="180"></canvas>
         <div class="msgs" id="skinmsg"></div>
+        <div class="btnrow" id="patchrow" style="display:none"><button class="btn alt small" id="btn-patch"></button></div>
       </div>
       <div class="panel tabpanel" id="p-sail">
         <div class="note" style="margin-top:0"><b>Cut sails out of your 2 sheets of cloth:</b> click the corners of a shape, then the first corner again. Each sail goes on its own mast (up to 4). Or add:</div>
@@ -410,7 +411,7 @@
     const sk = sailSkin(D.segs), errs = [];
     if (D.segs.length && !sk.hulls.length) errs.push('There\'s no hull for the skin to wrap round yet: draw a bottom and two sides that rise above it.');
     // Each skin as high as its sheet reaches: the sticks above it stick out.
-    const tr = sk.hulls.map(h => skinTrim(h, D.L, D.bow, D.bowRise, D.stern, D.sternRise));
+    const tr = sk.hulls.map(h => skinTrim(h, D.L, D.bow, D.bowRise, D.stern, D.sternRise, !!D.patch && sk.hulls.length === 1));
     return { hulls: tr.map(t => t.h), frameHulls: sk.hulls, cuts: tr.map(t => t.cut), errs };
   }
   // The mast stands on the lowest wood across the middle.
@@ -431,7 +432,7 @@
   function analyze() {
     const fc = frameCheck(), ch = chains(), mf = mastFoot();
     // The cut-out is centered on the mast for the physics' sake (its shape, not where it was cut).
-    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, patch: !!D.patch, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
     const wood = sailWood(d);
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
@@ -928,12 +929,8 @@
     const nr = A && A.wood ? A.wood.nRib : ribCount(D.L); for (let i = 0; i < nr; i++) { const x = sx0 + D.L * s * ribFrac(i, nr); g.beginPath(); g.moveTo(x, y(yhi)); g.lineTo(x, y(ylo)); g.stroke(); }
     // Length dimension
     dimLine(sx0, y(ylo) + 12, sx0 + D.L * s, D.L.toFixed(2) + ' m');
-    // Top view of the bow shape, small, above the side view.
-    const ty = 16, tw = Math.min(28, (xhi - xlo) * s);
-    g.fillStyle = 'rgba(107,63,122,0.35)'; g.strokeStyle = '#4a2b55'; g.beginPath();
-    planOutline(0, tw).forEach(([f, x], i) => i ? g.lineTo(sx0 + D.L * f * s, ty + x) : g.moveTo(sx0 + D.L * f * s, ty + x));
-    g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = '#6b7780'; g.textAlign = 'left'; g.fillText('top: ' + sternName() + ' back, ' + bowName() + ' front →', sx0, ty - 4);
+    // (No small top view here: under the mast it read as a boat hanging upside down,
+    // Nick, 2026-11-19. The top view with the masts is just above.)
     // From behind: the section and the sail, full width.
     const bxs = v => bx0 + v * s;
     g.strokeStyle = '#4a3018'; g.lineWidth = 2;
@@ -1166,7 +1163,7 @@
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   let race = null;
   function planRace(r) {
-    const v = Math.max(0.05, (r.speedKt || 0) * P.KT), pl = { v, fail: r.fail || null, gusts: [] };
+    const v = Math.max(0.05, (r.speedKt || 0) * P.KT), pl = { v, fail: r.fail || null, gusts: [], leakT: r.seam > 0 ? r.tFill : 0 };
     pl.limPitch = r.freeboard != null ? Math.atan(r.freeboard / (D.L / 2)) * 180 / Math.PI : 10;
     pl.limHeel = r.floodDeg || 45;
     pl.trimGust = r.trimDeg || 0; pl.trimSteady = r.gustPush ? r.trimDeg * r.push / r.gustPush : 0;
@@ -1183,7 +1180,7 @@
       if (pl.diveOK && pl.tStop > 2) pl.gusts.push(rnd(0.8, pl.tStop - 0.8));
       mark(pl, pl.tStop);
     } else {
-      pl.D = cmR(pl.fail === 'bow' ? rnd(3, 16) : rnd(2, 14));
+      pl.D = cmR(pl.fail === 'leak' ? Math.max(0.05, v * (r.tFill || 0)) : pl.fail === 'bow' ? rnd(3, 16) : rnd(2, 14));
       pl.x1 = pl.D - v * 0.15; pl.t1 = pl.x1 / v; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
       pl.tCatch = Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
       if (pl.fail === 'bow') pl.gusts.push(pl.t1);
@@ -1232,6 +1229,9 @@
     if (pl.fail === 'bow' && t >= pl.t1) s.pitch = pl.trimGust + (25 - pl.trimGust) * ease((t - pl.t1) / 0.4);
     if (pl.fail === 'bow') s.sunk = ease((t - pl.t1) / 0.6);
     if (pl.fail === 'sinks') { s.sunk = ease(t / 0.9); s.pitch = 6 * s.sunk; }
+    // A leak: the boat settles lower as it fills, and goes under when it's full.
+    if (pl.fail === 'leak') s.sunk = t < pl.t1 ? 0.45 * Math.pow(t / pl.t1, 2) : 0.45 + 0.55 * ease((t - pl.t1) / 0.6);
+    else if (pl.leakT) s.sunk = 0.45 * Math.pow(Math.min(1, t / pl.leakT), 2);
     return s;
   }
 
@@ -1619,7 +1619,7 @@
     // the boat for the student's record (its rule allows 200 characters).
     const use = $('btn-use'); if (use) use.addEventListener('click', () => {
       const r = A.r, n = A.ch.hulls.length;
-      const design = `${n} hull${n > 1 ? 's' : ''}, ${D.L.toFixed(2)} m long, ${sternName()} back, ${bowName()} front, ${A.wood.sticks} sticks, ${D.sails.length} sail${D.sails.length > 1 ? 's' : ''} ${r.sailA.toFixed(2)} m2, mast${D.sails.length > 1 ? 's' : ''} ${D.sails.map(sl => sl.mastH.toFixed(2)).join('/')} m, ${r.speedKt.toFixed(1)} kt`;
+      const design = `${n} hull${n > 1 ? 's' : ''}, ${D.L.toFixed(2)} m long, ${sternName()} back, ${bowName()} front,${D.patch && A.r.seam > 0 ? ' patched skin,' : ''} ${A.wood.sticks} sticks, ${D.sails.length} sail${D.sails.length > 1 ? 's' : ''} ${r.sailA.toFixed(2)} m2, mast${D.sails.length > 1 ? 's' : ''} ${D.sails.map(sl => sl.mastH.toFixed(2)).join('/')} m, ${r.speedKt.toFixed(1)} kt`.slice(0, 200); // (the rules allow 200 characters)
       window.parent.postMessage({ type: 'sail-passed', distance: pl.D, seconds: race.elapsed ? race.elapsed.H / 100 : null, design }, '*');
       use.disabled = true; use.textContent = '⛵ Boat saved';
     });
@@ -1629,6 +1629,7 @@
   function resultText(r) {
     const kt = v => (v || 0).toFixed(1) + ' kt';
     return r.ok ? [`${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!`, 'You got away. Try changing one thing at a time to see what matters most.'] : ({
+      leak: ['It filled with water and sank!', `Water came in through the glued seam in your skin. It was full ${(r.tFill || 0).toFixed(1)} s after you set off, before you could get out the inlet. A patched boat has to be fast, or not need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`],
       sinks: ['It sank at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
       capsize: ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
       slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and caught you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
@@ -1669,6 +1670,7 @@
       + `<div class="bar"><div class="fill${over ? ' over' : ''}" style="width:${Math.min(100, n / P.STICKS * 100)}%"></div></div>`
       + `<div style="font-size:0.7rem;color:var(--dim)"><button class="rb" data-rib="-1" title="Fewer ribs"${a.wood.nRib <= ribCount(D.L) ? ' disabled' : ''}>−</button> ${a.wood.nRib} ribs <button class="rb" data-rib="1" title="More ribs">+</button> (copies of your drawing), ${a.wood.stringers} long sticks along the boat, ${D.sails.length ? `${D.sails.length} mast${D.sails.length > 1 ? 's' : ''}: ${a.wood.mastSticks} stick${a.wood.mastSticks === 1 ? '' : 's'}` : 'no mast yet'}</div>`;
   }
+  $('btn-patch').addEventListener('click', () => { remember(); if (D.patch) delete D.patch; else D.patch = true; changed(); });
   function paintMsgs() {
     const a = A, fm = $('framemsg'), sm = $('skinmsg');
     fm.innerHTML = !D.segs.length ? '<div>No sticks yet: draw your first one.</div>'
@@ -1691,6 +1693,17 @@
     sm.innerHTML = sk.length ? sk.map(t => `<div class="bad">⚠ ${t}</div>`).join('')
       : a.ch.hulls.length ? (cutHtml || `<div class="ok">✓ The skin fits and keeps the water out.</div>`) : '';
     if (!sk.length && cutHtml) fm.innerHTML += cutHtml;
+    // Patching: one hull can have the second sheet glued on where the first runs out.
+    // The seam leaks (Nick, 2026-11-19), so say how fast, and against what.
+    const one = a.ch.hulls.length === 1, short = (a.ch.cuts || []).some(c => c != null) || (a.r.skins || []).some(x => !x.fits);
+    $('patchrow').style.display = one && (short || D.patch) ? '' : 'none';
+    $('btn-patch').textContent = D.patch ? 'Take the patch off' : '✂️ Patch it with your second sheet of skin';
+    if (one && D.patch && a.r.seam > 0) {
+      const v = (a.r.speedKt || 0) * P.KT, tOut = v > 0 ? P.COURSE / v : Infinity;
+      const leak = `<div class="warn">🩹 Patched: a piece of your second sheet is glued on, overlapping by ${Math.round(P.PATCH_OV * 100)} cm. The seam is ${a.r.seam.toFixed(2)} m long, and <b>seams leak</b>: this boat fills with water and sinks <b>${(a.r.tFill || 0).toFixed(1)} s</b> after it sets off.`
+        + (a.r.speedKt ? ` At ${a.r.speedKt.toFixed(1)} knots it needs ${tOut.toFixed(1)} s to get out the inlet${a.r.tFill < tOut ? ', so it won\'t make it.' : ': just enough, if nothing else goes wrong.'}` : '') + '</div>';
+      sm.innerHTML += leak; fm.innerHTML += leak;
+    } else if (one && D.patch) sm.innerHTML += '<div class="warn">🩹 The patch isn\'t needed: the skin fits on one sheet, so there\'s no seam.</div>';
     const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
     fm.innerHTML += seatMsg;
     $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, ${D.ribGap ? `every ${D.ribGap.toFixed(2)} m from the back` : `${(D.L / (a.wood.nRib - 1)).toFixed(2)} m apart`} (choose them on <b>2. Length</b>), joined by long sticks at every corner of the skin. ${D.sails.length ? `Your sail${D.sails.length > 1 ? 's add' : ' is'} up to ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m², on ${D.sails.length} mast${D.sails.length > 1 ? 's' : ''} using ${a.wood.mastSticks} of your 70 sticks. Each sail has to start at least 0.50 m up its mast, over your head, and clear the sides of the boat.` : 'No sails yet.'}`
@@ -1915,7 +1928,7 @@
     //   0-0.9 s it rises behind you; 1.0-1.5 s it leans in, jaw open; 1.45 s GULP;
     //   1.7-2.2 s it straightens; 2.1-3.1 s it sinks away.
     function gulpPose(t) {
-      const k = gul.kind, swamp = k === 'bow' || k === 'sinks', over = k === 'roll' || k === 'capsize', wet = swamp || over;
+      const k = gul.kind, swamp = k === 'bow' || k === 'sinks' || k === 'leak', over = k === 'roll' || k === 'capsize', wet = swamp || over;
       // The boat rocks as the serpent rises behind it, then lurches when it strikes:
       // bow down and over on its side, so the mast and sail are thrown forward,
       // away from the jaws (Nick, 2026-11-19: its face went through the sail).
