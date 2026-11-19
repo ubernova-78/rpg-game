@@ -207,7 +207,8 @@ function sailWood(d) {
     if (len > P.STICK_L + 1e-6) tooLong = true;
   }
   const verts = new Map();
-  for (const h of d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
+  // (The long sticks run along the frame's corners, above the skin's top too.)
+  for (const h of d.frameHulls || d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
   // The masts are sticks too, spliced to their height: one mast per sail.
   const mastPieces = [], mastHs = sailList(d).map(sl => sailGeom(sl).mastH);
@@ -237,10 +238,44 @@ function sailHitsFrame(d, sg) {
   return false;
 }
 
+// The skin only goes as high as the sheet reaches (Nick, 2026-11-19: "if the skin
+// doesn't go all the way up they should evenly wrap it and have sticks sticking
+// above"). A hull's outline (gunwale to gunwale) cut level at height y; the piece
+// it needs is girth around by L plus the ends' depth long, on either way round of
+// the sheet. Returns the outline it can cover ({ h, cut: the skin's top or null
+// if it reaches the top, short: it can't cover even a sliver }).
+function cutAt(h, y) {
+  const n = h.length, at = (p, q) => { const t = (y - p[1]) / (q[1] - p[1]); return [p[0] + (q[0] - p[0]) * t, y]; };
+  let i = 0; while (i < n - 1 && h[i][1] > y) i++;
+  let j = n - 1; while (j > 0 && h[j][1] > y) j--;
+  if (i > j || h[i][1] > y) return null;
+  const out = h.slice(i, j + 1);
+  if (i > 0) out.unshift(at(h[i - 1], h[i]));
+  if (j < n - 1) out.push(at(h[j + 1], h[j]));
+  return out.length >= 2 ? out : null;
+}
+function skinTrim(h, L, bow) {
+  const P = SAIL, lo = lowest(h)[1], top = Math.min(h[0][1], h[h.length - 1][1]), ends = bow === 'pointed' ? 1 : 2;
+  const fitsAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return false; const G = girth(c), long = L + ends * (y - lo);
+    return (long <= P.SHEET_A + 1e-9 && G <= P.SHEET_B + 1e-9) || (long <= P.SHEET_B + 1e-9 && G <= P.SHEET_A + 1e-9); };
+  // (Measured from the lower gunwale: a taller side above it is wasted anyway.)
+  if (fitsAt(top) && Math.max(h[0][1], h[h.length - 1][1]) - top < 1e-9) return { h, cut: null };
+  if (fitsAt(top)) return { h: cutAt(h, top) || h, cut: null };
+  let a = lo, b = top;
+  if (!fitsAt(a + 0.01)) return { h, cut: null, short: true };
+  for (let k = 0; k < 40; k++) { const m = (a + b) / 2; if (fitsAt(m)) a = m; else b = m; }
+  const y = Math.floor(a * 1000) / 1000;
+  return { h: cutAt(h, y), cut: y };
+}
+
 function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow);
   const r = { ok: true, problems: [] };
   if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin on the boat yet, so the water comes straight through.'); return r; }
+  // The skin goes as high as its sheet reaches; above that the sticks stick out.
+  const trims = d.hulls.map(h => skinTrim(h, L, d.bow));
+  r.skinCut = trims.map(t => t.cut);
+  d = Object.assign({}, d, { hulls: trims.map(t => t.h), frameHulls: d.frameHulls || d.hulls });
 
   // Wood: pieces and their heights (for the center of gravity).
   const w = sailWood(d), woodM = w.woodM, woodMy = w.woodMy;
@@ -499,4 +534,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };

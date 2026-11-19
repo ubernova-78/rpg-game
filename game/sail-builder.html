@@ -171,6 +171,7 @@
   .tour-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
   .tour-card .dots{font-size:0.8rem;color:var(--dim);}
   .tour-card .skip{font:inherit;font-size:0.85rem;background:none;border:none;color:var(--dim);cursor:pointer;text-decoration:underline;margin-right:8px;}
+  .msgs .warn{color:#8a5a00;background:#fff6dc;border-radius:6px;padding:4px 8px;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -353,7 +354,9 @@
   function chains() {
     const sk = sailSkin(D.segs), errs = [];
     if (D.segs.length && !sk.hulls.length) errs.push('There\'s no hull for the skin to wrap round yet: draw a bottom and two sides that rise above it.');
-    return { hulls: sk.hulls, errs };
+    // Each skin as high as its sheet reaches: the sticks above it stick out.
+    const tr = sk.hulls.map(h => skinTrim(h, D.L, D.bow));
+    return { hulls: tr.map(t => t.h), frameHulls: sk.hulls, cuts: tr.map(t => t.cut), errs };
   }
   // The mast stands on the lowest wood across the middle.
   function mastFoot() {
@@ -372,7 +375,7 @@
   function analyze() {
     const fc = frameCheck(), ch = chains(), mf = mastFoot();
     // The cut-out is centered on the mast for the physics' sake (its shape, not where it was cut).
-    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, L: D.L, ribs: D.ribs, bow: D.bow, sails: D.sails, mastFoot: [0, mf == null ? 0 : mf] };
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, bow: D.bow, sails: D.sails, mastFoot: [0, mf == null ? 0 : mf] };
     const wood = sailWood(d);
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
@@ -1520,8 +1523,12 @@
       : a.frame.length ? a.frame.map(t => `<div class="bad">⚠ ${t}</div>`).join('') : `<div class="ok">✓ The frame holds together.</div>`;
     const sk = a.skin.slice();
     if (a.ch.hulls.length && a.r.skins) a.r.skins.forEach((s, i) => { if (!s.fits) sk.push(`${a.ch.hulls.length > 1 ? 'Sheet ' + (i + 1) + ': the' : 'The'} skin needs a ${s.long.toFixed(2)} × ${s.G.toFixed(2)} m piece, and a sheet is 3.05 × 2.73 m. Each piece of skin must be cut from one sheet, in one piece.`); });
+    // Where the sheet doesn't reach the top, the skin stops level and the sticks stick out above it.
+    const cuts = (a.ch.cuts || []).map((c, i) => c == null ? '' : `${a.ch.hulls.length > 1 ? `Hull ${i + 1}: the` : 'The'} skin only reaches ${c.toFixed(2)} m up (its sheet won't go higher), so the sticks above it stick out. The water comes in over the top of the skin, not the top of the sticks.`).filter(Boolean);
+    const cutHtml = cuts.map(t => `<div class="warn">ℹ ${t}</div>`).join('');
     sm.innerHTML = sk.length ? sk.map(t => `<div class="bad">⚠ ${t}</div>`).join('')
-      : a.ch.hulls.length ? `<div class="ok">✓ The skin fits and keeps the water out.</div>` : '';
+      : a.ch.hulls.length ? (cutHtml || `<div class="ok">✓ The skin fits and keeps the water out.</div>`) : '';
+    if (!sk.length && cutHtml) fm.innerHTML += cutHtml;
     const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
     fm.innerHTML += seatMsg;
     $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, ${D.ribGap ? `every ${D.ribGap.toFixed(2)} m from the back` : `${(D.L / (a.wood.nRib - 1)).toFixed(2)} m apart`} (choose them on <b>2. Length</b>), joined by long sticks at every corner of the skin. ${D.sails.length ? `Your sail${D.sails.length > 1 ? 's add' : ' is'} up to ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m², on ${D.sails.length} mast${D.sails.length > 1 ? 's' : ''} using ${a.wood.mastSticks} of your 70 sticks. Each sail has to start at least 0.50 m up its mast, over your head, and clear the sides of the boat.` : 'No sails yet.'}`
@@ -1617,7 +1624,8 @@
       const NZ = D.bow === 'pointed' ? 14 : 1;
       hs.forEach((h, hi) => {
         const c = centers[hi], zs = [...Array(NZ + 1).keys()].map(j => -L / 2 + L * j / NZ);
-        for (const p of h) for (let j = 0; j < NZ; j++) { const m = stick(tx(p, zs[j], c), tx(p, zs[j + 1], c), t * 0.8); m.userData = { part: 'stringer' }; boat.add(m); }
+        // (At the frame's corners, as the physics counts them: above the skin's top too.)
+        for (const p of (a.ch.frameHulls || hs)[hi] || h) for (let j = 0; j < NZ; j++) { const m = stick(tx(p, zs[j], c), tx(p, zs[j + 1], c), t * 0.8); m.userData = { part: 'stringer' }; boat.add(m); }
         // Skin: strips between neighbouring corners, along the length; pushed out a little.
         const pos = [];
         for (let j = 0; j < NZ; j++) for (let q = 0; q < h.length - 1; q++) {
