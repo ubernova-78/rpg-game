@@ -134,11 +134,12 @@ function sailGeom(sail) {
   if (sail.poly) {
     const p = sail.poly, c = polyArea(p), ys = p.map(q => q[1]), xs = p.map(q => q[0]);
     const lo = Math.min(...ys), hi = Math.max(...ys);
-    return { A: c.A, ceUp: c.cy - lo, h: hi - lo, w: Math.max(...xs) - Math.min(...xs), hang: sail.hang, mastH: sail.mastH,
+    return { poly: p, A: c.A, ceUp: c.cy - lo, h: hi - lo, w: Math.max(...xs) - Math.min(...xs), hang: sail.hang, mastH: sail.mastH,
       inCloth: xs.every(x => x >= -1e-9 && x <= SAIL.SAIL_W + 1e-9) && ys.every(y => y >= -1e-9 && y <= SAIL.SAIL_H + 1e-9) };
   }
   const tri = sail.shape === 'tri';
-  return { A: tri ? sail.w * sail.h / 2 : sail.w * sail.h, ceUp: tri ? sail.h / 3 : sail.h / 2, h: sail.h, w: sail.w,
+  const poly = tri ? [[0, 0], [sail.w, 0], [sail.w / 2, sail.h]] : [[0, 0], [sail.w, 0], [sail.w, sail.h], [0, sail.h]];
+  return { poly, A: tri ? sail.w * sail.h / 2 : sail.w * sail.h, ceUp: tri ? sail.h / 3 : sail.h / 2, h: sail.h, w: sail.w,
     hang: SAIL.MAST_GAP, mastH: sail.h + SAIL.MAST_GAP, inCloth: sail.w <= SAIL.SAIL_W + 1e-9 && sail.h <= SAIL.SAIL_H + 1e-9 };
 }
 
@@ -214,6 +215,28 @@ function sailWood(d) {
   return { sticks: packSticks(pieces), nRib, mastH: mastHs.length ? Math.max(...mastHs) : 0, mastHs, mastSticks: packSticks(mastPieces), woodM, woodMy, tooLong, stringers: verts.size };
 }
 
+// Does a sail, hanging centered on its mast, run into the frame? Its cloth and the
+// section are both seen from behind; the hull's sides and long sticks run the
+// whole length of the boat, so wherever the mast stands, a stick crossing the
+// sail's outline goes through the cloth. Touching (within 1 cm) is fine.
+function sailHitsFrame(d, sg) {
+  const xs = sg.poly.map(p => p[0]), ys = sg.poly.map(p => p[1]);
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, y0 = Math.min(...ys), foot = d.mastFoot[1] + sg.hang;
+  const poly = sg.poly.map(p => [p[0] - cx, foot + p[1] - y0]), E = 0.01;
+  const cross = (a, b, c, e) => { const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const d1 = o(c, e, a), d2 = o(c, e, b), d3 = o(a, b, c), d4 = o(a, b, e); return d1 * d2 < 0 && d3 * d4 < 0; };
+  for (const s of d.segs) {
+    // Pull each end in a little so a stick that only touches the cloth's edge passes.
+    const a = s.a, b = s.b, l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 2 * E) continue;
+    const u = [(b[0] - a[0]) / l * E, (b[1] - a[1]) / l * E], a1 = [a[0] + u[0], a[1] + u[1]], b1 = [b[0] - u[0], b[1] - u[1]];
+    // (Lowered by E too, so a stick lying along the sail's bottom edge doesn't count.)
+    const lo = p => [p[0], p[1] - E];
+    if (inPoly(...lo(a1), poly) || inPoly(...lo(b1), poly)) return true;
+    for (let i = 0; i < poly.length; i++) if (cross(lo(a1), lo(b1), poly[i], poly[(i + 1) % poly.length])) return true;
+  }
+  return false;
+}
+
 function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow);
   const r = { ok: true, problems: [] };
@@ -235,12 +258,19 @@ function sailAnalyze(d) {
     return { G, D, long, fits };
   });
   if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 pieces of monster skin.');
-  r.skins.forEach((s, i) => { if (!s.fits) r.problems.push(`Hull ${d.hulls.length > 1 ? i + 1 + ' ' : ''}needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece of skin; a sheet is 3.05 x 2.73 m.`); });
+  // Say which way it's too big (Nick, 2026-11-19: "what is this about breaking a rule?").
+  r.skins.forEach((s, i) => {
+    if (s.fits) return;
+    const hn = d.hulls.length > 1 ? `Hull ${i + 1}'s skin` : 'The skin', ends = d.bow === 'pointed' ? 'one end' : 'both ends';
+    r.problems.push(`${hn} doesn't fit on its sheet (3.05 x 2.73 m). It has to reach under the boat and up both sides (${s.G.toFixed(2)} m around), and along the boat plus up ${ends} (${s.long.toFixed(2)} m long). `
+      + `It needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece: make the boat shorter, or the hull shallower or narrower.`);
+  });
   const many = sgs.length > 1, nm = i => many ? `Sail ${i + 1}` : 'The sail';
   sgs.forEach((sg, i) => {
     if (!sg.inCloth) r.problems.push(`${nm(i)} is bigger than the cloth.`);
     if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push(`The bottom of ${many ? 'sail ' + (i + 1) : 'the sail'} must be at least 0.5 m up its mast, over your head.`);
     if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push(`${nm(i)} goes higher than the top of its mast.`);
+    if (sailHitsFrame(d, sg)) r.problems.push(`${nm(i)} runs into the boat: the sides or a stick go through it. Hang it higher up its mast, or make it narrower at the bottom.`);
   });
   if (sgs.length > P.MASTS) r.problems.push(`You can have up to ${P.MASTS} masts.`);
   if (d.sails) { const ov = clothOverlap(d.sails); if (ov) r.problems.push(`Sails ${ov[0] + 1} and ${ov[1] + 1} overlap on the cloth: you can't cut the same cloth twice.`); }
@@ -335,7 +365,17 @@ function sailAnalyze(d) {
   r.trimDeg = r.pitchNm / (W * r.GML) * 180 / Math.PI;
   r.bowDip = Math.tan(r.trimDeg * Math.PI / 180) * L / 2;
   // Roll: the serpent's waves.
-  r.heelDeg = P.WAVE_NM / (W * r.GMT) * 180 / Math.PI;
+  // The stones are loose (Nick, 2026-11-19: "the stones should roll in the physics
+  // too"): when it heels they roll across the flat of the floor to the low side,
+  // adding their weight times how far they roll to the waves' push. A V floor
+  // keeps them in the middle; on a wide flat floor they roll a long way.
+  const flat = h => { const lo = lowest(h)[1]; let a = Infinity, b = -Infinity; for (const p of h) if (Math.abs(p[1] - lo) < 0.01) { a = Math.min(a, p[0]); b = Math.max(b, p[0]); } return Math.max(0, (b - a) / 2 - P.STONE_R); };
+  const order = d.hulls.map((h, i) => ({ i, lo: lowest(h)[1] })).sort((p, q) => p.lo - q.lo);
+  const share = d.hulls.map(() => 0);
+  for (let i = 0; i < nStones; i++) share[(order.length > 1 && order[1].lo - order[0].lo < 0.01) ? order[i % 2].i : order[0].i]++;
+  r.stoneRoll = d.hulls.map(flat);
+  r.rollNm = share.reduce((t, n, i) => t + n * P.STONE_KG * P.G * r.stoneRoll[i], 0);
+  r.heelDeg = (P.WAVE_NM + r.rollNm) / (W * r.GMT) * 180 / Math.PI;
 
   if (r.speedKt < P.MONSTER_KT) { r.ok = false; r.fail = 'slow'; }
   else if (r.bowDip >= r.freeboard) { r.ok = false; r.fail = 'bow'; }

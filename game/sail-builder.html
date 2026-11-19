@@ -222,6 +222,7 @@
       <div class="panel tabpanel" id="p-skin">
         <div class="row"><span>Length</span><select id="L"></select></div>
         <div class="row"><span>Ribs (copies of your slice)</span><select id="ribs"></select></div>
+        <div class="row"><span>Rib spacing</span><select id="ribgap"></select></div>
         <div class="note" id="ribnote" style="margin-top:2px"></div>
         <div class="row"><span>Front (bow)</span><div class="seg" id="bow"><button data-v="square">Square</button><button data-v="pointed">Pointed</button></div></div>
         <div class="note">The monster skin wraps round the outside of your frame by itself: under the boat, up its sides, and over both ends. Each piece is cut from one 3.05 × 2.73 m sheet.</div>
@@ -285,6 +286,12 @@
   // Where each mast stands along the boat, from the stern (0) to the bow (1);
   // you sit behind the first one.
   const mastFrac = (i, n) => n <= 1 ? 0.55 : 0.32 + 0.5 * i / (n - 1);
+  // Where sail k's mast stands: the one you chose (sl.at), else the builder's spread.
+  const mastAt = k => D.sails[k] && D.sails[k].at != null ? D.sails[k].at : mastFrac(k, D.sails.length);
+  // Where rib i of n is, from the back (0) to the front (1): evenly spread, or
+  // every D.ribGap meters from the back with the last one at the front.
+  const ribFrac = (i, n) => n <= 1 ? 0 : D.ribGap ? (i >= n - 1 ? 1 : Math.min(1, i * D.ribGap / D.L)) : i / (n - 1);
+  const ribsFor = (L, g) => Math.ceil(L / g - 1e-9) + 1;
   const riderZ = L => -L / 2 + Math.max(0.25, Math.min(L * 0.55 - 0.75, L * 0.32 - 0.3));
   // Where the 6 stones lie, {x, y, z}: on the floor at its lowest (where the physics
   // puts them), as near the middle as they fit, clear of you and the masts. (They
@@ -294,7 +301,7 @@
     if (!hs.length || !a.r.stoneY || !a.r.stoneY.length) return out;
     const y = a.r.stoneY[0], lowY = y - R, gap = 2 * R + 0.015;
     const rz = riderZ(L), seatClear = a.seat == null || y + R < a.seat - 0.01; // under you, if you sit higher
-    const masts = D.sails.map((sl, k) => -L / 2 + L * mastFrac(k, D.sails.length));
+    const masts = D.sails.map((sl, k) => -L / 2 + L * mastAt(k));
     const cand = [];
     hs.forEach((h, hi) => {
       // The floor at its lowest: a flat run, or the one lowest point (a V).
@@ -537,6 +544,10 @@
     if (T != null) {
       const [, sy] = S([0, T]);
       g.fillStyle = 'rgba(47,111,181,0.13)'; g.fillRect(0, sy, W, H - sy);
+      // ...but not inside the boat: that's dry (Nick, 2026-11-19: "why is there water inside the boat?").
+      g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
+      for (const h of a.ch.hulls) { g.beginPath(); h.forEach((p, i) => { const [px, py] = S(p); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.fill(); }
+      g.restore();
       g.strokeStyle = 'rgba(47,111,181,0.8)'; g.lineWidth = 1.5; g.setLineDash([8, 4]);
       g.beginPath(); g.moveTo(0, sy); g.lineTo(W, sy); g.stroke(); g.setLineDash([]);
       g.fillStyle = '#2f6fb5'; g.font = '11px system-ui'; g.textAlign = 'right'; g.fillText('waterline (with you and the stones aboard)', W - 10, sy - 4);
@@ -699,7 +710,9 @@
     const sl = { sheet, poly, mastH: 0, hang: P.MAST_GAP };
     if (clothOverlap(D.sails.concat([sl]))) { if (!quiet) say('That overlaps a sail you already cut from this sheet.'); return false; }
     const last = D.sails[D.sails.length - 1];
-    sl.mastH = Math.max(last ? last.mastH : 0, +(Math.ceil((P.MAST_GAP + sailH(sl)) / 0.25) * 0.25).toFixed(2));
+    // Hang it high enough to clear the boat's sides (sailHitsFrame), in 25 cm steps.
+    if (A && A.mf != null) { const dd = { segs: D.segs, mastFoot: [0, A.mf] }; for (let k = 0; k < 12 && sailHitsFrame(dd, sailGeom(sl)); k++) sl.hang = +(sl.hang + 0.25).toFixed(2); }
+    sl.mastH = Math.max(last ? last.mastH : 0, +(Math.ceil((sl.hang + sailH(sl)) / 0.25) * 0.25).toFixed(2));
     fitSail(sl);
     remember(); D.sails.push(sl); cloth.sel = D.sails.length - 1; cloth.draft = []; changed(); return true;
   }
@@ -823,13 +836,13 @@
     g.fillStyle = hs.length ? 'rgba(107,63,122,0.85)' : 'rgba(196,138,78,0.5)'; g.strokeStyle = '#4a3018'; g.lineWidth = 1.5;
     g.beginPath(); g.rect(sx0, y(yhi), D.L * s, (yhi - ylo) * s); g.fill(); g.stroke();
     SL.forEach((sl, i) => {
-      const mz = sx0 + D.L * mastFrac(i, n) * s, sf = foot + sl.hang, shh = sailH(sl);
+      const mz = sx0 + D.L * mastAt(i) * s, sf = foot + sl.hang, shh = sailH(sl);
       g.strokeStyle = '#7a5230'; g.lineWidth = 3; g.beginPath(); g.moveTo(mz, y(foot)); g.lineTo(mz, y(foot + sl.mastH)); g.stroke();
       g.strokeStyle = i === cloth.sel ? '#d4a017' : '#d8c9a3'; g.lineWidth = 4; g.beginPath(); g.moveTo(mz + 3, y(sf)); g.quadraticCurveTo(mz + 3 + shh * s * 0.12, y(sf + shh / 2), mz + 3, y(sf + shh)); g.stroke();
     });
     // Ribs, as tick marks along the side.
     g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 1;
-    const nr = A && A.wood ? A.wood.nRib : ribCount(D.L); for (let i = 0; i < nr; i++) { const x = sx0 + D.L * s * i / (nr - 1); g.beginPath(); g.moveTo(x, y(yhi)); g.lineTo(x, y(ylo)); g.stroke(); }
+    const nr = A && A.wood ? A.wood.nRib : ribCount(D.L); for (let i = 0; i < nr; i++) { const x = sx0 + D.L * s * ribFrac(i, nr); g.beginPath(); g.moveTo(x, y(yhi)); g.lineTo(x, y(ylo)); g.stroke(); }
     // Length dimension
     dimLine(sx0, y(ylo) + 12, sx0 + D.L * s, D.L.toFixed(2) + ' m');
     // Top view of the bow shape, small, above the side view.
@@ -867,12 +880,25 @@
   // ---------- Controls ----------
   const steps = (lo, hi, st, extra) => { const o = []; for (let v = lo; v <= hi + 1e-9; v += st) o.push(+v.toFixed(2)); if (extra && !o.includes(extra)) o.push(extra); return o; };
   const fill = (sel, vals, cur) => { sel.innerHTML = vals.map(v => `<option value="${v}"${Math.abs(v - cur) < 1e-9 ? ' selected' : ''}>${v.toFixed(2)} m</option>`).join(''); };
+  // A mast can't stand where you sit, or right next to another mast.
+  const mastWhy = (k, f) => {
+    const L = D.L, z = -L / 2 + L * f, rz = riderZ(L);
+    if (z > rz - 0.2 && z < rz + 0.3) return ' (you sit here)';
+    if (D.sails.some((sl, j) => j !== k && Math.abs(L * (mastAt(j) - f)) < 0.2)) return ' (another mast)';
+    return '';
+  };
+  const mastFree = (k, f) => !mastWhy(k, f);
   function paintSelects() {
     fill($('L'), steps(0.5, 3.0, 0.25), D.L);
-    // Ribs: evenly spaced from the back of the boat to the front, never more than 1 m apart.
+    // Ribs: pick how many (spread evenly from the back to the front), or how far
+    // apart (from the back, the last one at the front); each sets the other.
     const rMin = ribCount(D.L), rNow = D.ribs || rMin, rOpts = [];
     for (let n = 2; n <= Math.max(rMin + 8, rNow); n++) rOpts.push(n);
-    $('ribs').innerHTML = rOpts.map(n => `<option value="${n}"${n === rNow ? ' selected' : ''}${n < rMin ? ' disabled' : ''}>${n} ribs, ${(D.L / (n - 1)).toFixed(2)} m apart${n < rMin ? ' (too far: over 1 m)' : n === rMin ? ' (the fewest)' : ''}</option>`).join('');
+    $('ribs').innerHTML = rOpts.map(n => `<option value="${n}"${n === rNow ? ' selected' : ''}${n < rMin ? ' disabled' : ''}>${n} ribs${n < rMin ? ' (too far apart)' : n === rMin ? ' (the fewest)' : ''}</option>`).join('');
+    const gaps = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0];
+    $('ribgap').innerHTML = `<option value="even"${D.ribGap ? '' : ' selected'}>Even: ${(D.L / (rNow - 1)).toFixed(2)} m apart</option>`
+      + gaps.map(gp => { const n = ribsFor(D.L, gp), last = +(D.L - (n - 2) * gp).toFixed(2);
+        return `<option value="${gp}"${D.ribGap === gp ? ' selected' : ''}>Every ${gp.toFixed(2)} m (${n} ribs${Math.abs(last - gp) > 0.005 ? `, the last gap ${last.toFixed(2)} m` : ''})</option>`; }).join('');
     $('ribnote').textContent = `Each rib uses every stick in your slice${A && A.wood ? ` (${D.segs.length} now)` : ''}. More ribs cost more sticks and weigh more; they have to be 1 m apart or closer, or the skin sags.`;
     // One box per sail: its mast's height, and how high up the mast it hangs.
     const box = $('sails');
@@ -881,17 +907,34 @@
       const hmax = +(sl.mastH - sailH(sl)).toFixed(2), hs = steps(P.MAST_GAP, Math.max(P.MAST_GAP, hmax), 0.25, hmax >= P.MAST_GAP ? hmax : null);
       if (!hs.some(v => Math.abs(v - sl.hang) < 1e-9)) hs.push(sl.hang);
       const mh = steps(0.75, 5.0, 0.25, sl.mastH).sort((x, y) => x - y);
+      const at = mastAt(i), spots = [];
+      for (let f = 0.1; f <= 0.901; f += 0.05) spots.push(+f.toFixed(2));
+      if (!spots.some(f => Math.abs(f - at) < 1e-6)) spots.push(at);
+      const atOpts = spots.sort((x, y) => x - y).map(f => { const free = mastFree(i, f);
+        return `<option value="${f}"${Math.abs(f - at) < 1e-6 ? ' selected' : ''}${free || Math.abs(f - at) < 1e-6 ? '' : ' disabled'}>${(f * D.L).toFixed(2)} m from the back${free ? '' : mastWhy(i, f)}</option>`; }).join('');
       return `<div class="sl${i === cloth.sel ? ' on' : ''}" data-i="${i}"><div class="hd"><span>Sail ${i + 1}: ${polyArea(sl.poly).A.toFixed(2)} m² (cloth ${sl.sheet + 1})</span><button class="del" data-del="${i}">Delete</button></div>`
+        + `<div class="row"><span>Where the mast stands</span><select data-at="${i}">${atOpts}</select></div>`
         + `<div class="row"><span>Mast height</span><select data-mh="${i}">${mh.map(v => `<option value="${v}"${Math.abs(v - sl.mastH) < 1e-9 ? ' selected' : ''}>${v.toFixed(2)} m</option>`).join('')}</select></div>`
         + `<div class="row"><span>Bottom of the sail</span><select data-hg="${i}">${hs.sort((x, y) => x - y).map(v => `<option value="${v}"${Math.abs(v - sl.hang) < 1e-9 ? ' selected' : ''}>${v.toFixed(2)} m up${Math.abs(v - hmax) < 1e-9 ? ' (top)' : ''}</option>`).join('')}</select></div></div>`;
     }).join('');
   }
-  $('L').addEventListener('change', e => { remember(); D.L = +e.target.value; if (D.ribs && D.ribs < ribCount(D.L)) D.ribs = ribCount(D.L); changed(); });
-  $('ribs').addEventListener('change', e => { remember(); D.ribs = +e.target.value; changed(); });
+  $('L').addEventListener('change', e => {
+    remember(); D.L = +e.target.value;
+    if (D.ribGap) D.ribs = ribsFor(D.L, D.ribGap); else if (D.ribs && D.ribs < ribCount(D.L)) D.ribs = ribCount(D.L);
+    D.sails.forEach(sl => { if (sl.at != null && !mastFree(D.sails.indexOf(sl), sl.at)) delete sl.at; });
+    changed();
+  });
+  $('ribs').addEventListener('change', e => { remember(); delete D.ribGap; D.ribs = +e.target.value; changed(); });
+  $('ribgap').addEventListener('change', e => {
+    remember();
+    if (e.target.value === 'even') delete D.ribGap; else { D.ribGap = +e.target.value; D.ribs = ribsFor(D.L, D.ribGap); }
+    changed();
+  });
   $('sails').addEventListener('change', e => {
     const t = e.target;
     if (t.dataset.mh != null) { const sl = D.sails[+t.dataset.mh]; remember(); sl.mastH = +t.value; fitSail(sl); changed(); }
     if (t.dataset.hg != null) { remember(); D.sails[+t.dataset.hg].hang = +t.value; changed(); }
+    if (t.dataset.at != null) { remember(); D.sails[+t.dataset.at].at = +t.value; changed(); }
   });
   $('sails').addEventListener('click', e => {
     const del = e.target.closest('[data-del]');
@@ -1109,11 +1152,11 @@
       const pts = D.bow === 'pointed' ? [[x0, y0], [x0 + L * (1 - P.TAPER), y0], [x0 + L, yc], [x0 + L * (1 - P.TAPER), y1], [x0, y1]] : [[x0, y0], [x0 + L, y0], [x0 + L, y1], [x0, y1]];
       b.fillStyle = s.flip > 0.5 ? '#4e2c5a' : '#6b3f7a'; b.strokeStyle = '#2c1633'; b.lineWidth = 1;
       b.beginPath(); pts.forEach((p, i) => i ? b.lineTo(X(p[0]) + 0.5, Y(p[1]) + 0.5) : b.moveTo(X(p[0]) + 0.5, Y(p[1]) + 0.5)); b.closePath(); b.fill(); b.stroke();
-      if (s.flip <= 0.5) { b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * i / (A.wood.nRib - 1); if (x < x0 + L * (1 - (D.bow === 'pointed' ? P.TAPER : 0)) + 1e-6) b.fillRect(X(x), Y(y0) + 1, 1, Math.max(1, Y(y1) - Y(y0) - 2)); } }
+      if (s.flip <= 0.5) { b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * ribFrac(i, A.wood.nRib); if (x < x0 + L * (1 - (D.bow === 'pointed' ? P.TAPER : 0)) + 1e-6) b.fillRect(X(x), Y(y0) + 1, 1, Math.max(1, Y(y1) - Y(y0) - 2)); } }
     }
     if (hs.length > 1 && s.flip <= 0.5) { // beams across between the hulls
       const all = hs.flat().map(p => p[0]), lo = Math.min(...all), hi = Math.max(...all);
-      b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * i / (A.wood.nRib - 1); if (D.bow !== 'pointed' || x <= x0 + L * (1 - P.TAPER)) b.fillRect(X(x), Y(lo), 1, Y(hi) - Y(lo)); }
+      b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * ribFrac(i, A.wood.nRib); if (D.bow !== 'pointed' || x <= x0 + L * (1 - P.TAPER)) b.fillRect(X(x), Y(lo), 1, Y(hi) - Y(lo)); }
     }
     if (s.sunk > 0) { b.globalAlpha = 0.5 * s.sunk; b.fillStyle = '#2f6fb5'; b.fillRect(X(x0) - 1, Y(-1.5), X(x0 + L) - X(x0) + 2, Y(1.5) - Y(-1.5)); }
     b.globalAlpha = 1;
@@ -1124,7 +1167,7 @@
     const rdot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(X(x), Y(y), r, 0, 7); b.fill(); };
     rdot(zr, sway * 0.4, Math.max(2, 0.2 * ppm), '#7a5020'); rdot(zr, sway * 0.4, Math.max(1.5, 0.16 * ppm), '#e0a050');
     D.sails.forEach((sl, k) => {
-      const xm = x0 + L * mastFrac(k, D.sails.length), sw = sailW(sl);
+      const xm = x0 + L * mastAt(k), sw = sailW(sl);
       b.strokeStyle = '#8a7a58'; b.lineWidth = 3; b.beginPath();
       for (let i = 0; i <= 12; i++) { const y = -sw / 2 + sw * i / 12, u = y / (sw / 2), x = xm + 0.18 * sw * (1 - u * u); i ? b.lineTo(X(x), Y(y + sway)) : b.moveTo(X(x), Y(y + sway)); }
       b.stroke(); b.strokeStyle = '#f5ecd6'; b.lineWidth = 1.5; b.stroke();
@@ -1435,7 +1478,7 @@
       capsize: ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
       slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and caught you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
       bow: ['A 30-knot gust drove the bow under!', 'Watch the front-to-back dial: the sail pushes high up, and that tips the front down. A lower or smaller sail, a longer hull, or higher sides.'],
-      roll: ['The serpent\'s waves rolled it until the side went under!', 'Watch the side-to-side dial: it needs to be steadier. Wider, with the weight lower, or with higher sides.'],
+      roll: ['The serpent\'s waves rolled it until the side went under!', (r.rollNm > 1 ? 'Your loose stones rolled to the low side too, and tipped it further. ' : '') + 'Watch the side-to-side dial: it needs to be steadier. Wider, with the weight lower, or with higher sides.'],
       rules: ['This boat breaks a rule.', r.problems.join(' ')],
     })[r.fail];
   }
@@ -1481,7 +1524,7 @@
       : a.ch.hulls.length ? `<div class="ok">✓ The skin fits and keeps the water out.</div>` : '';
     const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
     fm.innerHTML += seatMsg;
-    $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, ${(D.L / (a.wood.nRib - 1)).toFixed(2)} m apart (choose how many on <b>2. Length</b>), joined by long sticks at every corner of the skin. ${D.sails.length ? `Your sail${D.sails.length > 1 ? 's add' : ' is'} up to ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m², on ${D.sails.length} mast${D.sails.length > 1 ? 's' : ''} using ${a.wood.mastSticks} of your 70 sticks. Each sail has to start at least 0.50 m up its mast, over your head.` : 'No sails yet.'}`
+    $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, ${D.ribGap ? `every ${D.ribGap.toFixed(2)} m from the back` : `${(D.L / (a.wood.nRib - 1)).toFixed(2)} m apart`} (choose them on <b>2. Length</b>), joined by long sticks at every corner of the skin. ${D.sails.length ? `Your sail${D.sails.length > 1 ? 's add' : ' is'} up to ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m², on ${D.sails.length} mast${D.sails.length > 1 ? 's' : ''} using ${a.wood.mastSticks} of your 70 sticks. Each sail has to start at least 0.50 m up its mast, over your head, and clear the sides of the boat.` : 'No sails yet.'}`
       + (D.bow === 'pointed' ? ` The front ${Math.round(P.TAPER * 100)}% narrows to a point.` : '');
   }
   function coach() {
@@ -1562,7 +1605,7 @@
       const tx = (p, z, c) => [c + (p[0] - c) * sAt(z), p[1], z];
       // Ribs: every section stick, at each rib. In a pointed nose only hull sticks, narrowed.
       for (let i = 0; i < nR; i++) {
-        const z = -L / 2 + L * i / (nR - 1), s = sAt(z);
+        const z = -L / 2 + L * ribFrac(i, nR), s = sAt(z);
         if (s < 0.05) continue;
         for (const sg of D.segs) {
           if (s < 0.999 && !hs.some(h => onChain([(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2], h))) continue;
@@ -1590,7 +1633,7 @@
       // Mast, yard and sail, about 55% of the way along; the rider sits behind it.
       const foot = a.mf == null ? 0 : a.mf;
       D.sails.forEach((sl, k) => {
-        const zM = -L / 2 + L * mastFrac(k, D.sails.length), sf = foot + sl.hang;
+        const zM = -L / 2 + L * mastAt(k), sf = foot + sl.hang;
         const mast = stick([0, foot, zM], [0, foot + sl.mastH, zM], 0.06, MAT.mast); mast.userData = { part: 'mast', y0: mast.position.y, foot }; boat.add(mast);
         // The cut-out, centered on its mast, bellied out a little by the wind from behind.
         const sp = sl.poly, xs = sp.map(p => p[0]), ys = sp.map(p => p[1]);
@@ -1600,12 +1643,32 @@
         sg.computeVertexNormals();
         const sail = new THREE.Mesh(sg, MAT.cloth); sail.position.set(0, sf, zM - 0.08); sail.userData = { part: 'sail' }; boat.add(sail);
       });
-      const zM = -L / 2 + L * mastFrac(0, D.sails.length);
+      const zM = -L / 2 + L * mastAt(0);
       if (a.seat != null) { const rd = makeRider(); rd.position.set(0, a.seat, riderZ(L)); rd.name = 'rider'; rd.userData.part = 'rider'; rd.userData.y0 = rd.position.y; boat.add(rd); }
       if (hs.length && a.r.stoneY) {
         const geo = new THREE.DodecahedronGeometry(P.STONE_R);
         stoneSpots(a).forEach((sp, i) => {
           const st = new THREE.Mesh(geo, MAT.stone); st.position.set(sp.x, sp.y, sp.z); st.rotation.set(i, i * 0.7, 0); st.userData = { part: 'stone', i, y0: st.position.y }; boat.add(st); });
+      }
+      // Keep the water out of the boat (Nick, 2026-11-19: "why is there water inside
+      // the boat already?"). The water plane cuts straight through the hull, so an
+      // invisible copy of the hull below the waterline is drawn after the boat and
+      // before the water: it writes depth only, and the water behind it is hidden.
+      if (hs.length && a.r.T != null) {
+        const Tw = a.r.T + 0.012, NZm = D.bow === 'pointed' ? 14 : 1, pos = [];
+        hs.forEach((h, hi) => {
+          const c = centers[hi], sec = clipBelow(h, Tw); if (sec.length < 3) return;
+          const zs = [...Array(NZm + 1).keys()].map(j => -L / 2 + L * j / NZm), at = (p, z) => tx(p, z, c);
+          for (let j = 0; j < NZm; j++) for (let q = 0; q < sec.length; q++) {
+            const p0 = sec[q], p1 = sec[(q + 1) % sec.length], A0 = at(p0, zs[j]), B0 = at(p1, zs[j]), A1 = at(p0, zs[j + 1]), B1 = at(p1, zs[j + 1]);
+            pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
+          }
+          const tri = THREE.ShapeUtils.triangulateShape(sec.map(p => new THREE.Vector2(p[0], p[1])), []);
+          for (const z of [zs[0], zs[NZm]]) for (const [i0, i1, i2] of tri) pos.push(...at(sec[i0], z), ...at(sec[i1], z), ...at(sec[i2], z));
+        });
+        const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        const mask = new THREE.Mesh(mg, new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide }));
+        mask.renderOrder = 1; mask.userData = { part: 'drymask' }; boat.add(mask);
       }
       // Float it at its waterline once it has skin; a bare frame sits on the water.
       const lowY = Math.min(...D.segs.flatMap(s => [s.a[1], s.b[1]]).concat([0]));
@@ -1677,6 +1740,8 @@
     function gulpStart(kind) {
       const rd = boat.getObjectByName('rider'), wp = new THREE.Vector3(); (rd || boat).getWorldPosition(wp);
       gul = { kind, u: 0, x: wp.x, y: wp.y, z: wp.z, view: { theta: orbit.theta, phi: orbit.phi, r: orbit.r } };
+      // Swamped or rolled over, the water does get in.
+      if (kind !== 'slow') boat.children.forEach(m => { if (m.userData && m.userData.part === 'drymask') m.visible = false; });
       gul.view.ty = orbit.ty; orbit.ty = 0.6;
       Object.assign(orbit, { theta: Math.PI / 2 - 0.45, phi: 1.28, r: Math.max(6.5, D.L + 4.5) });
     }
@@ -1758,6 +1823,7 @@
       if (p === 'rib') { const k = show.ribs - u.i; m.visible = k > 0; if (m.visible && u.i > 0) m.position.z = u.zFirst + (u.z0 - u.zFirst) * ease(Math.min(1, k)); }
       else if (p === 'stringer') { m.visible = show.stringers > 0; m.scale.y = Math.max(0.001, show.stringers); }
       else if (p === 'skin') m.visible = show.skin > 0;
+      else if (p === 'drymask') m.visible = show.skin >= 1;
       else if (p === 'mast') { m.visible = show.mast > 0; m.scale.y = Math.max(0.001, show.mast); m.position.y = u.foot + (u.y0 - u.foot) * show.mast; }
       else if (p === 'sail') { m.visible = show.sail > 0; m.scale.y = Math.max(0.001, show.sail); }
       else if (p === 'rider') { m.visible = show.rider > 0; m.position.y = u.y0 + (1 - ease(show.rider)) * 1.4; }
