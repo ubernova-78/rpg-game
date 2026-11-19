@@ -211,13 +211,11 @@
       </div>
       <div class="panel tabpanel" id="p-frame">
         <div class="note" style="margin-top:0">Your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle and looked from behind. The 3D boat under the drawing builds itself as you go.</div>
-        <div class="row"><span><b>1.</b> Pick a hull shape</span></div>
-        <div class="seg" id="shapes"><button data-v="flat">▭ Flat bottom</button><button data-v="v">▽ V bottom</button><button data-v="round">◡ Round bottom</button><button data-v="vwall">⬠ V with walls</button></div>
-        <div class="note" id="guidenote"></div>
-        <div class="btnrow"><button class="btn small" id="btn-glue">🪵 Glue sticks along it</button><button class="btn alt small" id="btn-glue-add" style="display:none">➕ Add it to my frame</button></div>
-        <div class="row" style="margin-top:10px"><span><b>2.</b> Add or change sticks by hand</span></div>
-        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other).</div>
+        <div class="row"><span><b>Draw your slice, stick by stick</b></span></div>
+        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
         <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button></div></div>
+        <div class="row"><span>Mirror</span><div class="seg" id="mirror"><button data-v="on">🪞 On</button><button data-v="off">Off</button></div></div>
+        <div class="note" id="mirrornote" style="margin-top:2px"></div>
         <div class="btnrow"><button class="btn alt small" id="btn-undo">↶ Undo</button><button class="btn alt small" id="btn-clear">Clear all</button></div>
         <div class="note">Every stick can be cut shorter, never longer than 1.13 m, and has to be glued to another stick. The grid squares are 10 cm. You sit in the middle (the dashed line) and need 50 cm of room; the mast stands there too.</div>
         <div class="msgs" id="framemsg"></div>
@@ -302,6 +300,21 @@
   // Where the 6 stones lie, {x, y, z}: on the floor at its lowest (where the physics
   // puts them), as near the middle as they fit, clear of you and the masts. (They
   // used to sit on the floor's corner, half through the wall: Nick, 2026-11-19.)
+  // Your arms, kept inside the boat (Nick, 2026-11-19: "hands should not stick
+  // through the hull"): for each side, how far out (m from the middle) the elbow
+  // and the hand on the floor can reach before they'd meet a stick (an arm is
+  // about 9 cm thick and a stick 5 cm, hence the 7 cm kept clear).
+  function wallX(y, sd) {
+    let best = Infinity;
+    for (const s of D.segs) {
+      const [p, q] = [s.a, s.b], lo = Math.min(p[1], q[1]), hi = Math.max(p[1], q[1]);
+      if (y < lo - 1e-9 || y > hi + 1e-9) continue;
+      const xs = Math.abs(q[1] - p[1]) < 1e-9 ? [p[0], q[0]] : [p[0] + (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1])];
+      for (const x of xs) if (x * sd > 0.12) best = Math.min(best, x * sd);
+    }
+    return best;
+  }
+  const riderArms = seat => [-1, 1].map(sd => ({ sd, elbow: Math.max(0.17, Math.min(0.27, wallX(seat + 0.31, sd) - 0.07)), hand: Math.max(0.17, Math.min(0.29, wallX(seat + 0.03, sd) - 0.07)) }));
   function stoneSpots(a) {
     const hs = a.ch.hulls, R = P.STONE_R, L = D.L, out = [];
     if (!hs.length || !a.r.stoneY || !a.r.stoneY.length) return out;
@@ -349,7 +362,7 @@
         const a = D.segs[i], b = D.segs[j];
         if (onSeg(a.a, b) || onSeg(a.b, b) || onSeg(b.a, a) || onSeg(b.b, a)) { glued = true; par[find(i)] = find(j); }
       }
-      if (!glued) loose.push(i);
+      if (!glued && n > 1) loose.push(i); // (your first stick has nothing to be glued to yet)
     }
     const pieces = new Set([...Array(n).keys()].map(find)).size;
     const long = D.segs.map((s, i) => dist(s.a, s.b) > P.STICK_L + 1e-6 ? i : -1).filter(i => i >= 0);
@@ -433,65 +446,22 @@
     });
     return bi;
   }
-  // ---------- Hull shapes (Nick, 2026-11-19: "this needs to be easier") ----------
-  // Pick a shape and a faint outline appears, with two handles for its width and
-  // depth and a dot at every joint; "Glue sticks along it" puts the sticks in.
-  // Freehand sticks still work for anything else (a seat, a beam, ...).
-  let guide = null; // { kind, w, d } while a shape is being sized
-  let guideDrag = null; // 'w' or 'd' while a handle is being dragged
-  const r2 = v => Math.round(v / GRID) * GRID;
-  // The outline, gunwale to gunwale, its bottom at y = 0.
-  function guidePts(g) {
-    const w = g.w / 2, d = g.d;
-    if (g.kind === 'flat') return [[-w, d], [-w, 0], [w, 0], [w, d]];
-    if (g.kind === 'v') return [[-w, d], [0, 0], [w, d]];
-    if (g.kind === 'vwall') { const vd = Math.max(0.1, r2(d * 0.55)); return [[-w, d], [-w, vd], [0, 0], [w, vd], [w, d]]; }
-    // Round: half an ellipse, in 6 sticks (a rounder bottom costs more sticks).
-    const out = []; for (let i = 0; i <= 6; i++) { const t = Math.PI + Math.PI * i / 6; out.push([r3(w * Math.cos(t)), r3(d + d * Math.sin(t))]); }
-    return out;
-  }
-  // The sticks for an outline: one per side, split into equal pieces if a side is longer than a stick.
-  function guideSticks(g) {
-    const pts = guidePts(g), out = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1], n = Math.ceil(dist(a, b) / P.STICK_L - 1e-9);
-      for (let k = 0; k < n; k++) out.push({ a: [r3(a[0] + (b[0] - a[0]) * k / n), r3(a[1] + (b[1] - a[1]) * k / n)], b: [r3(a[0] + (b[0] - a[0]) * (k + 1) / n), r3(a[1] + (b[1] - a[1]) * (k + 1) / n)] });
-    }
-    return out;
-  }
-  // One handle, on the top corner: drag it out for wider, up for deeper.
-  const guideHandle = g => [g.w / 2, g.d];
-  function pickShape(kind) {
-    guide = Object.assign({ w: 0.8, d: kind === 'v' ? 0.45 : kind === 'vwall' ? 0.5 : 0.35 }, guide && { w: guide.w, d: guide.d }, { kind });
-    setTool('stick'); paintShapes(); drawCad();
-  }
-  // A new shape replaces the frame you have (Nick, 2026-11-19: they went on top
-  // rather than starting over); "Add it to my frame" keeps both, e.g. for a second hull.
-  function glueGuide(quiet, keep) {
-    if (!guide) return;
-    if (!quiet) remember();
-    if (!keep) D.segs = [];
-    const add = guideSticks(guide).filter(s => !D.segs.some(t => segKey(t.a, t.b) === segKey(s.a, s.b)));
-    D.segs.push(...add); guide = null; paintShapes(); changed();
-  }
-  function paintShapes() {
-    document.querySelectorAll('#shapes button').forEach(b => b.classList.toggle('on', !!guide && b.dataset.v === guide.kind));
-    const has = D.segs.length > 0;
-    $('btn-glue').disabled = !guide; $('guidenote').style.display = guide ? '' : 'none';
-    $('btn-glue').textContent = has ? '🪵 Replace my frame with it' : '🪵 Glue sticks along it';
-    $('btn-glue-add').style.display = has ? '' : 'none'; $('btn-glue-add').disabled = !guide;
-    if (guide) $('guidenote').textContent = `Drag the yellow handle to size it: ${guide.w.toFixed(2)} m wide, ${guide.d.toFixed(2)} m deep, ${guideSticks(guide).length} sticks in each rib. Then glue it.`;
-  }
-  document.querySelectorAll('#shapes button').forEach(b => b.addEventListener('click', () => pickShape(b.dataset.v)));
-  $('btn-glue').addEventListener('click', () => glueGuide());
-  $('btn-glue-add').addEventListener('click', () => glueGuide(false, true));
-
-  function addStick(a, b) {
+  // ---------- Mirror (Nick, 2026-11-19) ----------
+  // Every stick you add or erase is copied across the middle line, so the boat
+  // stays even; turn it off for a boat that isn't the same on both sides. (This
+  // replaced ready-made hull shapes: the students design the bottom themselves.)
+  let mirror = true;
+  const flipSeg = s => ({ a: [r3(-s.a[0]) || 0, s.a[1]], b: [r3(-s.b[0]) || 0, s.b[1]] });
+  const mirrorOn = () => mirror || !!demo; // the intro always draws mirrored
+  function addStick(a, b, quiet) {
     if (dist(a, b) < 0.02) return;
     if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long: a stick is only 1.13 m. Cut it shorter, or glue two together.` }; return; }
-    const kk = segKey(a, b);
-    if (D.segs.some(s => segKey(s.a, s.b) === kk)) return;
-    remember(); D.segs.push({ a, b }); changed();
+    const add = [{ a, b }];
+    if (mirrorOn()) { const f = flipSeg({ a, b }); if (segKey(f.a, f.b) !== segKey(a, b)) add.push(f); }
+    const fresh = add.filter((s, i) => !D.segs.some(t => segKey(t.a, t.b) === segKey(s.a, s.b)));
+    if (!fresh.length) return;
+    if (!quiet) remember();
+    D.segs.push(...fresh); changed();
   }
   let flash = null;
   const evPt = e => { const r = cad.getBoundingClientRect(); return M(e.clientX - r.left, e.clientY - r.top); };
@@ -499,10 +469,6 @@
     if (mode === 'race') return;
     if (mode === 'cloth') return clothClick(e);
     const m = evPt(e);
-    if (guide) {
-      const [hx, hy] = S(guideHandle(guide)), [px, py] = S(m);
-      if (Math.hypot(hx - px, hy - py) < 16) { guideDrag = true; cad.setPointerCapture(e.pointerId); return; }
-    }
     if (tool === 'stick') {
       const p = snap(m).p;
       if (pend) { addStick(pend, p); pend = null; drawCad(); return; }
@@ -510,7 +476,8 @@
     } else {
       const i = nearestSeg(m); if (i < 0) return;
       remember();
-      D.segs.splice(i, 1);
+      const s0 = D.segs[i], f = flipSeg(s0), j = mirror ? D.segs.findIndex((t, q) => q !== i && segKey(t.a, t.b) === segKey(f.a, f.b)) : -1;
+      D.segs = D.segs.filter((t, q) => q !== i && q !== j);
       changed();
     }
   });
@@ -518,18 +485,11 @@
     if (mode === 'race') return;
     if (mode === 'cloth') { const q = clothSnap(e); cloth.hover = q.inside || cloth.draft.length ? q.p : null; cloth.hoverSheet = q.sheet; drawCloth(); return; }
     const m = evPt(e);
-    if (guideDrag) { dragGuide(m); return; } hover = tool === 'stick' ? snap(m) : null; hoverSeg = tool === 'stick' ? -1 : nearestSeg(m);
+    hover = tool === 'stick' ? snap(m) : null; hoverSeg = tool === 'stick' ? -1 : nearestSeg(m);
     if (drag) drag.b = hover.p;
     drawCad();
   });
-  // Both sides move together, so the hull stays centered on you.
-  function dragGuide(m) {
-    guide.w = +Math.max(0.5, Math.min(2 * VX - 0.2, r2(Math.abs(m[0]) * 2))).toFixed(2);
-    guide.d = +Math.max(0.15, Math.min(VY1 - 0.2, r2(m[1]))).toFixed(2);
-    paintShapes(); drawCad();
-  }
   cad.addEventListener('pointerup', () => {
-    if (guideDrag) { guideDrag = null; drawCad(); return; }
     if (!drag) return;
     if (dist(drag.a, drag.b) < 0.02) pend = drag.a; // a click: wait for the other end
     else addStick(drag.a, drag.b);
@@ -574,20 +534,6 @@
     for (let i = -3; i <= 3; i++) { const v = i / 2, [sx] = S([v, 0]); g.fillText((v === 0 ? '0' : v.toFixed(1)) + ' m', sx, S([0, VY0])[1] + 12); }
     g.textAlign = 'right';
     for (let v = 0; v <= VY1 + 1e-9; v += 0.5) { const [, sy] = S([0, v]); g.fillText(v.toFixed(1) + ' m', S([-VX, 0])[0] - 2 + 30, sy - 3); }
-    // The hull shape being sized: a faint outline, a dot at each joint, two handles.
-    if (guide) {
-      const gp = guidePts(guide);
-      g.strokeStyle = 'rgba(107,63,122,0.35)'; g.lineWidth = 10; g.lineJoin = 'round'; g.lineCap = 'round';
-      g.beginPath(); gp.forEach((p, i) => i ? g.lineTo(...S(p)) : g.moveTo(...S(p))); g.stroke();
-      g.strokeStyle = 'rgba(160,112,63,0.8)'; g.lineWidth = 2; g.setLineDash([6, 5]);
-      g.beginPath(); gp.forEach((p, i) => i ? g.lineTo(...S(p)) : g.moveTo(...S(p))); g.stroke(); g.setLineDash([]);
-      for (const sk of guideSticks(guide)) for (const p of [sk.a, sk.b]) { const [x, y] = S(p); g.fillStyle = 'rgba(74,48,24,0.7)'; g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); }
-      const [x, y] = S(guideHandle(guide));
-      g.fillStyle = guideDrag ? '#f6c90e' : 'rgba(246,201,14,0.95)'; g.strokeStyle = '#7a5a00'; g.lineWidth = 2;
-      g.beginPath(); g.rect(x - 9, y - 9, 18, 18); g.fill(); g.stroke();
-      g.fillStyle = '#5a4300'; g.font = 'bold 12px system-ui'; g.textAlign = 'left';
-      g.fillText('⤢ drag me', x + 14, y - 4); g.font = '11px system-ui'; g.fillText(`${guide.w.toFixed(2)} m wide · ${guide.d.toFixed(2)} m deep`, x + 14, y + 11);
-    }
     // The middle: the rider and the mast.
     g.strokeStyle = 'rgba(26,147,111,0.7)'; g.setLineDash([6, 5]); g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(ox, S([0, VY1])[1]); g.lineTo(ox, S([0, VY0])[1]); g.stroke(); g.setLineDash([]);
@@ -632,6 +578,10 @@
       const L = dist(from, to), over = L > P.STICK_L + 1e-6;
       g.strokeStyle = over ? '#c1443a' : '#20313d'; g.lineWidth = 3; g.setLineDash([6, 4]);
       g.beginPath(); g.moveTo(...S(from)); g.lineTo(...S(to)); g.stroke(); g.setLineDash([]);
+      if (mirrorOn() && (Math.abs(from[0]) > 1e-6 || Math.abs(to[0]) > 1e-6) && !(Math.abs(from[0] + to[0]) < 1e-6 && Math.abs(from[1] - to[1]) < 1e-6)) {
+        g.strokeStyle = over ? 'rgba(193,68,58,0.5)' : 'rgba(32,49,61,0.4)'; g.setLineDash([6, 4]); g.lineWidth = 3;
+        g.beginPath(); g.moveTo(...S([-from[0], from[1]])); g.lineTo(...S([-to[0], to[1]])); g.stroke(); g.setLineDash([]);
+      }
       label(from, to, L, over);
     }
     if (from) { const [sx, sy] = S(from); g.strokeStyle = '#20313d'; g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 6, 0, 7); g.stroke(); }
@@ -663,9 +613,9 @@
       g.save();
       g.fillStyle = 'rgba(224,160,80,0.42)'; g.strokeStyle = 'rgba(122,80,32,0.85)'; g.lineWidth = 1.5; g.lineJoin = 'round'; g.lineCap = 'round';
       // Arms first, behind the body: shoulder, elbow, hand flat on the floor.
-      for (const sd of [-1, 1]) {
+      for (const { sd, elbow, hand } of riderArms(seat)) {
         g.lineWidth = Math.max(3, 9 * u); g.strokeStyle = 'rgba(122,80,32,0.55)';
-        g.beginPath(); g.moveTo(X(sd * 19), Y(57)); g.lineTo(X(sd * 27), Y(31)); g.lineTo(X(sd * 29), Y(2)); g.stroke();
+        g.beginPath(); g.moveTo(X(sd * 19), Y(57)); g.lineTo(X(sd * elbow * 100), Y(31)); g.lineTo(X(sd * hand * 100), Y(2)); g.stroke();
       }
       g.lineWidth = 1.5; g.strokeStyle = 'rgba(122,80,32,0.85)';
       g.beginPath(); // neck, shoulders, back, hips
@@ -958,6 +908,8 @@
   }
   const paintBow = seg('bow', () => D.bow, v => { remember(); D.bow = v; changed(); });
   const paintTool = seg('tool', () => tool, v => { setTool(v); });
+  const paintMirror = seg('mirror', () => mirror ? 'on' : 'off', v => { mirror = v === 'on'; paintMirror(); paintMirrorNote(); drawCad(); });
+  function paintMirrorNote() { $('mirrornote').textContent = mirror ? 'Every stick you add or erase is copied to the other side of the middle line, so your boat stays even.' : 'Mirror is off: sticks go only where you draw them, so the two sides can be different.'; }
   function setTool(v) { tool = v; pend = null; drag = null; paintTool(); cad.style.cursor = v === 'stick' ? 'crosshair' : 'pointer'; drawCad(); }
   function doUndo() { if (!undo.length) return; D = JSON.parse(undo.pop()); changed(); }
   $('btn-undo').addEventListener('click', doUndo);
@@ -1545,8 +1497,7 @@
     document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
     const a = A; let text, target = null, tabTo = null;
     if (demo) text = 'Watch how a boat gets built. Press <b>Next ▶</b> (in the corner) when you\'re ready to go on.';
-    else if (!D.segs.length && !guide) { text = '<b>Start:</b> on <b>1. Frame</b>, pick a hull shape: flat, V, round, or V with walls.'; target = 'shapes'; tabTo = 'p-frame'; }
-    else if (guide) { text = '<b>Size it:</b> drag the yellow handle out for wider, up for deeper. Then press ' + (D.segs.length ? '<b>🪵 Replace my frame with it</b>, or <b>➕ Add it to my frame</b> to keep what you have.' : '<b>🪵 Glue sticks along it</b>.'); target = 'btn-glue'; }
+    else if (!D.segs.length) { text = '<b>Start:</b> draw your boat\'s slice: drag out a stick for the bottom, then a side. <b>Mirror</b> copies each one to the other side.'; tabTo = 'p-frame'; }
     else if (a.frame.length || a.seat == null) { text = '<b>Next:</b> on <b>1. Frame</b>, fix what\'s marked in red. ' + (a.frame[0] || 'Give yourself somewhere to sit.'); tabTo = 'p-frame'; }
     else if (!a.ch.hulls.length) { text = '<b>Next:</b> ' + (a.skin[0] || 'draw a hull.'); tabTo = 'p-frame'; }
     else if (!a.ready || (a.r.skins && a.r.skins.some(s => !s.fits))) { text = '<b>The skin:</b> ' + (a.skin[0] || 'one piece doesn\'t fit its sheet. On <b>2. Length</b>, make the boat shorter, or on <b>1. Frame</b> make the hull shallower or narrower.'); tabTo = 'p-skin'; }
@@ -1573,7 +1524,7 @@
   }
   function refresh() {
     analyze();
-    paintSelects(); paintBow(); paintTool(); paintShapes();
+    paintSelects(); paintBow(); paintTool(); paintMirror(); paintMirrorNote();
     paintCounter(); paintMsgs(); drawPattern(); drawSide(); paintGo(); coach();
     drawCad();
   }
@@ -1659,7 +1610,7 @@
         const sail = new THREE.Mesh(sg, MAT.cloth); sail.position.set(0, sf, zM - 0.08); sail.userData = { part: 'sail' }; boat.add(sail);
       });
       const zM = -L / 2 + L * mastAt(0);
-      if (a.seat != null) { const rd = makeRider(); rd.position.set(0, a.seat, riderZ(L)); rd.name = 'rider'; rd.userData.part = 'rider'; rd.userData.y0 = rd.position.y; boat.add(rd); }
+      if (a.seat != null) { const rd = makeRider(a.seat); rd.position.set(0, a.seat, riderZ(L)); rd.name = 'rider'; rd.userData.part = 'rider'; rd.userData.y0 = rd.position.y; boat.add(rd); }
       if (hs.length && a.r.stoneY) {
         const geo = new THREE.DodecahedronGeometry(P.STONE_R);
         stoneSpots(a).forEach((sp, i) => {
@@ -1694,12 +1645,13 @@
       if (orbit.size !== size) { orbit.size = size; orbit.r = 2.5 + size * 2.0; }
     }
     // The rider: seated, legs forward (+z), hands on the floor, like the printed one.
-    function makeRider() {
+    function makeRider(seat) {
       const g = new THREE.Group(), m = MAT.rider;
       const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.5, 12), m); torso.position.y = 0.3; g.add(torso);
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), m); head.position.y = 0.68; g.add(head);
       for (const x of [-0.09, 0.09]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.42, 8), m); leg.rotation.x = Math.PI / 2; leg.position.set(x, 0.06, 0.24); g.add(leg); }
-      for (const x of [-0.2, 0.2]) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), m); arm.position.set(x, 0.27, 0.03); arm.rotation.z = x > 0 ? 0.25 : -0.25; g.add(arm); }
+      // Arms: shoulder, elbow, hand on the floor, bent in to stay inside the walls.
+      for (const { sd, elbow, hand } of riderArms(seat)) { g.add(stick([sd * 0.17, 0.5, 0.02], [sd * elbow, 0.3, 0.05], 0.08, m)); g.add(stick([sd * elbow, 0.3, 0.05], [sd * hand, 0.03, 0.09], 0.075, m)); }
       return g;
     }
     function place() {
@@ -1852,16 +1804,24 @@
   // The intro is a list of steps. Each one sets up its own starting picture from
   // scratch (the boat as it stands at that point), so Back and Next can jump to any
   // step from anywhere: mid-tween, paused, or from the "Too slow!" card.
-  const DEMO_GUIDE = { kind: 'flat', w: 0.7, d: 0.2 };
-  const demoBoat = (sticks, sail) => { const d = DEMO_D(); if (sticks) d.segs = guideSticks(DEMO_GUIDE); if (!sail) d.sails = []; return d; };
+  // The boat's slice: a floor across the middle, and a wall each side (the second one mirrored).
+  const DEMO_FLOOR = { a: [-0.35, 0], b: [0.35, 0] }, DEMO_WALL = { a: [-0.35, 0], b: [-0.35, 0.2] };
+  const DEMO_STICKS = () => [DEMO_FLOOR, DEMO_WALL, flipSeg(DEMO_WALL)].map(s => ({ a: s.a.slice(), b: s.b.slice() }));
+  const demoBoat = (sticks, sail) => { const d = DEMO_D(); d.segs = sticks === 'floor' ? [{ a: DEMO_FLOOR.a.slice(), b: DEMO_FLOOR.b.slice() }] : sticks ? DEMO_STICKS() : []; if (!sail) d.sails = []; return d; };
+  // The pointing hand drags out a stick, the way you would.
+  async function demoDraw(sk, ms) {
+    demoCursor = sk.a.slice(); hover = { p: sk.a, on: 'grid' }; drawCad(); await wait(450);
+    await tween(ms, k => { const p = [r3(sk.a[0] + (sk.b[0] - sk.a[0]) * k), r3(sk.a[1] + (sk.b[1] - sk.a[1]) * k)]; demoCursor = p; drag = { a: sk.a, b: p }; hover = { p, on: 'grid' }; drawCad(); });
+    drag = null; hover = null; addStick(sk.a.slice(), sk.b.slice(), true); if (three) three.rebuild(); show.y = floatY({ rider: false, stones: 0 }); drawCad();
+  }
   // Put the builder in a step's starting state: tab, view, boat, what the 3D shows.
   function demoSet(o) {
-    stopRace(); guide = null; guideDrag = null; demoCursor = null; hover = null; drag = null; cloth.draft = []; cloth.hover = null;
-    document.querySelectorAll('#shapes .next').forEach(b => b.classList.remove('next'));
+    stopRace(); demoCursor = null; hover = null; drag = null; cloth.draft = []; cloth.hover = null;
+    document.querySelectorAll('#mirror .next').forEach(b => b.classList.remove('next'));
     $('dream').style.display = 'none'; demo.eaten = false;
     if (!demo.block) { demo.block = document.createElement('div'); demo.block.className = 'demo-block'; document.body.appendChild(demo.block); }
     D = demoBoat(o.sticks, o.sail); tested = false;
-    showTab(o.tab); refresh(); paintShapes();
+    showTab(o.tab); refresh();
     if (three) { three.MAT.skin.transparent = false; three.MAT.skin.opacity = 1; three.rebuild(); }
     if (o.view === '3d' && three) { setMode('3d'); Object.assign(three.orbit, o.orbit); } else if (o.view === 'cad') { setMode('cad'); drawCad(); }
     if (o.show) show = Object.assign({ ribs: 99, stringers: 1, skin: 1, mast: 0, sail: 0, rider: 0, stones: 0 }, o.show, { y: floatY(o.load || { rider: false, stones: 0 }) });
@@ -1869,32 +1829,20 @@
   }
   const ORBIT_HULL = { theta: 0.85, phi: 1.12, r: 4.6, ty: 0.45 }, ORBIT_MAST = { theta: 0.85, phi: 1.2, r: 5.4, ty: 0.9 };
   const DEMO_STEPS = [
-    { go: async () => { // 1. Pick a shape...
+    { go: async () => { // 1. Draw the floor...
       demoSet({ tab: 'p-frame', view: 'cad', show: {} });
-      cap('<b>1.</b> Pick a hull shape. This one is a <b>flat bottom</b>.');
-      await wait(700);
-      const fl = document.querySelector('#shapes [data-v="flat"]');
-      fl.classList.add('next'); await wait(700); fl.classList.remove('next');
-      guide = { kind: 'flat', w: 1.0, d: 0.35 }; paintShapes(); drawCad();
+      cap('<b>1.</b> Draw one slice of your boat, stick by stick. First the floor: drag from one end to the other.');
+      await wait(800);
+      await demoDraw(DEMO_FLOOR, 1200);
       await hold();
     } },
-    { go: async () => { // ...size it...
-      demoSet({ tab: 'p-frame', view: 'cad', show: {} });
-      guide = { kind: 'flat', w: 1.0, d: 0.35 }; paintShapes(); drawCad();
-      cap('Drag the yellow handle to make it the size you want: <b>0.70 m wide, 0.20 m deep</b>.');
-      demoCursor = [0.5, 0.35]; drawCad(); await wait(600);
-      await tween(1400, k => { const x = 0.5 + (0.35 - 0.5) * k, y = 0.35 + (0.2 - 0.35) * k; demoCursor = [x, y]; guideDrag = true; dragGuide([x, y]); });
-      guideDrag = null; drawCad();
-      await hold();
-    } },
-    { go: async () => { // ...and glue sticks along it.
-      demoSet({ tab: 'p-frame', view: 'cad', show: {} });
-      guide = Object.assign({}, DEMO_GUIDE); paintShapes(); drawCad();
-      cap('Then glue sticks along it: one stick for each side.');
-      await wait(700);
-      const add = guideSticks(guide); guide = null; paintShapes();
-      for (const sk of add) { demoCursor = [(sk.a[0] + sk.b[0]) / 2, (sk.a[1] + sk.b[1]) / 2]; D.segs.push(sk); refresh(); if (three) three.rebuild(); show.y = floatY({ rider: false, stones: 0 }); await wait(650); }
-      demoCursor = null; hover = null; drawCad();
+    { go: async () => { // ...then one wall, and Mirror draws the other.
+      demoSet({ tab: 'p-frame', view: 'cad', sticks: 'floor', show: {} });
+      const mb = document.querySelector('#mirror [data-v="on"]'); mb.classList.add('next');
+      cap('Now one wall. <b>Mirror</b> is on, so the other wall appears by itself and the boat stays even.');
+      await wait(900);
+      await demoDraw(DEMO_WALL, 900);
+      await wait(400); mb.classList.remove('next');
       await hold();
     } },
     { go: async () => {
@@ -2028,7 +1976,7 @@
   function endDemo() {
     if (!demo) return;
     const d0 = demo;
-    d0.cancel = true; demo = null; show = null; demoCursor = null; drag = null; hover = null; guide = null; guideDrag = null; cloth.draft = []; cloth.hover = null;
+    d0.cancel = true; demo = null; show = null; demoCursor = null; drag = null; hover = null; cloth.draft = []; cloth.hover = null;
     if (d0.block) d0.block.remove();
     $('demobar').style.display = 'none'; $('democap').style.display = 'none';
     stopRace();
@@ -2036,7 +1984,7 @@
     // First time: you start with nothing. Replayed: your own boat back.
     D = d0.firstTime ? START() : JSON.parse(d0.saved);
     if (three) { three.MAT.skin.transparent = false; three.MAT.skin.opacity = 1; }
-    tested = false; showTab('p-frame'); setMode('cad'); paintShapes(); refresh(); if (three) three.rebuild(); if (d0.firstTime) save();
+    tested = false; showTab('p-frame'); setMode('cad'); refresh(); if (three) three.rebuild(); if (d0.firstTime) save();
   }
   $('demo-skip').addEventListener('click', endDemo);
   $('demo-pause').addEventListener('click', () => demoPause(demo && demo.pausedAt == null));
@@ -2080,7 +2028,7 @@
   let seen = false; try { seen = localStorage.getItem('sailIntroSeen') === '1'; } catch (e) {}
   if (!seen) setTimeout(() => runDemo(true), 500);
   // For checking from the console; nothing in the page uses it.
-  window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three,
+  window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three, toScreen: S,
     get race() { return race; }, runDemo, endDemo, get demo() { return demo; }, startRace, stopRace, planRace, raceAt, checkMeasure, showMeasure, showReplay, setRF, markAt, checkReplay,
     // seekRace(t, freeze): show the run at t seconds (frozen there if freeze), for checking it frame by frame.
     seekRace: (t, freeze) => { if (!race) return; race.t0 = performance.now() - t * 1000; race.frozen = freeze ? t : null; raceShow(t); if (!freeze) requestAnimationFrame(raceTick); } };
