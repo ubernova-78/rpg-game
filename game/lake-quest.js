@@ -539,7 +539,7 @@ const BOATWRIGHT_TALK = [
 ];
 function boatwrightTalk() {
   const done = srState() && srState().passed;
-  if (done) { boatwrightPage(`You did it! The serpent followed you all the way out of the inlet, and swam home to its colony. The lake is safe, and so is it. Your boat got away in <strong>${Number(srState().seconds || 0).toFixed(2)} seconds</strong>.`, [['Thanks!', closeWorkbench]]); return; }
+  if (done) { boatwrightPage(`You did it! The serpent followed you all the way out of the inlet, saw its family waiting out at sea, and swam home with them. The lake is safe, and so is it. Your boat got away in <strong>${Number(srState().seconds || 0).toFixed(2)} seconds</strong>.`, [['Thanks!', closeWorkbench]]); return; }
   const page = i => boatwrightPage(BOATWRIGHT_TALK[i], i < BOATWRIGHT_TALK.length - 1 ? [['Next', () => page(i + 1)]] : [['I\'ll build it!', closeWorkbench]], `${i + 1} of ${BOATWRIGHT_TALK.length}`);
   page(0);
 }
@@ -562,5 +562,5 @@ window.addEventListener('message', e => {
   console.log('[sail] race saved');
   gameOverlayEls.btnBack.click();
   lqModal('🌊 The serpent goes home',
-    'You shot out of the inlet into the open ocean, the serpent right behind you. Then it slowed, lifted its head, and called. Far out at sea, something called back. The serpent dove under the waves and swam away, toward home.', [['🎉 Wonderful!']]);
+    'You shot out of the inlet into the open ocean, the serpent right behind you. At the mouth of the inlet it stopped, and lifted its head. Out at sea were three more serpents, a big one and two little ones: its <strong>family</strong>, the colony it lost when it was small. It forgot all about you. It swam out to them, and they headed off to sea together, home.', [['🎉 Wonderful!']]);
 });

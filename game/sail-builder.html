@@ -870,38 +870,56 @@
 
   // ---------- Skin cutting pattern ----------
   function drawPattern() {
+    // Both sheets of skin, side by side (Nick, 2026-11-19: so they see the second one,
+    // and that it can patch the first or make another hull). On each, the piece its
+    // hull needs, centered: the strip under the boat and up its sides, and a flap up
+    // each flat end (darker), as tall as the skin goes. A patch shows on sheet 2.
     const c = $('pattern'), g = c.getContext('2d'), a = A, hs = a.ch.hulls;
-    const dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, n = Math.max(1, hs.length), ch = n * 196 + 6;
+    const dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, ch = 228;
     c.width = cw * dpr; c.height = ch * dpr; c.style.height = ch + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, cw, ch);
-    if (!hs.length) { g.fillStyle = '#8a8270'; g.font = '12px system-ui'; g.textAlign = 'center'; g.fillText('No skin yet: click the sticks it wraps around.', cw / 2, 66); return; }
-    hs.forEach((h, i) => {
-      const sk = a.r.skins ? a.r.skins[i] : null; if (!sk) return;
-      // The sheet, and the piece the skin needs laid on it, centered, the long way
-      // along the sheet's 3.05 m if it can: the strip under the boat and up its sides,
-      // and a flap up each flat end (shaded darker), as tall as the skin goes.
-      const along = !(sk.long > P.SHEET_A + 1e-9 || sk.G > P.SHEET_B + 1e-9) || sk.long <= sk.G;
-      const SW = along ? P.SHEET_A : P.SHEET_B, SH = along ? P.SHEET_B : P.SHEET_A;
-      const y0 = i * 196 + 18, px = Math.min((cw - 20) / Math.max(SW, sk.long), 170 / Math.max(SH, sk.G)), x0 = (cw - SW * px) / 2;
-      g.fillStyle = '#efe6f2'; g.fillRect(x0, y0, SW * px, SH * px);
-      g.strokeStyle = '#4a2b55'; g.lineWidth = 2; g.strokeRect(x0, y0, SW * px, SH * px);
-      const pw = sk.long * px, ph = sk.G * px, qx = x0 + (SW * px - pw) / 2, qy = y0 + (SH * px - ph) / 2;
-      g.fillStyle = sk.fits ? 'rgba(107,63,122,0.55)' : 'rgba(193,68,58,0.45)'; g.fillRect(qx, qy, pw, ph);
-      // The flaps: a flat end needs one as tall as the skin; a sloped bottom runs up instead.
-      const Dk = sk.D, tl = P.RISE * D.L, flap = (shape, rise) => rise === 'slope' ? Math.hypot(tl, Dk) - tl : endPlain(shape, rise) ? Dk : 0;
-      const fb = flap(D.stern, D.sternRise) * px, ff = flap(D.bow, D.bowRise) * px;
-      g.fillStyle = 'rgba(74,43,85,0.45)'; if (fb > 0.5) g.fillRect(qx, qy, fb, ph); if (ff > 0.5) g.fillRect(qx + pw - ff, qy, ff, ph);
-      g.setLineDash([5, 3]); g.strokeStyle = sk.fits ? '#fff' : '#c1443a'; g.lineWidth = 1.5; g.strokeRect(qx, qy, pw, ph); g.setLineDash([]);
-      // Fold lines along the length at each corner of the section.
-      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1; let acc = 0;
-      for (let j = 1; j < h.length - 1; j++) { acc += dist(h[j - 1], h[j]); g.beginPath(); g.moveTo(qx + fb, qy + acc * px); g.lineTo(qx + pw - ff, qy + acc * px); g.stroke(); }
-      g.fillStyle = '#fff'; g.font = 'bold 10px system-ui'; g.textAlign = 'center';
-      if (fb > 14) { g.save(); g.translate(qx + fb / 2, qy + ph / 2); g.rotate(-Math.PI / 2); g.fillText(`back flap ${(fb / px).toFixed(2)} m`, 0, 3); g.restore(); }
-      if (ff > 14) { g.save(); g.translate(qx + pw - ff / 2, qy + ph / 2); g.rotate(-Math.PI / 2); g.fillText(`front flap ${(ff / px).toFixed(2)} m`, 0, 3); g.restore(); }
-      if (pw - fb - ff > 60) g.fillText(`under the boat: ${D.L.toFixed(2)} m`, qx + fb + (pw - fb - ff) / 2, qy + ph / 2 + 4);
-      g.fillStyle = '#4a2b55'; g.font = '11px system-ui'; g.textAlign = 'left';
-      g.fillText(`${hs.length > 1 ? 'Sheet ' + (i + 1) + ': ' : ''}needs ${sk.long.toFixed(2)} × ${sk.G.toFixed(2)} m of the 3.05 × 2.73 m sheet`, 10, y0 - 5);
+    const SA = P.SHEET_A, SB = P.SHEET_B, gapPx = 18, px = Math.min((cw - 20 - gapPx) / (2 * SA), 168 / SB), y0 = 26;
+    const sheetX = i => (cw - (2 * SA * px + gapPx)) / 2 + i * (SA * px + gapPx);
+    const sheet = (i, label) => { const x = sheetX(i); g.fillStyle = '#efe6f2'; g.fillRect(x, y0, SA * px, SB * px); g.strokeStyle = '#4a2b55'; g.lineWidth = 2; g.strokeRect(x, y0, SA * px, SB * px);
+      g.fillStyle = '#4a2b55'; g.font = 'bold 11px system-ui'; g.textAlign = 'left'; g.fillText(label, x, y0 - 6); };
+    const piece = (i, w, h, flapB, flapF, fits, tag) => { // w along the sheet's 3.05 m, h across it, centered
+      const x = sheetX(i), qx = x + (SA * px - w * px) / 2, qy = y0 + (SB * px - h * px) / 2;
+      g.fillStyle = fits ? 'rgba(107,63,122,0.55)' : 'rgba(193,68,58,0.45)'; g.fillRect(qx, qy, w * px, h * px);
+      g.fillStyle = 'rgba(74,43,85,0.45)'; if (flapB > 0) g.fillRect(qx, qy, flapB * px, h * px); if (flapF > 0) g.fillRect(qx + (w - flapF) * px, qy, flapF * px, h * px);
+      g.setLineDash([5, 3]); g.strokeStyle = fits ? '#fff' : '#c1443a'; g.lineWidth = 1.5; g.strokeRect(qx, qy, w * px, h * px); g.setLineDash([]);
+      if (tag) { g.fillStyle = '#fff'; g.font = 'bold 10px system-ui'; g.textAlign = 'center'; g.fillText(tag, qx + w * px / 2, qy + h * px / 2 + 4); }
+    };
+    const flaps = sk => { const tl = P.RISE * D.L, f = (shape, rise) => rise === 'slope' ? Math.hypot(tl, sk.D) - tl : endPlain(shape, rise) ? sk.D : 0; return [f(D.stern, D.sternRise), f(D.bow, D.bowRise)]; };
+    if (!hs.length) {
+      sheet(0, 'Sheet 1'); sheet(1, 'Sheet 2');
+      g.fillStyle = '#8a8270'; g.font = '12px system-ui'; g.textAlign = 'center'; g.fillText('No skin yet: draw a hull on 1. Frame.', cw / 2, y0 + SB * px + 20); return;
+    }
+    hs.slice(0, 2).forEach((h, i) => {
+      const sk = a.r.skins && a.r.skins[i]; if (!sk) return;
+      sheet(i, `Sheet ${i + 1}${hs.length > 1 ? ': hull ' + (i + 1) : ''}`);
+      const [fb, ff] = flaps(sk), sp = a.r.seams && a.r.seams[i];
+      if (!sp) { // on one sheet (or not fitting at all)
+        const along = sk.long <= SA + 1e-9 || !sk.fits;
+        piece(i, along ? Math.min(sk.long, SA * 1.15) : Math.min(sk.G, SA), along ? Math.min(sk.G, SB * 1.15) : Math.min(sk.long, SB), along ? fb : 0, along ? ff : 0, sk.fits, `${sk.long.toFixed(2)} × ${sk.G.toFixed(2)} m`);
+      } else if (sp.kind === 'ring') { // end to end: sheet 1 is the back of it, sheet 2 the rest
+        piece(0, SA, sk.G, fb, 0, true, 'back part'); sheet(1, 'Sheet 2: the patch');
+        piece(1, sk.long - SA + P.PATCH_OV, sk.G, 0, ff, true, 'front part');
+      } else { // side by side: sheet 1 the bottom and lower sides, sheet 2 a strip for the top of each side
+        const W = sk.G - 2 * ((sk.G - SB) / 2), strip = (sk.G - W) / 2 + P.PATCH_OV;
+        piece(0, sk.long, W, fb, ff, true, 'bottom and lower sides'); sheet(1, 'Sheet 2: the patch');
+        const x = sheetX(1), qx = x + (SA * px - sk.long * px) / 2;
+        for (const k of [0, 1]) { const qy = y0 + 10 + k * (strip * px + 8); g.fillStyle = 'rgba(107,63,122,0.55)'; g.fillRect(qx, qy, sk.long * px, strip * px); g.setLineDash([5, 3]); g.strokeStyle = '#fff'; g.strokeRect(qx, qy, sk.long * px, strip * px); g.setLineDash([]); }
+        g.fillStyle = '#4a2b55'; g.font = '10px system-ui'; g.textAlign = 'center'; g.fillText('a strip for the top of each side', x + SA * px / 2, y0 + 10 + 2 * (strip * px + 8) + 12);
+      }
     });
+    if (hs.length === 1 && !(a.r.seams && a.r.seams[0])) { // the spare sheet, and what it could be
+      sheet(1, 'Sheet 2: spare');
+      const x = sheetX(1) + SA * px / 2; g.fillStyle = '#6b5a75'; g.font = '11px system-ui'; g.textAlign = 'center';
+      g.fillText('Use it to patch sheet 1,', x, y0 + SB * px / 2 - 4); g.fillText('or to build a second hull.', x, y0 + SB * px / 2 + 12);
+    }
+    g.fillStyle = '#4a2b55'; g.font = '11px system-ui'; g.textAlign = 'left';
+    const sk0 = a.r.skins && a.r.skins[0];
+    if (sk0) g.fillText(hs.length > 1 ? 'Each hull gets its own sheet.' : `Hull needs ${sk0.long.toFixed(2)} × ${sk0.G.toFixed(2)} m; a sheet is 3.05 × 2.73 m.`, 10, y0 + SB * px + 18);
   }
 
   // ---------- Side, top and back views of the whole boat ----------
@@ -1551,7 +1569,7 @@
     race.shown = kind;
     const pl = race.pl, dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake ' + kind;
-    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. Behind you it swims out of the inlet too, into the open ocean, and dives. Maybe it's going home.</p><p>Now look back at your run: how long did it take, and how far did you sail?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. It followed you right to the mouth of the inlet, and stopped. Out in the open ocean, its <b>family</b> was waiting: a big serpent and two little ones, the colony it lost when it was small. It wasn't hunting any more. It swam out to them, and they all headed off to sea together, home.</p><p>Now look back at your run: how long did it take, and how far did you sail?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
     else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>It was only a dream: your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} right at the dock, before it even set off, and the serpent got you there. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
     else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>Face-down on your plans, pencil still in your hand. Only a dream! But dreams can teach you something. Look back at your run: how long did your boat last, and how far did it get?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
     const m = $('btn-meas'); if (m) m.addEventListener('click', showReplay);
