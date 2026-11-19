@@ -36,7 +36,7 @@ const SAIL = {
   // A patched skin (Nick, 2026-11-19): the second sheet glued on, overlapping by
   // PATCH_OV; the seam leaks LEAK cubic meters a second per meter of seam, which
   // fills a small boat in about 3 s and a big one in about 5.
-  PATCH_OV: 0.1, LEAK: 0.12,
+  PATCH_OV: 0.1, LEAK: 0.12, SEAM_DRY: 0.05, // (a seam closer than 5 cm to the water leaks: waves, and the boat rocking)
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
   FORM: 1.2,                // friction form factor
   KW: 7, FN0: 0.45, SQUARE_BOW: 2.0, // wave drag: KW rho g Ax^2 / L * h(Fn)
@@ -352,6 +352,24 @@ function sheetSeam(long, G, patch) {
   if (fit(A, twoB) || fit(B, 2 * A - P.PATCH_OV)) seams.push(long); // side by side: it runs along the boat
   return seams.length ? Math.min(...seams) : null;
 }
+// Where to put the seam, once we know the waterline T (Nick, 2026-11-19: "the boat
+// only starts to take on water if the patches are below the water line"). Two ways
+// to join the sheets: end to end, a seam right round the boat, whose underwater part
+// leaks; or side by side, the main sheet across the bottom and lower sides and strips
+// of the second along the top of each side, which leak only if they're less than
+// SEAM_DRY above the water. The way with the least seam under water wins.
+function seamPlan(h, long, G, T, L) {
+  const P = SAIL, A = P.SHEET_A, B = P.SHEET_B, ov = P.PATCH_OV, fit = (w, hh) => long <= w + 1e-9 && G <= hh + 1e-9, opts = [];
+  if (fit(2 * A - ov, B) || fit(2 * B - ov, A)) opts.push({ kind: 'ring', len: G, wet: wettedGirth(h, T) });
+  // The height a point (s) round the outline from one gunwale stands at.
+  const yAt = (pts, s0) => { let acc = 0; for (let i = 1; i < pts.length; i++) { const l = sLen(pts[i - 1], pts[i]); if (acc + l >= s0) { const u = (s0 - acc) / l; return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u; } acc += l; } return pts[pts.length - 1][1]; };
+  for (const [W, ok] of [[B, fit(A, 2 * B - ov)], [A, fit(B, 2 * A - ov)]]) if (ok && W < G) {
+    const s0 = (G - W) / 2, ys = [yAt(h, s0), yAt(h.slice().reverse(), s0)];
+    opts.push({ kind: 'side', len: 2 * L, y: Math.min(...ys), wet: ys.reduce((t, y) => t + (y < T + P.SEAM_DRY ? L : 0), 0) });
+  }
+  if (!opts.length) return null;
+  return opts.sort((a, b) => a.wet - b.wet || a.len - b.len)[0];
+}
 function skinTrim(h, L, bow, rise, stern, sRise, patch) {
   const P = SAIL, lo = lowest(h)[1], top = Math.min(h[0][1], h[h.length - 1][1]), dd = { L, bow, bowRise: rise, stern, sternRise: sRise };
   const seamAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return null; return sheetSeam(skinLong(dd, y - lo), girth(c), patch); };
@@ -365,6 +383,26 @@ function skinTrim(h, L, bow, rise, stern, sRise, patch) {
   const y = Math.floor(a * 1000) / 1000;
   return { h: cutAt(h, y), cut: y, seam: seamAt(y) || 0 };
 }
+
+// A leaking boat's race: its speed falls through vs (m/s at 0, 1/4, 1/2, 3/4 and
+// nearly full) as the water comes in over tFill seconds. Returns where it is at
+// time t (x(t)), and how the run ends: 'out' (past the finish, at tOut), 'full'
+// (sinks at tEnd, xEnd) or 'caught' (the serpent gets there first).
+function leakRun(vs, tFill) {
+  const P = SAIL, VS = P.MONSTER_KT * P.KT, dt = 0.01, fr = [0, 0.25, 0.5, 0.75, 0.97];
+  const vAt = t => { const f = Math.min(0.97, t / tFill); let i = 0; while (i < fr.length - 2 && f > fr[i + 1]) i++; const u = (f - fr[i]) / (fr[i + 1] - fr[i]); return vs[i] + (vs[i + 1] - vs[i]) * u; };
+  const xs = [0]; let x = 0, t = 0, end = null;
+  while (!end) {
+    x += vAt(t) * dt; t += dt; xs.push(x);
+    if (x >= P.COURSE) end = { end: 'out', tOut: t };
+    else if (VS * t - P.GAP >= x) end = { end: 'caught', tEnd: t, xEnd: x };
+    else if (t >= tFill) end = { end: 'full', tEnd: t, xEnd: x };
+  }
+  end.vs = vs; end.dt = dt; end.xs = xs;
+  return end;
+}
+// Where a leaking boat is at t: along the run worked out above, coasting on past it.
+function leakX(run, t) { const i = Math.min(run.xs.length - 1, Math.floor(t / run.dt)); const vEnd = run.vs[run.vs.length - 1]; return run.xs[i] + (t > (run.xs.length - 1) * run.dt ? (t - (run.xs.length - 1) * run.dt) * vEnd : 0); }
 
 function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow);
@@ -430,6 +468,8 @@ function sailAnalyze(d) {
   // d.load (optional, for the builder's intro): who's aboard. Default: you and all 6 stones.
   const load = d.load || {}, withRider = load.rider !== false, nStones = load.stones != null ? load.stones : P.STONES;
   if (withRider) items.push({ m: P.RIDER_KG, y: r.riderY, what: 'rider' });
+  // Water that has leaked in (d.waterKg), lying on the floor.
+  if (d.waterKg) items.push({ m: d.waterKg, y: Math.min(...d.hulls.map(h => lowest(h)[1])) + 0.02, what: 'water' });
   // Stones settle at the lowest inside point; with two hulls they share it.
   const lows = d.hulls.map(h => lowest(h)[1]).sort((a, b) => a - b);
   r.stoneY = [];
@@ -538,11 +578,24 @@ function sailAnalyze(d) {
   // A glued seam leaks: the boat fills its spare room (what it could still hold up
   // before going under) at LEAK per meter of seam, and sinks when it's full. That
   // matters if it comes before the finish, or before the serpent catches it.
+  // As it fills it gets heavier, sits deeper and slows (Nick, 2026-11-19: "does the
+  // added weight slow it down?"): its speed at a quarter, half, three quarters and
+  // nearly full (the same boat with that much water aboard). r.leakRun walks the
+  // race in small steps: where the boat is when it's full, or when the serpent
+  // (from GAP behind, at its own speed) reaches it first, or when it's out.
+  // Where the seams go, and how much of them is under water.
   if (r.seam > 0) {
+    r.seams = d.hulls.map((h, i) => trims[i].seam ? seamPlan(h, r.skins[i].long, r.skins[i].G, T, L) : null);
+    r.seam = r.seams.reduce((t, x) => t + (x ? x.len : 0), 0);
+    r.wetSeam = r.seams.reduce((t, x) => t + (x ? x.wet : 0), 0);
+  }
+  if (r.wetSeam > 0 && !d.waterKg) {
     r.reserve = Math.max(0, vol(top) - need);
-    r.tFill = r.reserve / (P.LEAK * r.seam);
-    const tOut = P.COURSE / v, tCatch = v < P.MONSTER_KT * P.KT ? P.GAP / (P.MONSTER_KT * P.KT - v) : Infinity;
-    if (r.tFill < Math.min(tOut, tCatch) && r.bowDip < r.freeboard && r.heelDeg < r.floodDeg) { r.ok = false; r.fail = 'leak'; return finish(r); }
+    r.tFill = r.reserve / (P.LEAK * r.wetSeam);
+    const fr = [0, 0.25, 0.5, 0.75, 0.97];
+    r.leakV = fr.map(f => f ? Math.max(0, (sailAnalyze(Object.assign({}, d, { waterKg: f * r.reserve * P.RHO_W })).speedKt || 0) * P.KT) : v);
+    r.leakRun = leakRun(r.leakV, r.tFill);
+    if (r.leakRun.end !== 'out' && r.bowDip < r.freeboard && r.heelDeg < r.floodDeg) { r.ok = false; r.fail = 'leak'; return finish(r); }
   }
   if (r.speedKt < P.MONSTER_KT) { r.ok = false; r.fail = 'slow'; }
   else if (r.bowDip >= r.freeboard) { r.ok = false; r.fail = 'bow'; }
@@ -666,4 +719,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };

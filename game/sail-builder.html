@@ -1158,12 +1158,14 @@
   // Random so the answer can't be learned. Everything drawn is a pure function of
   // the time since the start (raceShow), so it can be frozen at any moment (seekRace).
   // COURSE is 20 m because the tape is 9 px per cm and starts at 0: 18,000 px of tape.
+  // The serpent's family, out in the ocean off to one side: [x, y across, size].
+  const FAMILY = [[20 + 3.6, -3.3, 0.85], [20 + 4.3, -2.2, 0.6], [20 + 5.1, -3.0, 0.55]];
   const COURSE = 20, GAP = 1.5, VS = P.MONSTER_KT * P.KT, SEE = 12, GULP_T = 3.6;
   const cmR = x => Math.round(x * 100) / 100, rnd = (a, b) => a + Math.random() * (b - a);
   const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
   let race = null;
   function planRace(r) {
-    const v = Math.max(0.05, (r.speedKt || 0) * P.KT), pl = { v, fail: r.fail || null, gusts: [], leakT: r.seam > 0 ? r.tFill : 0 };
+    const v = Math.max(0.05, (r.speedKt || 0) * P.KT), pl = { v, fail: r.fail || null, gusts: [], leakT: r.wetSeam > 0 ? r.tFill : 0 };
     pl.limPitch = r.freeboard != null ? Math.atan(r.freeboard / (D.L / 2)) * 180 / Math.PI : 10;
     pl.limHeel = r.floodDeg || 45;
     pl.trimGust = r.trimDeg || 0; pl.trimSteady = r.gustPush ? r.trimDeg * r.push / r.gustPush : 0;
@@ -1173,7 +1175,25 @@
     // It waits at the start line while the serpent surfaces behind it, then sets
     // off: a random 0.300-1.200 s, in whole thousandths like the Elapsed Time bench.
     pl.go = Math.round(rnd(300, 1200)) / 1000;
-    if (!pl.fail) { pl.D = COURSE; pl.tOut = COURSE / v; pl.vs = VS; pl.tEnd = pl.go + pl.tOut + 3.5; pl.gusts.push(rnd(3, 8) / v, rnd(11, 17) / v); return mark(pl, pl.tOut); }
+    // A patched skin leaks: the boat slows as it fills (r.leakRun, sail-physics.js).
+    if (r.leakRun) { pl.run = r.leakRun; pl.tFill = r.tFill; }
+    if (!pl.fail) {
+      pl.D = COURSE; pl.tOut = pl.run ? pl.run.tOut : COURSE / v; pl.vs = VS; pl.gusts.push(rnd(3, 8) / v, rnd(11, 17) / v);
+      // Then the serpent's happy ending (Nick, 2026-11-19): it comes up to the finish,
+      // sees its family out in the ocean, hearts, and swims out to them.
+      pl.tArr = Math.max(pl.tOut + 1, (COURSE - 0.4 + D.L + GAP) / VS); pl.tSwim = pl.tArr + 2.4; pl.tLeave = pl.tSwim + 2.7;
+      // A leaking boat that made it sinks once it's full, and you swim back to the shore.
+      // (Just past the finish, not far out at sea: full, or a couple of seconds on, whichever's first.)
+      if (pl.run) { pl.tSink = Math.min(pl.tFill, pl.tOut + 2.5); pl.xSink = Math.max(COURSE + 0.5, leakX(pl.run, pl.tSink)); pl.swimFrom = pl.tSink + 0.6; pl.swimTo = [COURSE + 0.2, 2.7]; pl.swimT = Math.hypot(pl.xSink - pl.swimTo[0], pl.swimTo[1]) / 1.4; }
+      pl.tEnd = pl.go + Math.max(pl.tLeave + 1.8, pl.run ? pl.swimFrom + pl.swimT + 1 : 0);
+      return mark(pl, pl.tOut);
+    }
+    if (pl.fail === 'leak' && pl.run) {
+      pl.D = cmR(Math.max(0.05, pl.run.xEnd)); pl.t1 = pl.run.tEnd; pl.x1 = pl.run.xEnd; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
+      pl.tCatch = pl.run.end === "caught" ? pl.t1 : Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
+      if (pl.run.end === 'caught') pl.tStop = pl.t1; // (struck: it stops dead)
+      mark(pl, pl.tStop); pl.tEnd = pl.go + pl.tCatch + 0.45; return pl;
+    }
     if (pl.fail === 'slow') {
       let x = v * GAP / (VS - v); if (!(x < COURSE - 0.5)) x = rnd(COURSE - 3, COURSE - 0.6);
       pl.D = Math.max(0.05, cmR(x)); pl.tStop = pl.D / v; pl.vs = (pl.D + GAP) / pl.tStop; pl.tCatch = pl.tStop;
@@ -1187,7 +1207,7 @@
       else if (pl.diveOK && pl.t1 > 1.2) pl.gusts.push(rnd(0.5, pl.t1 - 0.6));
       mark(pl, pl.tStop);
     }
-    pl.tEnd = pl.go + pl.tCatch + 0.25;
+    pl.tEnd = pl.go + pl.tCatch + 0.45; // (the strike, then the lunge over the boat, then the gulp)
     return pl;
   }
   // The two moments the replay asks for, in whole thousandths: it starts moving,
@@ -1204,16 +1224,39 @@
     const s = { t, T, xb: 0, gust: 0, sunk: 0, flip: 0 };
     if (pl.dock) s.xb = 0;
     else if (pl.fail === 'slow') s.xb = pl.v * Math.min(t, pl.tStop);
+    else if (pl.fail === 'leak' && pl.run) { if (t < pl.t1) s.xb = leakX(pl.run, t); else if (pl.run.end === 'caught') s.xb = pl.x1; else { const u = Math.min(t - pl.t1, 0.3), v1 = pl.run.vs[pl.run.vs.length - 1]; s.xb = pl.x1 + v1 * (u - u * u / 0.6); } }
     else if (pl.fail) { if (t < pl.t1) s.xb = pl.v * t; else { const u = Math.min(t - pl.t1, 0.3); s.xb = pl.x1 + pl.v * (u - u * u / 0.6); } }
+    else if (pl.run) s.xb = pl.xSink && t >= pl.tSink ? pl.xSink : leakX(pl.run, t);
     else s.xb = pl.v * t;
     const moving = pl.dock || wait ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
     s.kt = moving ? pl.v / P.KT : 0;
+    if (moving && pl.run) s.kt = (leakX(pl.run, t + 0.05) - leakX(pl.run, t)) / 0.05 / P.KT; // (slowing as it fills)
+    if (!pl.fail && pl.run && t >= pl.tSink) s.kt = 0;
     // s.d: how far the boat's front has come from the start line; xb is its stern.
     s.d = s.xb; s.xb = s.d - D.L;
     s.xs = pl.dock ? Math.min(-D.L - 0.6, -D.L - 2.5 + 2.5 * t) : -D.L - GAP + pl.vs * t;
     if (pl.fail) s.xs = Math.min(s.xs, s.xb);
+    // The catch: it lunges over the stern at you before the gulp (Nick, 2026-11-19: it
+    // didn't look that close when he got gulped; its snout only reached the stern).
+    if (pl.fail && pl.tCatch) { const k = ease((t - pl.tCatch) / 0.3); if (k > 0) { const reach = k * (D.L / 2 + riderZ(D.L) + 0.35); s.lunge = s.xb + reach - s.xs; s.xs = s.xb + reach; s.lungeK = k; } }
     s.ys = 0; s.rise = pl.dock ? ease(t / 0.6) : ease((T - pl.go + 0.6) / 0.6);
-    if (!pl.fail && t > pl.tOut + 0.4) { const u = t - pl.tOut - 0.4; s.ys = -u * u * 0.5; s.rise *= 1 - ease((u - 1.8) / 1.0); }
+    if (!pl.fail) {
+      // It stops at the finish line; its family is out in the ocean; hearts; it swims
+      // out to them, and they all head off out to sea together.
+      if (t < pl.tSwim) s.xs = Math.min(s.xs, COURSE - 0.4);
+      else s.xs = COURSE - 0.4 + 2.8 * ease((t - pl.tSwim) / 2.7) + Math.max(0, t - pl.tLeave) * 2.4;
+      s.ys = t > pl.tSwim ? -2.8 * ease((t - pl.tSwim) / 2.7) : 0; s.happy = t > pl.tArr;
+      s.hearts = t > pl.tArr + 0.2 && t < pl.tSwim + 0.6 ? (t - pl.tArr - 0.2) / (pl.tSwim + 0.4 - pl.tArr) : 0;
+      s.family = ease((t - pl.tArr + 1.2) / 1.0) * (1 - ease((t - pl.tLeave - 0.6) / 1.2));
+      s.famX = Math.max(0, t - pl.tLeave) * 2.4; s.famFace = t > pl.tLeave - 0.4 ? 1 : -1;
+      s.rise *= 1 - ease((t - pl.tLeave - 0.6) / 1.2);
+      s.cam = ease((t - pl.tOut) / 1.6); // (the camera settles on the finish line and the ocean beyond)
+      // A leaking boat that made it: it settles as it fills and sinks past the finish; you swim to the shore.
+      if (pl.run) {
+        s.sunk = t < pl.tSink ? 0.45 * Math.pow(t / pl.tSink, 2) : 0.45 + 0.55 * ease((t - pl.tSink) / 0.6);
+        if (t > pl.swimFrom) { const u = Math.min(1, (t - pl.swimFrom) / pl.swimT); s.swim = [pl.xSink + (pl.swimTo[0] - pl.xSink) * u, pl.swimTo[1] * u, u]; }
+      }
+    }
     // Tipping side to side, in the serpent's waves.
     const lim = pl.limHeel, A = Math.min(pl.heel, 0.9 * lim);
     if (pl.fail === 'capsize') { s.heel = 110 * ease(t / 0.8); s.flip = ease((t - 0.4) / 0.4); }
@@ -1231,7 +1274,7 @@
     if (pl.fail === 'sinks') { s.sunk = ease(t / 0.9); s.pitch = 6 * s.sunk; }
     // A leak: the boat settles lower as it fills, and goes under when it's full.
     if (pl.fail === 'leak') s.sunk = t < pl.t1 ? 0.45 * Math.pow(t / pl.t1, 2) : 0.45 + 0.55 * ease((t - pl.t1) / 0.6);
-    else if (pl.leakT) s.sunk = 0.45 * Math.pow(Math.min(1, t / pl.leakT), 2);
+    else if (pl.leakT && pl.fail) s.sunk = 0.45 * Math.pow(Math.min(1, t / pl.leakT), 2); // (a patched boat that fails some other way still settles as it fills)
     return s;
   }
 
@@ -1244,7 +1287,7 @@
     const bw = Math.ceil(W / 3), bh = Math.ceil(H / 3);
     if (!rbuf || rbuf.width !== bw || rbuf.height !== bh) { rbuf = document.createElement('canvas'); rbuf.width = bw; rbuf.height = bh; }
     const b = rbuf.getContext('2d'); b.imageSmoothingEnabled = false; b.clearRect(0, 0, bw, bh);
-    const ppm = bw / SEE, camX = Math.max(-D.L - 3, Math.min(COURSE + 5, s.xb + D.L / 2 - SEE * 0.42));
+    const ppm = bw / SEE, follow = Math.max(-D.L - 3, Math.min(COURSE + 5, s.xb + D.L / 2 - SEE * 0.42)), camX = follow + ((COURSE - 5) - follow) * (s.cam || 0);
     const X = x => Math.round((x - camX) * ppm), Y = y => Math.round(bh / 2 + y * ppm);
     const dot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(Math.round(x), Math.round(y), Math.max(0.5, r), 0, Math.PI * 2); b.fill(); };
     // The lake narrows into the inlet (from 11 m), which opens to the ocean at COURSE.
@@ -1279,7 +1322,29 @@
     // The wake.
     if (s.kt > 0.2) for (let k = 1; k <= 8; k++) { b.fillStyle = `rgba(255,255,255,${0.7 - k * 0.08})`; for (const sd of [-1, 1]) b.fillRect(X(s.xb - k * 0.3), Y(sd * (0.25 + k * 0.1)), 2, 1); }
     drawBoatTop(b, X, Y, ppm, s);
-    if (s.rise > 0.01) drawSerpent(b, { x: X(s.xs - 1.1), y: Y(s.ys) }, { x: X(s.xs) - 10, y: Y(s.ys) - Math.round(1.1 * ppm * s.rise) }, s.rise, s.t);
+    // The serpent's family, out in the ocean: a big one and two little ones.
+    // (Off to one side, clear of your boat sailing out along the middle.)
+    if (s.family > 0.01) for (const [fx, fy, sc] of FAMILY) {
+      const x = X(fx + (s.famX || 0)), y = Y(fy);
+      b.save(); b.translate(x, y); b.scale((s.famFace || -1) * sc, sc);
+      drawSerpent(b, { x: -11, y: 0 }, { x: 0, y: -Math.round(1.1 * ppm * s.family) }, s.family, s.t + fx, true);
+      b.restore();
+    }
+    // You, swimming for the shore.
+    if (s.swim) {
+      const [x, y, u] = s.swim, px = X(x), py = Y(y), k = Math.sin(s.t * 10);
+      b.fillStyle = 'rgba(255,255,255,0.8)'; b.fillRect(px - 4 + Math.round(2 * k), py + 1, 2, 1); b.fillRect(px + 3 - Math.round(2 * k), py + 1, 2, 1);
+      dot(px, py, Math.max(1.5, 0.11 * ppm), '#e0a050'); dot(px, py - 0.5, Math.max(1, 0.07 * ppm), '#7a5020');
+    }
+    // (Lunging, its body stays behind the boat and its neck stretches over it, head coming down on you.)
+    if (s.rise > 0.01) drawSerpent(b, { x: X(s.xs - (s.lunge || 0) - 1.1), y: Y(s.ys) }, { x: X(s.xs) - 10, y: Y(s.ys) - Math.round(1.1 * ppm * s.rise * (1 - 0.6 * (s.lungeK || 0))) }, s.rise, s.t, !!s.happy);
+    // Hearts over the serpent's head, rising.
+    if (s.hearts > 0) for (let i = 0; i < 4; i++) {
+      const u = (s.hearts * 1.8 + i * 0.25) % 1, hx = X(s.xs) - 12 + i * 8, hy = Y(s.ys) - Math.round(1.1 * ppm) - 10 - Math.round(u * 22);
+      b.globalAlpha = Math.min(1, 2.2 * (1 - u)); b.fillStyle = i % 2 ? '#ff4d6d' : '#ff7a93';
+      for (const [dx, dy] of [[-2, -1], [-1, -2], [1, -2], [2, -1], [-3, 0], [-2, 0], [-1, 0], [0, -1], [0, 0], [1, 0], [2, 0], [3, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [-1, 2], [0, 2], [1, 2], [0, 3], [-3, -1], [3, -1]]) b.fillRect(hx + dx, hy + dy, 1, 1);
+      b.globalAlpha = 1;
+    }
     // A gust: streaks racing across the water.
     if (s.gust > 0.05) { b.fillStyle = `rgba(255,255,255,${0.75 * s.gust})`; for (let i = 0; i < 30; i++) b.fillRect(Math.round((i * 37 + s.t * 420) % (bw + 20)) - 10, (i * 53) % bh, 9, 1); }
     g.save(); g.imageSmoothingEnabled = false; g.drawImage(rbuf, 0, 0, bw * 3, bh * 3); g.restore();
@@ -1313,7 +1378,7 @@
     }
     if (s.sunk > 0) { b.globalAlpha = 0.5 * s.sunk; b.fillStyle = '#2f6fb5'; b.fillRect(X(x0) - 1, Y(-1.5), X(x0 + L) - X(x0) + 2, Y(1.5) - Y(-1.5)); }
     b.globalAlpha = 1;
-    if (s.flip > 0.5) return;
+    if (s.flip > 0.5 || (s.swim && s.sunk > 0.9)) return;
     // The rider (head and shoulders), then the mast and the sail across it, bellied forward by the wind.
     const zr = x0 + L / 2 + riderZ(L);
     const sway = s.heel / 90 * 0.5; // tipping shows from above as the mast top leaning out
@@ -1329,7 +1394,7 @@
   }
   // The serpent, in the same pixel art as Witch Hazel's flashback (lake-quest.js):
   // near-black outline, swamp green, bone spines, red eyes, fangs; head to the right.
-  function drawSerpent(b, base, head, up, t) {
+  function drawSerpent(b, base, head, up, t, happy) {
     const dot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(Math.round(x), Math.round(y), Math.max(0.5, r), 0, Math.PI * 2); b.fill(); };
     b.strokeStyle = 'rgba(255,255,255,0.7)'; b.lineWidth = 1;
     b.beginPath(); b.ellipse(base.x, base.y, 9 + 2 * Math.sin(t * 6), 3, 0, 0, Math.PI * 2); b.stroke();
@@ -1343,22 +1408,31 @@
       b.fillStyle = OUT; b.beginPath(); b.moveTo(q.x - 3, q.y - q.r + 1); b.lineTo(q.x - 1, q.y - q.r - 6); b.lineTo(q.x + 2, q.y - q.r + 1); b.fill();
       b.fillStyle = BONE; b.beginPath(); b.moveTo(q.x - 2, q.y - q.r + 1); b.lineTo(q.x - 1, q.y - q.r - 4); b.lineTo(q.x + 1, q.y - q.r + 1); b.fill();
     }
-    const open = 0.5 + 0.5 * Math.sin(t * 5);
+    const open = happy ? -0.5 : 0.5 + 0.5 * Math.sin(t * 5); // (happy: its jaws shut, no teeth)
     const hx = Math.round(head.x), hy = Math.round(head.y), jaw = Math.round(2 + open * 3);
     const colTop = x => Math.round(-6 + Math.max(0, x - 3) * 0.45), colLen = 18;
     for (let x = -1; x <= colLen; x++) { const top = colTop(Math.max(0, x)); b.fillStyle = OUT; b.fillRect(hx - 7 + x, hy + top - 1, 1, 4 - top); }
     for (let x = 0; x < colLen; x++) { const top = colTop(x); b.fillStyle = BODY; b.fillRect(hx - 7 + x, hy + top, 1, 2 - top); b.fillStyle = LIGHT; b.fillRect(hx - 7 + x, hy + top, 1, 1); }
+    if (happy) { // jaws shut, the corner of its mouth turned up
+      b.fillStyle = OUT; b.fillRect(hx - 6, hy + 2, colLen - 2, 3);
+      b.fillStyle = BELLY; b.fillRect(hx - 5, hy + 3, colLen - 5, 1);
+      b.fillStyle = OUT; b.fillRect(hx - 6, hy + 1, 2, 1);
+    } else {
     b.fillStyle = OUT; b.fillRect(hx - 6, hy + 2, colLen - 2, jaw + 3);
     b.fillStyle = '#4a0f14'; b.fillRect(hx - 5, hy + 2, colLen - 4, jaw);
     b.fillStyle = BELLY; b.fillRect(hx - 5, hy + 2 + jaw, colLen - 5, 2);
     b.fillStyle = BONE; for (let x = hx - 4; x < hx + colLen - 8; x += 3) { b.fillRect(x, hy + 2, 1, 2); b.fillRect(x + 1, hy + jaw, 1, 2); }
     b.fillRect(hx + colLen - 9, hy + 2, 1, 3);
+    }
     b.fillStyle = OUT; b.fillRect(hx - 5, hy - 9, 3, 4); b.fillRect(hx - 1, hy - 8, 2, 3);
     b.fillStyle = BONE; b.fillRect(hx - 4, hy - 8, 1, 3);
     b.fillStyle = OUT; b.fillRect(hx - 1, hy - 6, 6, 1);
+    if (happy) { b.fillStyle = '#ffd34a'; b.fillRect(hx, hy - 5, 3, 1); b.fillRect(hx - 1, hy - 4, 1, 1); b.fillRect(hx + 3, hy - 4, 1, 1); } // a happy, squinting eye
+    else {
     b.fillStyle = '#ff2a1a'; b.fillRect(hx, hy - 5, 3, 2);
     b.fillStyle = '#ffd34a'; b.fillRect(hx + 1, hy - 5, 1, 1);
     b.globalAlpha = 0.35; dot(hx + 1, hy - 4, 4, '#ff2a1a'); b.globalAlpha = 1;
+    }
     b.fillStyle = OUT; b.fillRect(hx + colLen - 9, hy - 3, 1, 1);
   }
 
@@ -1480,7 +1554,10 @@
   // again; the second wrong check shows the answer and holds until Continue.
   const fmtT = sec => { const th = Math.round(sec * 1000), m = Math.floor(th / 60000), s2 = Math.floor(th % 60000 / 1000);
     return String(m).padStart(2, '0') + ':' + String(s2).padStart(2, '0') + '.' + String(th % 1000).padStart(3, '0'); };
-  const SNAP = 250, MARK_OK = 50;
+  // A mark is right within 10 thousandths (Nick, 2026-11-19: 'within 0.01 seconds it
+  // should be counted as correct'). Marks no longer snap onto the right moment: a
+  // mark 0.25 s off quietly became exact, which hid whether they'd found it.
+  const MARK_OK = 10;
   function showReplay() {
     const pl = race.pl, el = $('replay');
     race.phase = 'replay'; race.rf = 0; race.marks = { s: null, e: null }; race.rtries = 0;
@@ -1531,7 +1608,7 @@
   function markAt(which) {
     stopPlay();
     const pl = race.pl, truth = which === 's' ? pl.startF : pl.endF;
-    let f = race.rf; if (Math.abs(f - truth) <= SNAP) f = truth;
+    const f = race.rf;
     race.marks[which] = f; setRF(f);
     const mk = $(which === 's' ? 'r-ms' : 'r-me'), btn = $(which === 's' ? 'r-mark-s' : 'r-mark-e');
     mk.style.display = 'block'; mk.style.left = f / pl.clipF * 100 + '%'; mk.firstChild.textContent = fmtT(f / 1000);
@@ -1545,7 +1622,9 @@
     const p = BenchMath.parseHundredths(inp.value);
     if (!p.ok) { BenchMath.nudge(inp, p.reason === 'tooManyDecimals' ? BenchMath.TOO_MANY_DECIMALS : 'Type a number of seconds, like 4.37'); return; }
     const want = BenchMath.hundredthsFromFraction(pl.endF - pl.startF, 1000);
-    const sOK = Math.abs(race.marks.s - pl.startF) <= MARK_OK, eOK = Math.abs(race.marks.e - pl.endF) <= MARK_OK, tOK = p.hundredths === want;
+    // The time counts if it's the true one, or the time between their own (right) marks.
+    const own = BenchMath.hundredthsFromFraction(race.marks.e - race.marks.s, 1000);
+    const sOK = Math.abs(race.marks.s - pl.startF) <= MARK_OK, eOK = Math.abs(race.marks.e - pl.endF) <= MARK_OK, tOK = p.hundredths === want || p.hundredths === own;
     if (sOK && eOK && tOK) return replayDone(true, p.hundredths);
     race.rtries++;
     const what = [];
@@ -1699,9 +1778,14 @@
     $('patchrow').style.display = one && (short || D.patch) ? '' : 'none';
     $('btn-patch').textContent = D.patch ? 'Take the patch off' : '✂️ Patch it with your second sheet of skin';
     if (one && D.patch && a.r.seam > 0) {
-      const v = (a.r.speedKt || 0) * P.KT, tOut = v > 0 ? P.COURSE / v : Infinity;
-      const leak = `<div class="warn">🩹 Patched: a piece of your second sheet is glued on, overlapping by ${Math.round(P.PATCH_OV * 100)} cm. The seam is ${a.r.seam.toFixed(2)} m long, and <b>seams leak</b>: this boat fills with water and sinks <b>${(a.r.tFill || 0).toFixed(1)} s</b> after it sets off.`
-        + (a.r.speedKt ? ` At ${a.r.speedKt.toFixed(1)} knots it needs ${tOut.toFixed(1)} s to get out the inlet${a.r.tFill < tOut ? ', so it won\'t make it.' : ': just enough, if nothing else goes wrong.'}` : '') + '</div>';
+      const v = (a.r.speedKt || 0) * P.KT, tOut = v > 0 ? P.COURSE / v : Infinity, sp = (a.r.seams || [])[0] || {};
+      const where = sp.kind === 'side' ? `in strips along the top of each side; the seams run along the boat ${sp.y.toFixed(2)} m up` : 'end to end; the seam runs right round the boat';
+      const leak = `<div class="warn">🩹 Patched: your second sheet is glued on ${where}, overlapping by ${Math.round(P.PATCH_OV * 100)} cm. `
+        + (!a.r.wetSeam ? '<b>The seams are above the water, so they stay dry: no leak.</b>'
+          : `<b>${a.r.wetSeam.toFixed(2)} m of seam is under water, and it leaks</b>: this boat fills and sinks <b>${(a.r.tFill || 0).toFixed(1)} s</b> after it sets off, slowing as it fills.`
+            + (a.r.speedKt ? (a.r.fail === 'leak' ? " It won't get out the inlet in time." : ' It just gets out the inlet first.') : '')
+            + (sp.kind === 'ring' ? ' (Seams along the top of the sides would stay dry, if the skin fitted one sheet lengthways.)' : ''))
+        + '</div>';
       sm.innerHTML += leak; fm.innerHTML += leak;
     } else if (one && D.patch) sm.innerHTML += '<div class="warn">🩹 The patch isn\'t needed: the skin fits on one sheet, so there\'s no seam.</div>';
     const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
