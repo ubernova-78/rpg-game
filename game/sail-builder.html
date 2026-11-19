@@ -81,7 +81,9 @@
   .next{animation:nextpulse 1.2s ease-in-out infinite;}
   @keyframes nextpulse{0%,100%{box-shadow:0 0 0 0 rgba(246,201,14,0.9);}50%{box-shadow:0 0 0 6px rgba(246,201,14,0);}}
   /* The chase: the gyro (how far it tips each way), GULP, the dream, the tape. */
-  .gyro{position:absolute;right:8px;bottom:8px;z-index:4;background:rgba(255,255,255,0.92);border-radius:10px;
+  /* (.view canvas makes every canvas in the view full-size and shown; the gyro
+     must override all of that, or it covers the whole view.) */
+  .view canvas.gyro{position:absolute;inset:auto 8px 8px auto;width:236px;height:128px;z-index:4;background:rgba(255,255,255,0.92);border-radius:10px;
     box-shadow:0 1px 4px rgba(0,0,0,0.2);display:none;}
   .gulp{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:2.2rem;font-weight:900;color:#fff;z-index:6;
     text-shadow:0 3px 0 #1d5e2c,0 0 12px rgba(0,0,0,0.5);display:none;pointer-events:none;letter-spacing:2px;}
@@ -204,7 +206,7 @@
         <div class="stats" id="stats"></div>
         <div class="btnrow"><button class="btn" id="btn-go">⛵ Sail for the inlet!</button></div>
         <div class="result" id="result"></div>
-        <div class="note">The serpent will be right behind you. Sail 20 m from the dock to the mouth of the inlet, and out to the ocean.</div>
+        <div class="note">The serpent will be right behind you. Sail 20 m from the start line to the finish line at the mouth of the inlet, and out to the ocean.</div>
       </div>
     </div>
   </div>
@@ -401,7 +403,7 @@
       g.fillStyle = 'rgba(47,111,181,0.13)'; g.fillRect(0, sy, W, H - sy);
       g.strokeStyle = 'rgba(47,111,181,0.8)'; g.lineWidth = 1.5; g.setLineDash([8, 4]);
       g.beginPath(); g.moveTo(0, sy); g.lineTo(W, sy); g.stroke(); g.setLineDash([]);
-      g.fillStyle = '#2f6fb5'; g.font = '11px system-ui'; g.textAlign = 'left'; g.fillText('waterline (with you and the stones aboard)', 8, sy - 4);
+      g.fillStyle = '#2f6fb5'; g.font = '11px system-ui'; g.textAlign = 'right'; g.fillText('waterline (with you and the stones aboard)', W - 10, sy - 4);
     }
     // Grid: 10 cm squares, a darker line every 50 cm, labelled in meters.
     g.lineWidth = 1;
@@ -440,10 +442,19 @@
     // The rider, seated where the physics puts them, and the stones and the mast foot.
     if (a && a.seat != null) drawRider(a.seat);
     if (a && a.ch.hulls.length && a.r.stoneY) {
-      const low = a.ch.hulls.map(h => h.reduce((m, p) => p[1] < m[1] ? p : m, h[0]));
-      a.r.stoneY.forEach((y, i) => { const l = low.length > 1 && Math.abs(low[1][1] - low[0][1]) < 0.01 ? low[i % 2] : low.reduce((m, p) => p[1] < m[1] ? p : m);
-        const [sx, sy] = S([l[0] + ((i % 3) - 1) * 0.06 * (low.length > 1 ? 0 : 1), y]); g.fillStyle = '#8c8f93'; g.strokeStyle = '#4b4e52'; g.lineWidth = 1;
-        g.beginPath(); g.arc(sx, sy, Math.max(3, P.STONE_R * k * 0.9), 0, 7); g.fill(); g.stroke(); });
+      // Where the physics puts them (the lowest point), drawn as one stone each side
+      // of that, spread along the floor and clear of you in the middle. (In the
+      // boat the 6 stones lie along its length, so the section shows only a few.)
+      const y = a.r.stoneY[0], lowY = y - P.STONE_R, spots = [];
+      for (const h of a.ch.hulls) for (let i = 0; i < h.length - 1; i++) {
+        const p = h[i], q = h[i + 1];
+        if (Math.abs(p[1] - lowY) < 0.01 && Math.abs(q[1] - lowY) < 0.01) { const lo = Math.min(p[0], q[0]) + P.STONE_R, hi = Math.max(p[0], q[0]) - P.STONE_R; if (hi >= lo) spots.push([lo, hi]); }
+      }
+      const xs = [];
+      for (const [lo, hi] of spots) xs.push(lo, hi);
+      if (!xs.length) a.ch.hulls.forEach(h => { const l = h.reduce((m, p) => p[1] < m[1] ? p : m, h[0]); if (Math.abs(l[1] - lowY) < 0.01) xs.push(l[0]); });
+      g.fillStyle = '#8c8f93'; g.strokeStyle = '#4b4e52'; g.lineWidth = 1;
+      for (const x of xs) { const [sx, sy] = S([x, y]); g.beginPath(); g.arc(sx, sy, Math.max(3, P.STONE_R * k), 0, 7); g.fill(); g.stroke(); }
     }
     if (a && a.mf != null) {
       const [sx, sy] = S([0, a.mf]); g.fillStyle = '#20313d';
@@ -651,7 +662,7 @@
   const fill = (sel, vals, cur) => { sel.innerHTML = vals.map(v => `<option value="${v}"${Math.abs(v - cur) < 1e-9 ? ' selected' : ''}>${v.toFixed(2)} m</option>`).join(''); };
   function paintSelects() {
     fill($('L'), steps(0.5, 3.0, 0.25), D.L);
-    fill($('MH'), steps(0.75, 5.0, 0.25), D.sail.mastH);
+    fill($('MH'), steps(0.75, 5.0, 0.25, D.sail.mastH).sort((x, y) => x - y), D.sail.mastH);
     // Where the sail's bottom can go: 0.5 m up (over your head) to as high as the mast allows.
     const hmax = +(D.sail.mastH - sailH()).toFixed(2), hs = steps(P.MAST_GAP, Math.max(P.MAST_GAP, hmax), 0.25, hmax >= P.MAST_GAP ? hmax : null);
     if (!hs.some(v => Math.abs(v - D.sail.hang) < 1e-9)) hs.push(D.sail.hang);
@@ -947,13 +958,15 @@
         const k = 0.75 * R / Math.max(0.4, Math.max(...xs.map(Math.abs)), (Math.max(...ys) - Math.min(...ys))), T = A.r.T || 0;
         g.fillStyle = '#6b3f7a'; g.strokeStyle = '#2c1633'; g.lineWidth = 1.5;
         for (const hh of hs) { g.beginPath(); hh.forEach((p, i) => { const px = p[0] * k, py = -(p[1] - T) * k; i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.fill(); g.stroke(); }
-        const foot = -((A.mf || 0) - T) * k; g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, foot); g.lineTo(0, foot - 0.45 * R); g.stroke();
+        const foot = -((A.mf || 0) - T) * k; g.strokeStyle = '#20313d'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(0, foot); g.lineTo(0, -0.92 * R); g.stroke();
+        g.fillStyle = '#20313d'; g.beginPath(); g.arc(0, -0.92 * R, 3.5, 0, 7); g.fill();
       } else {
         const all = A.ch.hulls.flat(), ys = all.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), T = A.r.T || 0;
         const k = 1.5 * R / Math.max(D.L, 1), Lh = D.L / 2 * k;
         g.fillStyle = '#6b3f7a'; g.strokeStyle = '#2c1633'; g.lineWidth = 1.5;
         g.beginPath(); g.moveTo(-Lh, -(hi - T) * k); g.lineTo(Lh, -(hi - T) * k); g.lineTo(Lh - (D.bow === 'pointed' ? 0.12 * Lh : 0), -(lo - T) * k); g.lineTo(-Lh, -(lo - T) * k); g.closePath(); g.fill(); g.stroke();
-        g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.beginPath(); g.moveTo(0.1 * Lh, -(hi - T) * k); g.lineTo(0.1 * Lh, -(hi - T) * k - 0.45 * R); g.stroke();
+        g.strokeStyle = '#20313d'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(0.1 * Lh, -(hi - T) * k); g.lineTo(0.1 * Lh, -0.92 * R); g.stroke();
+        g.fillStyle = '#20313d'; g.beginPath(); g.arc(0.1 * Lh, -0.92 * R, 3.5, 0, 7); g.fill();
       }
       g.restore();
       g.strokeStyle = '#20313d'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, R, 0, 7); g.stroke();
@@ -981,6 +994,7 @@
   // Everything on screen at time t since the start.
   function raceShow(t) {
     const pl = race.pl;
+    if (race.coached !== race.phase) { race.coached = race.phase; coach(); }
     if (t < pl.tEnd) {
       race.phase = 'chase';
       if (mode !== 'race') setMode('race');
@@ -1024,7 +1038,6 @@
     race.phase = 'replay'; race.rf = 0; race.marks = { s: null, e: null }; race.rtries = 0;
     $('dream').style.display = 'none'; $('gyro').style.display = 'none';
     if (three) three.gulpStop();
-    setMode('race');
     const endWord = pl.fail ? (pl.fail === 'slow' ? 'stops, caught by the serpent' : 'stops, swamped') : 'crosses the finish line';
     el.innerHTML = `<div class="top"><div><b>Replay.</b> Find the moment your boat <b>starts moving</b> and the moment it <b>${endWord}</b>. Mark both, then work out the elapsed time.</div><div class="timer" id="r-timer">00:00.000</div></div>`
       + `<div class="timeline-wrap" id="r-tl"><div class="timeline-thumb" id="r-thumb"></div><div class="timeline-marker start-marker" id="r-ms"><div class="timeline-label"></div></div><div class="timeline-marker end-marker" id="r-me"><div class="timeline-label"></div></div></div>`
@@ -1033,6 +1046,7 @@
       + `<button class="scrub-btn" id="r-mark-s">Mark Start</button><button class="scrub-btn" id="r-mark-e">Mark End</button></div>`
       + `<div class="ans"><label for="r-in"><b>Elapsed time (seconds):</b></label><input id="r-in" inputmode="decimal" autocomplete="off" placeholder="0.00"><button class="btn small" id="r-ok" disabled>Check</button></div><div class="fb" id="r-fb"></div>`;
     el.style.display = 'block';
+    setMode('race'); // after the controls exist: setMode redraws through setRF
     const tl = $('r-tl');
     const fromEv = e => { const r = tl.getBoundingClientRect(); setRF(Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * pl.clipF)); };
     tl.addEventListener('pointerdown', e => { tl.setPointerCapture(e.pointerId); race.dragTL = true; fromEv(e); });
@@ -1047,7 +1061,7 @@
     setRF(0); coach();
   }
   function setRF(f) {
-    if (!race || race.phase !== 'replay') return;
+    if (!race || race.phase !== 'replay' || !$('r-timer')) return;
     const pl = race.pl; race.rf = Math.max(0, Math.min(pl.clipF, Math.round(f)));
     const s = raceAt(pl, race.rf / 1000); s.replay = true; drawRace(s);
     $('r-timer').textContent = fmtT(race.rf / 1000);
@@ -1264,7 +1278,7 @@
     const boat = new THREE.Group(); pivot.add(boat);
     const MAT = {
       wood: new THREE.MeshLambertMaterial({ color: 0xa0703f }), skin: new THREE.MeshLambertMaterial({ color: 0x6b3f7a, side: THREE.DoubleSide }),
-      cloth: new THREE.MeshLambertMaterial({ color: 0xf2e8cf, side: THREE.DoubleSide }), mast: new THREE.MeshLambertMaterial({ color: 0x7a5230 }),
+      cloth: new THREE.MeshLambertMaterial({ color: 0xf2e8cf, emissive: 0x5a5244, side: THREE.DoubleSide }), mast: new THREE.MeshLambertMaterial({ color: 0x7a5230 }),
       rider: new THREE.MeshLambertMaterial({ color: 0xe0a050 }), stone: new THREE.MeshLambertMaterial({ color: 0x8c8f93 }),
     };
     const orbit = { theta: 0.9, phi: 1.15, r: 6 };
@@ -1332,7 +1346,8 @@
       const lowY = Math.min(...D.segs.flatMap(s => [s.a[1], s.b[1]]).concat([0]));
       boat.position.y = hs.length && a.r.T != null ? -a.r.T : -lowY - 0.03;
       const size = Math.max(L, D.sail.mastH + 0.5, 2 * VX * 0.8);
-      if (orbit.size !== size) { orbit.size = size; orbit.r = 1.5 + size * 1.6; }
+      orbit.ty = Math.max(0.5, (foot + D.sail.mastH) / 2 - (hs.length && a.r.T != null ? a.r.T : 0));
+      if (orbit.size !== size) { orbit.size = size; orbit.r = 2.5 + size * 2.0; }
     }
     // The rider: seated, legs forward (+z), hands on the floor, like the printed one.
     function makeRider() {
@@ -1344,7 +1359,7 @@
       return g;
     }
     function place() {
-      const tg = new THREE.Vector3(0, 0.7, 0);
+      const tg = new THREE.Vector3(0, orbit.ty != null ? orbit.ty : 0.7, 0);
       camera.position.set(orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta), tg.y + orbit.r * Math.cos(orbit.phi), orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
       camera.lookAt(tg);
     }
@@ -1395,6 +1410,7 @@
     function gulpStart(kind) {
       const rd = boat.getObjectByName('rider'), wp = new THREE.Vector3(); (rd || boat).getWorldPosition(wp);
       gul = { kind, u: 0, x: wp.x, y: wp.y, z: wp.z, view: { theta: orbit.theta, phi: orbit.phi, r: orbit.r } };
+      gul.view.ty = orbit.ty; orbit.ty = 0.6;
       Object.assign(orbit, { theta: Math.PI / 2 - 0.45, phi: 1.28, r: Math.max(6.5, D.L + 4.5) });
     }
     function gulpStop() {
