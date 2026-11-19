@@ -196,7 +196,8 @@ const segKey = (a, b) => { const k1 = a[0].toFixed(3) + ',' + a[1].toFixed(3), k
 // The builder's live stick counter calls this too, so it can't drift from the
 // physics. (Before any skin is on, there are no hulls and so no stringers yet.)
 function sailWood(d) {
-  const P = SAIL, L = d.L, nRib = ribCount(L);
+  // d.ribs: how many ribs the builder chose (default: the fewest that are at most 1 m apart).
+  const P = SAIL, L = d.L, nRib = d.ribs ? Math.max(2, Math.round(d.ribs)) : ribCount(L);
   const pieces = []; let woodM = 0, woodMy = 0, tooLong = false;
   const addWood = (len, y) => { const m = len / P.STICK_L * P.STICK_KG; woodM += m; woodMy += m * y; };
   for (const s of d.segs) {
@@ -223,6 +224,7 @@ function sailAnalyze(d) {
   if (w.tooLong) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
   const sgs = sailList(d).map(sailGeom), sailA = sgs.reduce((t, g) => t + g.A, 0);
   r.sticks = w.sticks; r.nRib = w.nRib; r.mastH = w.mastH;
+  if (L / (w.nRib - 1) > P.RIB_GAP + 1e-9) r.problems.push(`Your ribs are ${(L / (w.nRib - 1)).toFixed(2)} m apart. More than ${P.RIB_GAP} m and the skin sags between them: add a rib.`);
   if (r.sticks > P.STICKS) r.problems.push(`That takes ${r.sticks} sticks; you have ${P.STICKS}.`);
 
   // Skin: each hull's net (bottom and sides, plus end flaps) on one sheet.
