@@ -8,7 +8,7 @@
 // 2.16 x 2.79 m of cloth; a 5 g marble is a 5 kg stone.
 //
 // The boat: one or two hulls, each a cross-section drawn as sticks (x across,
-// y up, metres) and run L metres long. Everything is in one section frame, so
+// y up, meters) and run L meters long. Everything is in one section frame, so
 // the waterline T is a y value. A pointed bow tapers the front TAPER of the hull
 // to nothing in plan view.
 //
@@ -25,7 +25,7 @@ const SAIL = {
   SPLICE: 0.15,             // overlap when two sticks are glued end to end
   SHEET_A: 3.05, SHEET_B: 2.73, SKIN_KG_M2: 0.43, SKINS: 2, // foil 3.6 kg a sheet
   SAIL_W: 2.16, SAIL_H: 2.79, CLOTH_KG_M2: 0.8,
-  RIDER_KG: 60, RIDER_SIT: 0.45, HIPS: 0.5, // the rider needs 50 cm of room to sit
+  RIDER_KG: 60, RIDER_SIT: 0.28, HIPS: 0.5, // the rider needs 50 cm of room to sit
   STONES: 6, STONE_KG: 5, STONE_R: 0.08,
   RIB_GAP: 1.0,             // ribs at least every 1 m along the hull
   TAPER: 0.35,              // a pointed bow tapers the front 35% of the length
@@ -91,7 +91,7 @@ function taper(bow) {
   return { c1: 1 - t / 2, c3: 1 - t + t / 4 };
 }
 // Waterplane inertia about a midship line, and the longitudinal one about the
-// centre of flotation, integrated in slices.
+// center of flotation, integrated in slices.
 function longInertia(B, L, bow) {
   const N = 40, t = SAIL.TAPER; let A = 0, M = 0;
   const sl = [];
@@ -156,7 +156,7 @@ function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow), nRib = ribCount(L);
   const r = { ok: true, problems: [] };
 
-  // Wood: pieces and their heights (for the centre of gravity).
+  // Wood: pieces and their heights (for the center of gravity).
   const pieces = []; let woodM = 0, woodMy = 0;
   const addWood = (len, y) => { const m = len / P.STICK_L * P.STICK_KG; woodM += m; woodMy += m * y; };
   for (const s of d.segs) {
@@ -236,7 +236,7 @@ function sailAnalyze(d) {
   r.GMT = r.KB + r.BMT - r.KG; r.GML = r.KB + r.BML - r.KG;
   r.beamWL = per.reduce((m, p) => Math.max(m, Math.abs(p.xc) + p.B / 2), 0) * 2;
   r.wetted = per.reduce((s, p) => s + p.Sw, 0);
-  // Heel at which the lowest rail goes under (about the centreline).
+  // Heel at which the lowest rail goes under (about the centerline).
   r.floodDeg = 90;
   for (const h of d.hulls) for (const p of [h[0], h[h.length - 1]]) {
     if (Math.abs(p[0]) < 1e-6) continue;
@@ -265,7 +265,7 @@ function sailAnalyze(d) {
   r.speedKt = v / P.KT; r.push = push(v); r.drag = drag(v); r.sailA = sailA;
   r.dragAt = v => drag(v); r.pushAt = v => push(v);
 
-  // Bow dive, in a gust: the push acts at the sail's centre, the water resists
+  // Bow dive, in a gust: the push acts at the sail's center, the water resists
   // about half the draft down; the hull trims bow-down until the moments balance.
   r.gustPush = 0.5 * P.RHO_AIR * P.CD_SAIL * sailA * Math.pow(Math.max(0, P.GUST_KT * P.KT - v), 2);
   r.pitchNm = r.gustPush * (r.ceY - (T + lo0) / 2);
