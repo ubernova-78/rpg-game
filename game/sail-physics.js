@@ -38,6 +38,7 @@ const SAIL = {
   // asked for 3-5 s fills, but water's weight slows a filling boat so much that then
   // none escaped; he chose about 30 s (a 2.5 m boat ~30 s), so a fast patched boat
   // gets out and a slow one is caught as it gets heavy.
+  STONES_FWD: true,          // loose stones roll forward when the bow dips (dividers across stop them)
   PATCH_OV: 0.1, LEAK: 0.04, SEAM_DRY: 0.05, // (a seam closer than 5 cm to the water leaks: waves, and the boat rocking)
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
   FORM: 1.2,                // friction form factor
@@ -282,6 +283,37 @@ function ribShape(d, f) {
   return out;
 }
 
+// The floor of a hull and what's on it (Nick, 2026-11-19: dividers, or a beam, to
+// stop the stones rolling about): the flat at its lowest, split into compartments
+// by any stick that isn't the hull itself rising through the band a stone sits in
+// (the bottom 2 stone-radii above the floor): a divider standing on the floor, or a
+// slanted brace coming down to it. One lying flat across doesn't divide anything. Returns { lowY, comps: [[x0, x1]...], dividers: [stick] }.
+function floorCompartments(d, h) {
+  const R = SAIL.STONE_R, lowY = lowest(h)[1];
+  let a = Infinity, b = -Infinity;
+  for (const p of h) if (Math.abs(p[1] - lowY) < 0.01) { a = Math.min(a, p[0]); b = Math.max(b, p[0]); }
+  const y0 = lowY + 0.005, y1 = lowY + 2 * R, cuts = [], dividers = [];
+  for (const sg of d.segs) {
+    const mid = [(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2];
+    if (onChain(mid, h)) continue;
+    const [p, q] = sg.a[1] <= sg.b[1] ? [sg.a, sg.b] : [sg.b, sg.a];
+    if (q[1] < y0 || p[1] > y1) continue; // not down where the stones are
+    if (q[1] - p[1] < 0.02) continue; // (lying flat across, it's a shelf over them, not a wall between them)
+    const xAt = y => Math.abs(q[1] - p[1]) < 1e-9 ? null : p[0] + (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1]);
+    const lo = Math.max(p[1], y0), hi = Math.min(q[1], y1);
+    const xs = Math.abs(q[1] - p[1]) < 1e-9 ? [p[0], q[0]] : [xAt(lo), xAt(hi)];
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    if (x1 < a - 1e-6 || x0 > b + 1e-6) continue;
+    cuts.push([x0, x1]); dividers.push(sg);
+  }
+  cuts.sort((u, v) => u[0] - v[0]);
+  const comps = []; let x = a;
+  for (const [c0, c1] of cuts) { if (c0 - x >= 2 * R) comps.push([x, c0]); x = Math.max(x, c1); }
+  if (b - x >= 2 * R) comps.push([x, b]);
+  if (!comps.length && b > a) comps.push([a, b]);
+  return { lowY, comps, dividers };
+}
+
 function sailWood(d) {
   // d.ribs: how many ribs the builder chose (default: the fewest that are at most 1 m apart).
   const P = SAIL, L = d.L, nRib = d.ribs ? Math.max(2, Math.round(d.ribs)) : ribCount(L);
@@ -296,6 +328,16 @@ function sailWood(d) {
   const verts = new Map();
   // (The long sticks run along the frame's corners, above the skin's top too.)
   for (const h of d.frameHulls || d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
+  // Dividers across the boat (d.cross): each a stick on edge across the floor, at
+  // stone height, in every hull.
+  if (d.cross) for (const h of d.frameHulls || d.hulls) {
+    const y = lowest(h)[1] + P.STONE_R, xs = [];
+    for (let i = 0; i < h.length - 1; i++) { const p = h[i], q = h[i + 1]; if ((p[1] - y) * (q[1] - y) <= 0 && Math.abs(q[1] - p[1]) > 1e-9) xs.push(p[0] + (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1])); }
+    const w = xs.length >= 2 ? Math.max(...xs) - Math.min(...xs) : 0;
+    if (w > 0.01) for (let k = 0; k < d.cross; k++) for (const pc of splicedPieces(w)) { pieces.push(pc); addWood(pc, y); }
+  }
+  // A divider runs the length of the boat too: a long stick along its top.
+  for (const h of d.frameHulls || d.hulls) for (const sg of floorCompartments(d, h).dividers) { const p = sg.a[1] >= sg.b[1] ? sg.a : sg.b; verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p); }
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
   // The masts are sticks too, spliced to their height: one mast per sail.
   const mastPieces = [], gs = sailList(d).map(sailGeom), mastHs = gs.map(g => g.mastH);
@@ -559,6 +601,13 @@ function sailAnalyze(d) {
   // about half the draft down; the hull trims bow-down until the moments balance.
   r.gustPush = 0.5 * P.RHO_AIR * P.CD_SAIL * sailA * Math.pow(Math.max(0, P.GUST_KT * P.KT - v), 2);
   r.pitchNm = r.gustPush * (r.ceY - (T + lo0) / 2);
+  // ...and when the bow dips, loose stones roll forward along the floor to the front
+  // of their compartment, pushing it down further. Dividers across the boat (d.cross,
+  // evenly along the full-depth floor) cut the floor into shorter compartments.
+  // (SAIL.STONES_FWD off: the original model, where they stayed put fore and aft.)
+  r.floorLen = L * Math.max(0, 1 - endLen(d.bow, bowRise(d)) - endLen(sternShape(d), sternRise(d))) + (endLen(d.bow, bowRise(d)) + endLen(sternShape(d), sternRise(d))) * L * 0.5;
+  r.stoneFwd = P.STONES_FWD ? Math.max(0, r.floorLen / ((d.cross || 0) + 1) / 2 - P.STONE_R) : 0;
+  r.pitchNm += nStones * P.STONE_KG * P.G * r.stoneFwd;
   r.trimDeg = r.pitchNm / (W * r.GML) * 180 / Math.PI;
   r.bowDip = Math.tan(r.trimDeg * Math.PI / 180) * L / 2;
   // Roll: the serpent's waves.
@@ -566,12 +615,15 @@ function sailAnalyze(d) {
   // too"): when it heels they roll across the flat of the floor to the low side,
   // adding their weight times how far they roll to the waves' push. A V floor
   // keeps them in the middle; on a wide flat floor they roll a long way.
-  const flat = h => { const lo = lowest(h)[1]; let a = Infinity, b = -Infinity; for (const p of h) if (Math.abs(p[1] - lo) < 0.01) { a = Math.min(a, p[0]); b = Math.max(b, p[0]); } return Math.max(0, (b - a) / 2 - P.STONE_R); };
+  // Dividers (floorCompartments) split the floor: the stones share out between the
+  // compartments, and each rolls only across its own.
   const order = d.hulls.map((h, i) => ({ i, lo: lowest(h)[1] })).sort((p, q) => p.lo - q.lo);
   const share = d.hulls.map(() => 0);
   for (let i = 0; i < nStones; i++) share[(order.length > 1 && order[1].lo - order[0].lo < 0.01) ? order[i % 2].i : order[0].i]++;
-  r.stoneRoll = d.hulls.map(flat);
-  r.rollNm = share.reduce((t, n, i) => t + n * P.STONE_KG * P.G * r.stoneRoll[i], 0);
+  r.floors = d.hulls.map(h => floorCompartments(d, h));
+  r.stoneRoll = r.floors.map(f => f.comps.length ? Math.max(...f.comps.map(([x0, x1]) => Math.max(0, (x1 - x0) / 2 - P.STONE_R))) : 0);
+  r.rollNm = share.reduce((t, n, i) => { const cs = r.floors[i].comps; if (!cs.length || !n) return t;
+    return t + cs.reduce((u, [x0, x1]) => u + n / cs.length * P.STONE_KG * P.G * Math.max(0, (x1 - x0) / 2 - P.STONE_R), 0); }, 0);
   // A mast off the middle leans the boat that way with its weight and its sail's
   // (Nick, 2026-11-19: masts can stand where you click). Added to the waves' push.
   r.offNm = Math.abs(sgs.reduce((t, g) => t + (g.mastH / P.STICK_L * P.STICK_KG + g.A * P.CLOTH_KG_M2) * P.G * (g.x || 0), 0));
@@ -721,4 +773,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, floorCompartments, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };

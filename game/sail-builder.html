@@ -216,7 +216,7 @@
       <div class="panel tabpanel" id="p-frame">
         <div class="note" style="margin-top:0">Your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle and looked from behind. The 3D boat under the drawing builds itself as you go.</div>
         <div class="row"><span><b>Draw your slice, stick by stick</b></span></div>
-        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). <b>✋ Move</b> lets you grab a joint and drag it somewhere else. The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
+        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). <b>✋ Move</b> lets you grab a joint and drag it somewhere else. A short stick standing on the floor is a <b>divider</b>: it runs the length of the boat and stops the stones rolling from side to side. The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
         <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button><button data-v="move">✋ Move</button></div></div>
         <div class="row"><span>Mirror</span><div class="seg" id="mirror"><button data-v="on">🪞 On</button><button data-v="off">Off</button></div></div>
         <div class="note" id="mirrornote" style="margin-top:2px"></div>
@@ -229,6 +229,8 @@
         <div class="row"><span>Ribs (copies of your slice)</span><select id="ribs"></select></div>
         <div class="row"><span>Rib spacing</span><select id="ribgap"></select></div>
         <div class="note" id="ribnote" style="margin-top:2px"></div>
+        <div class="row"><span>Dividers across the boat</span><select id="cross"><option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+        <div class="note" style="margin-top:2px">The stones are loose. When a gust dips the front, they roll forward and push it down further; a divider across the boat (a stick on edge across the floor) stops them. To stop them rolling side to side, draw a short stick standing on the floor in your slice, on <b>1. Frame</b>.</div>
         <div class="row"><span>Front, from above</span><div class="seg" id="bow"><button data-v="square">▭ Square</button><button data-v="pointed">▷ Sharp</button><button data-v="round">◗ Round</button></div></div>
         <div class="row"><span>Front, from the side</span><div class="seg" id="bowrise"><button data-v="plumb">▯ Full depth</button><button data-v="slope">◺ Slopes up</button></div></div>
         <div class="row"><span>Back, from above</span><div class="seg" id="stern"><button data-v="square">▭ Square</button><button data-v="pointed">◁ Sharp</button><button data-v="round">◖ Round</button></div></div>
@@ -324,6 +326,8 @@
     for (let j = N; j >= 0; j--) { const f = j / N; out.push([f, c + (hi - c) * bowW(f)]); }
     return out;
   }
+  // Where the dividers across the boat stand (D.cross of them): evenly along the full-depth floor.
+  const crossZs = L => { const n = D.cross || 0, f0 = sternTo(), f1 = bowFrom(), out = []; for (let i = 1; i <= n; i++) out.push(-L / 2 + L * (f0 + (f1 - f0) * i / (n + 1))); return out; };
   const endName = (shape, rise) => ({ pointed: 'sharp', round: 'round' }[shape] || 'square') + (rise === 'slope' ? ', sloped' : '');
   const bowName = () => endName(D.bow, D.bowRise), sternName = () => endName(D.stern, D.sternRise);
   const mastY = k => { const x = mastX(k), f = x ? mastFoot(x) : A && A.mf; return f == null ? (A && A.mf) || 0 : f; };
@@ -363,10 +367,13 @@
       // The floor at its lowest: a flat run, or the one lowest point (a V).
       let lo = Infinity, hiX = -Infinity;
       for (const p of h) if (Math.abs(p[1] - lowY) < 0.01) { lo = Math.min(lo, p[0]); hiX = Math.max(hiX, p[0]); }
-      const mid = (lo + hiX) / 2, half = Math.max(0, (hiX - lo) / 2 - R - 0.03), nx = Math.floor(half * 2 / gap) + 1;
-      const xs = []; for (let i = 0; i < nx; i++) xs.push(mid + (i - (nx - 1) / 2) * gap);
-      const zEnd = L / 2 - R - 0.03;
+      const mid = (lo + hiX) / 2, half = Math.max(0, (hiX - lo) / 2 - R - 0.03);
+      // Across each compartment between the dividers (a V has just its one low point).
+      const comps = (a.r.floors && a.r.floors[hi] && a.r.floors[hi].comps.length) ? a.r.floors[hi].comps : [[lo, hiX]], xs = [];
+      for (const [c0, c1] of comps) { const cm = (c0 + c1) / 2, ch = Math.max(0, (c1 - c0) / 2 - R - 0.03), nx = Math.floor(ch * 2 / gap) + 1; for (let i = 0; i < nx; i++) xs.push(cm + (i - (nx - 1) / 2) * gap); }
+      const zEnd = L / 2 - R - 0.03, across = crossZs(L);
       for (let z = -zEnd; z <= zEnd + 1e-9; z += gap) for (const x of xs) {
+        if (across.some(zc => Math.abs(z - zc) < R + 0.03)) continue; // a divider across the boat
         if (!seatClear && Math.abs(x) < 0.22 && z > rz - 0.25 && z < rz + 0.5) continue; // you
         if (masts.some(m => Math.abs(x - m.x) < 0.06 + R && Math.abs(z - m.z) < 0.06 + R)) continue; // a mast
         { const e = endScales(D, (z + L / 2) / L); if (e.k < 0.97 || Math.abs(x - mid) > half * e.s - 0.02) continue; } // where a shaped end narrows or rises
@@ -432,7 +439,7 @@
   function analyze() {
     const fc = frameCheck(), ch = chains(), mf = mastFoot();
     // The cut-out is centered on the mast for the physics' sake (its shape, not where it was cut).
-    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, patch: !!D.patch, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, patch: !!D.patch, cross: D.cross || 0, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
     const wood = sailWood(d);
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
@@ -1035,6 +1042,7 @@
   });
   function paintSelects() {
     fill($('L'), steps(0.5, 3.0, 0.25), D.L);
+    $('cross').value = String(D.cross || 0);
     // Ribs: pick how many (spread evenly from the back to the front), or how far
     // apart (from the back, the last one at the front); each sets the other.
     const rMin = ribCount(D.L), rNow = D.ribs || rMin, rOpts = [];
@@ -1070,6 +1078,7 @@
     const n = Math.max(ribCount(D.L), (A && A.wood ? A.wood.nRib : ribCount(D.L)) + +b.dataset.rib);
     remember(); delete D.ribGap; D.ribs = n; changed();
   });
+  $('cross').addEventListener('change', e => { remember(); const n = +e.target.value; if (n) D.cross = n; else delete D.cross; changed(); });
   $('ribs').addEventListener('change', e => { remember(); delete D.ribGap; D.ribs = +e.target.value; changed(); });
   $('ribgap').addEventListener('change', e => {
     remember();
@@ -1472,10 +1481,14 @@
           let lo = Infinity, hiX = -Infinity;
           for (const p of hh) if (Math.abs(p[1] - lowY) < 0.01) { lo = Math.min(lo, p[0]); hiX = Math.max(hiX, p[0]); }
           if (lo > hiX) continue;
-          const mid = (lo + hiX) / 2, half = Math.max(0, (hiX - lo) / 2 - 1.9 * SR);
-          for (const dx of [-0.95 * SR, 0.95 * SR]) {
-            const x = mid + half * gyroRoll.u + (half > 0 ? dx : dx * 0.4), yy = lowY + SR + (half > 0 ? 0 : Math.abs(dx) * 0.6);
-            g.beginPath(); g.arc(x * k, -(yy - T) * k, Math.max(2, SR * k), 0, 7); g.fill(); g.stroke();
+          // (Each compartment between the dividers keeps its own stones.)
+          const fl = A.r.floors && A.r.floors[hs.indexOf(hh)], comps = fl && fl.comps.length ? fl.comps : [[lo, hiX]];
+          for (const [c0, c1] of comps) {
+            const mid = (c0 + c1) / 2, half = Math.max(0, (c1 - c0) / 2 - 1.9 * SR);
+            for (const dx of comps.length > 1 ? [0] : [-0.95 * SR, 0.95 * SR]) {
+              const x = mid + half * gyroRoll.u + (half > 0 ? dx : dx * 0.4), yy = lowY + SR + (half > 0 ? 0 : Math.abs(dx) * 0.6);
+              g.beginPath(); g.arc(x * k, -(yy - T) * k, Math.max(2, SR * k), 0, 7); g.fill(); g.stroke();
+            }
           }
         }
         const foot = -((A.mf || 0) - T) * k; g.strokeStyle = '#20313d'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(0, foot); g.lineTo(0, -0.92 * R); g.stroke();
@@ -1904,6 +1917,15 @@
         // End flaps: the stern always, the front only if it's square and full depth (else the skin meets or rises to the top).
         const shape = new THREE.Shape(h.map(p => new THREE.Vector2(p[0], p[1])));
         for (const z of [endPlain(D.stern, D.sternRise) ? -L / 2 : null, endPlain(D.bow, D.bowRise) ? L / 2 : null].filter(v => v != null)) { const cap = new THREE.Mesh(new THREE.ShapeGeometry(shape), MAT.skin); cap.position.z = z; cap.userData = { part: 'skin' }; boat.add(cap); }
+      });
+      // Dividers: across the boat (D.cross), each a stick on edge across the floor; and
+      // along it, a long stick on top of each one drawn in the slice.
+      hs.forEach((h, hi) => {
+        const lowH = Math.min(...h.map(p => p[1])), y = lowH + P.STONE_R, xs = [];
+        for (let i = 0; i < h.length - 1; i++) { const p = h[i], q = h[i + 1]; if ((p[1] - y) * (q[1] - y) <= 0 && Math.abs(q[1] - p[1]) > 1e-9) xs.push(p[0] + (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1])); }
+        if (xs.length >= 2) for (const z of crossZs(L)) { const m = stick(tx([Math.min(...xs) + 0.03, lowH + 0.05], z, hi), tx([Math.max(...xs) - 0.03, lowH + 0.05], z, hi), 0.09); m.scale.set(0.35, 1, 1); boat.add(m); }
+        const fl = a.r.floors && a.r.floors[hi];
+        if (fl) for (const sg of fl.dividers) { const p = sg.a[1] >= sg.b[1] ? sg.a : sg.b; for (let j = 0; j < zs.length - 1; j++) { const m = stick(tx(p, zs[j], hi), tx(p, zs[j + 1], hi), t * 0.8); m.userData = { part: 'stringer' }; boat.add(m); } }
       });
       // Mast, yard and sail, about 55% of the way along; the rider sits behind it.
       const foot = a.mf == null ? 0 : a.mf;
