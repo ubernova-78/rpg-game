@@ -863,31 +863,36 @@
   // ---------- Skin cutting pattern ----------
   function drawPattern() {
     const c = $('pattern'), g = c.getContext('2d'), a = A, hs = a.ch.hulls;
-    const dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, n = Math.max(1, hs.length), ch = n * 132 + 6;
+    const dpr = window.devicePixelRatio || 1, cw = c.clientWidth || 300, n = Math.max(1, hs.length), ch = n * 196 + 6;
     c.width = cw * dpr; c.height = ch * dpr; c.style.height = ch + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, cw, ch);
     if (!hs.length) { g.fillStyle = '#8a8270'; g.font = '12px system-ui'; g.textAlign = 'center'; g.fillText('No skin yet: click the sticks it wraps around.', cw / 2, 66); return; }
     hs.forEach((h, i) => {
       const sk = a.r.skins ? a.r.skins[i] : null; if (!sk) return;
-      const y0 = i * 132 + 18, px = Math.min((cw - 20) / Math.max(P.SHEET_A, sk.long), 100 / Math.max(P.SHEET_B, sk.G)), x0 = 10;
-      // Lay the piece the way it fits (long side along the sheet's 3.05 m if it can).
-      const along = sk.long <= P.SHEET_A + 1e-9 && sk.G <= P.SHEET_B + 1e-9;
-      const pw = along ? sk.long : sk.G, ph = along ? sk.G : sk.long;
-      g.fillStyle = '#b996c4'; g.fillRect(x0, y0, P.SHEET_A * px, P.SHEET_B * px);
-      g.strokeStyle = '#4a2b55'; g.lineWidth = 2; g.strokeRect(x0, y0, P.SHEET_A * px, P.SHEET_B * px);
-      g.fillStyle = sk.fits ? 'rgba(255,255,255,0.45)' : 'rgba(193,68,58,0.45)';
-      g.fillRect(x0, y0, pw * px, ph * px);
-      g.setLineDash([5, 3]); g.strokeStyle = sk.fits ? '#fff' : '#c1443a'; g.lineWidth = 1.5; g.strokeRect(x0, y0, pw * px, ph * px); g.setLineDash([]);
-      // Fold lines: one along the length at each corner of the section.
-      g.strokeStyle = 'rgba(74,43,85,0.6)'; g.lineWidth = 1; let acc = 0;
-      for (let j = 1; j < h.length - 1; j++) {
-        acc += dist(h[j - 1], h[j]);
-        g.beginPath();
-        if (along) { g.moveTo(x0, y0 + acc * px); g.lineTo(x0 + pw * px, y0 + acc * px); } else { g.moveTo(x0 + acc * px, y0); g.lineTo(x0 + acc * px, y0 + ph * px); }
-        g.stroke();
-      }
+      // The sheet, and the piece the skin needs laid on it, centered, the long way
+      // along the sheet's 3.05 m if it can: the strip under the boat and up its sides,
+      // and a flap up each flat end (shaded darker), as tall as the skin goes.
+      const along = !(sk.long > P.SHEET_A + 1e-9 || sk.G > P.SHEET_B + 1e-9) || sk.long <= sk.G;
+      const SW = along ? P.SHEET_A : P.SHEET_B, SH = along ? P.SHEET_B : P.SHEET_A;
+      const y0 = i * 196 + 18, px = Math.min((cw - 20) / Math.max(SW, sk.long), 170 / Math.max(SH, sk.G)), x0 = (cw - SW * px) / 2;
+      g.fillStyle = '#efe6f2'; g.fillRect(x0, y0, SW * px, SH * px);
+      g.strokeStyle = '#4a2b55'; g.lineWidth = 2; g.strokeRect(x0, y0, SW * px, SH * px);
+      const pw = sk.long * px, ph = sk.G * px, qx = x0 + (SW * px - pw) / 2, qy = y0 + (SH * px - ph) / 2;
+      g.fillStyle = sk.fits ? 'rgba(107,63,122,0.55)' : 'rgba(193,68,58,0.45)'; g.fillRect(qx, qy, pw, ph);
+      // The flaps: a flat end needs one as tall as the skin; a sloped bottom runs up instead.
+      const Dk = sk.D, tl = P.RISE * D.L, flap = (shape, rise) => rise === 'slope' ? Math.hypot(tl, Dk) - tl : endPlain(shape, rise) ? Dk : 0;
+      const fb = flap(D.stern, D.sternRise) * px, ff = flap(D.bow, D.bowRise) * px;
+      g.fillStyle = 'rgba(74,43,85,0.45)'; if (fb > 0.5) g.fillRect(qx, qy, fb, ph); if (ff > 0.5) g.fillRect(qx + pw - ff, qy, ff, ph);
+      g.setLineDash([5, 3]); g.strokeStyle = sk.fits ? '#fff' : '#c1443a'; g.lineWidth = 1.5; g.strokeRect(qx, qy, pw, ph); g.setLineDash([]);
+      // Fold lines along the length at each corner of the section.
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1; let acc = 0;
+      for (let j = 1; j < h.length - 1; j++) { acc += dist(h[j - 1], h[j]); g.beginPath(); g.moveTo(qx + fb, qy + acc * px); g.lineTo(qx + pw - ff, qy + acc * px); g.stroke(); }
+      g.fillStyle = '#fff'; g.font = 'bold 10px system-ui'; g.textAlign = 'center';
+      if (fb > 14) { g.save(); g.translate(qx + fb / 2, qy + ph / 2); g.rotate(-Math.PI / 2); g.fillText(`back flap ${(fb / px).toFixed(2)} m`, 0, 3); g.restore(); }
+      if (ff > 14) { g.save(); g.translate(qx + pw - ff / 2, qy + ph / 2); g.rotate(-Math.PI / 2); g.fillText(`front flap ${(ff / px).toFixed(2)} m`, 0, 3); g.restore(); }
+      if (pw - fb - ff > 60) g.fillText(`under the boat: ${D.L.toFixed(2)} m`, qx + fb + (pw - fb - ff) / 2, qy + ph / 2 + 4);
       g.fillStyle = '#4a2b55'; g.font = '11px system-ui'; g.textAlign = 'left';
-      g.fillText(`${hs.length > 1 ? 'Sheet ' + (i + 1) + ': ' : ''}needs ${sk.long.toFixed(2)} × ${sk.G.toFixed(2)} m of the 3.05 × 2.73 m sheet`, x0, y0 - 5);
+      g.fillText(`${hs.length > 1 ? 'Sheet ' + (i + 1) + ': ' : ''}needs ${sk.long.toFixed(2)} × ${sk.G.toFixed(2)} m of the 3.05 × 2.73 m sheet`, 10, y0 - 5);
     });
   }
 
@@ -1671,7 +1676,17 @@
     const sk = a.skin.slice();
     if (a.ch.hulls.length && a.r.skins) a.r.skins.forEach((s, i) => { if (!s.fits) sk.push(`${a.ch.hulls.length > 1 ? 'Sheet ' + (i + 1) + ': the' : 'The'} skin needs a ${s.long.toFixed(2)} × ${s.G.toFixed(2)} m piece, and a sheet is 3.05 × 2.73 m. Each piece of skin must be cut from one sheet, in one piece.`); });
     // Where the sheet doesn't reach the top, the skin stops level and the sticks stick out above it.
-    const cuts = (a.ch.cuts || []).map((c, i) => c == null ? '' : `${a.ch.hulls.length > 1 ? `Hull ${i + 1}: the` : 'The'} skin only reaches ${c.toFixed(2)} m up (its sheet won't go higher), so the sticks above it stick out. The water comes in over the top of the skin, not the top of the sticks.`).filter(Boolean);
+    const cuts = (a.ch.cuts || []).map((c, i) => {
+      if (c == null) return '';
+      const sk = a.r.skins && a.r.skins[i], hn = a.ch.hulls.length > 1 ? `Hull ${i + 1}: the` : 'The';
+      // Which way the sheet ran out: along the boat (its length plus the flaps up its ends) or round it.
+      const longWay = sk && Math.max(sk.long, sk.G) >= P.SHEET_A - 0.02 ? sk.long >= sk.G : sk && sk.long >= sk.G;
+      const flaps = [endPlain(D.stern, D.sternRise) ? 'the back' : '', endPlain(D.bow, D.bowRise) ? 'the front' : ''].filter(Boolean);
+      const why = !sk ? '' : longWay
+        ? ` The sheet runs out <b>along the boat</b>: it's ${D.L.toFixed(2)} m long${flaps.length ? `, plus a flap up ${flaps.join(' and ')} as tall as the skin` : ''}, ${sk.long.toFixed(2)} m in all. ${flaps.length ? 'A sharp or round end needs no flap, or ' : ''}a shorter boat lets it go higher.`
+        : ` The sheet runs out <b>around the boat</b>: under it and up both sides is ${sk.G.toFixed(2)} m. A narrower or shallower hull lets it go higher.`;
+      return `${hn} skin only reaches ${c.toFixed(2)} m up, so the sticks above it stick out, and the water comes in over the top of the skin.${why}`;
+    }).filter(Boolean);
     const cutHtml = cuts.map(t => `<div class="warn">ℹ ${t}</div>`).join('');
     sm.innerHTML = sk.length ? sk.map(t => `<div class="bad">⚠ ${t}</div>`).join('')
       : a.ch.hulls.length ? (cutHtml || `<div class="ok">✓ The skin fits and keeps the water out.</div>`) : '';
