@@ -34,9 +34,11 @@ const SAIL = {
   WIND_KT: 20, GUST_KT: 30, MONSTER_KT: 6, KT: 0.5144,
   COURSE: 20, GAP: 1.5,      // the race: start line to the inlet, and the serpent's head start behind you
   // A patched skin (Nick, 2026-11-19): the second sheet glued on, overlapping by
-  // PATCH_OV; the seam leaks LEAK cubic meters a second per meter of seam, which
-  // fills a small boat in about 3 s and a big one in about 5.
-  PATCH_OV: 0.1, LEAK: 0.12, SEAM_DRY: 0.05, // (a seam closer than 5 cm to the water leaks: waves, and the boat rocking)
+  // PATCH_OV; a seam under water leaks LEAK cubic meters a second per meter. He first
+  // asked for 3-5 s fills, but water's weight slows a filling boat so much that then
+  // none escaped; he chose about 30 s (a 2.5 m boat ~30 s), so a fast patched boat
+  // gets out and a slow one is caught as it gets heavy.
+  PATCH_OV: 0.1, LEAK: 0.04, SEAM_DRY: 0.05, // (a seam closer than 5 cm to the water leaks: waves, and the boat rocking)
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
   FORM: 1.2,                // friction form factor
   KW: 7, FN0: 0.45, SQUARE_BOW: 2.0, // wave drag: KW rho g Ax^2 / L * h(Fn)

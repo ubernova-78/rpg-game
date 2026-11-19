@@ -1783,7 +1783,7 @@
       const leak = `<div class="warn">🩹 Patched: your second sheet is glued on ${where}, overlapping by ${Math.round(P.PATCH_OV * 100)} cm. `
         + (!a.r.wetSeam ? '<b>The seams are above the water, so they stay dry: no leak.</b>'
           : `<b>${a.r.wetSeam.toFixed(2)} m of seam is under water, and it leaks</b>: this boat fills and sinks <b>${(a.r.tFill || 0).toFixed(1)} s</b> after it sets off, slowing as it fills.`
-            + (a.r.speedKt ? (a.r.fail === 'leak' ? " It won't get out the inlet in time." : ' It just gets out the inlet first.') : '')
+            + (a.r.speedKt ? (a.r.fail === 'leak' ? " It won't get out the inlet in time: it gets too heavy and slow." : ' It gets out the inlet first, then sinks just outside, and you swim back to the shore.') : '')
             + (sp.kind === 'ring' ? ' (Seams along the top of the sides would stay dry, if the skin fitted one sheet lengthways.)' : ''))
         + '</div>';
       sm.innerHTML += leak; fm.innerHTML += leak;
