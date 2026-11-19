@@ -29,11 +29,16 @@ const SAIL = {
   STONES: 6, STONE_KG: 5, STONE_R: 0.08,
   RIB_GAP: 1.0,             // ribs at least every 1 m along the hull
   TAPER: 0.35,              // a pointed bow tapers the front 35% of the length
+  RISE: 0.2,                // a sloped bottom rises over the front 20% of it
   MAST_GAP: 0.5,            // the sail's foot sits this far up the mast (over the rider's head)
   WIND_KT: 20, GUST_KT: 30, MONSTER_KT: 6, KT: 0.5144,
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
   FORM: 1.2,                // friction form factor
   KW: 7, FN0: 0.45, SQUARE_BOW: 2.0, // wave drag: KW rho g Ax^2 / L * h(Fn)
+  // Wave drag by the front's shape (Nick, 2026-11-19: sharp or round, full depth
+  // or sloping up from the keel). A flat face pushes the most water; a sloped
+  // bottom (a punt's or a scow's) lets it ride up and over.
+  BOW_DRAG: { square: { plumb: 2.0, slope: 1.3 }, round: { plumb: 1.25, slope: 1.05 }, pointed: { plumb: 1.0, slope: 0.92 } },
   WAVE_NM: 200,             // the serpent's waves: a heeling moment, the same for every boat
 };
 
@@ -84,6 +89,31 @@ function wettedGirth(pts, T) {
 const girth = pts => pts.slice(1).reduce((g, p, i) => g + sLen(pts[i], p), 0);
 const lowest = pts => pts.reduce((m, p) => p[1] < m[1] ? p : m, pts[0]);
 
+// The front of the boat: d.bow is its shape from above ('square', 'pointed' (sharp)
+// or 'round'), d.bowRise its bottom ('plumb', full depth to the end, or 'slope',
+// rising from the keel to the top of the sides at the tip). Either way only the
+// front TAPER of the length changes; a square, full-depth front changes nothing.
+const bowRise = d => d.bowRise === 'slope' ? 'slope' : 'plumb';
+const bowPlain = d => d.bow !== 'round' && bowRise(d) === 'plumb'; // the original two: exact formulas
+// Slices along the hull, stern (z = 0) to bow (z = L): length dz, width scale s
+// (about the hull's middle) and depth scale k (about the top of its sides).
+function bowSlices(d) {
+  const L = d.L, tp = d.bow === 'pointed' || d.bow === 'round' ? SAIL.TAPER : 0, tr = bowRise(d) === 'slope' ? SAIL.RISE : 0;
+  const t = Math.max(tp, tr), N = 30, out = [{ z: L * (1 - t) / 2, dz: L * (1 - t), s: 1, k: 1 }];
+  for (let i = 0; i < N; i++) {
+    const z = L * (1 - t) + t * L * (i + 0.5) / N, up = tp ? Math.max(0, (z - L * (1 - tp)) / (tp * L)) : 0, ur = tr ? Math.max(0, (z - L * (1 - tr)) / (tr * L)) : 0;
+    const s = d.bow === 'pointed' ? 1 - up : d.bow === 'round' ? Math.sqrt(Math.max(0, 1 - up * up)) : 1;
+    out.push({ z, dz: t * L / N, s, k: 1 - ur });
+  }
+  return out;
+}
+// How long a piece of skin the hull needs at depth D: along the bottom, up the
+// back, and round the front (a square full-depth front needs a flap up it; a
+// sloped bottom runs up to the top; sharp or round, the sides meet).
+function skinLong(d, D) {
+  const tl = SAIL.RISE * d.L;
+  return d.L + D + (bowRise(d) === 'slope' ? Math.hypot(tl, D) - tl : d.bow === 'square' || !d.bow ? D : 0);
+}
 // Plan-view taper integrals: s(z) is the width scale along the hull.
 function taper(bow) {
   if (bow !== 'pointed') return { c1: 1, c3: 1 };
@@ -257,9 +287,9 @@ function cutAt(h, y) {
   if (j < n - 1) out.push(at(h[j + 1], h[j]));
   return out.length >= 2 ? out : null;
 }
-function skinTrim(h, L, bow) {
-  const P = SAIL, lo = lowest(h)[1], top = Math.min(h[0][1], h[h.length - 1][1]), ends = bow === 'pointed' ? 1 : 2;
-  const fitsAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return false; const G = girth(c), long = L + ends * (y - lo);
+function skinTrim(h, L, bow, rise) {
+  const P = SAIL, lo = lowest(h)[1], top = Math.min(h[0][1], h[h.length - 1][1]), dd = { L, bow, bowRise: rise };
+  const fitsAt = y => { const c = y >= top - 1e-9 ? h : cutAt(h, y); if (!c) return false; const G = girth(c), long = skinLong(dd, y - lo);
     return (long <= P.SHEET_A + 1e-9 && G <= P.SHEET_B + 1e-9) || (long <= P.SHEET_B + 1e-9 && G <= P.SHEET_A + 1e-9); };
   // (Measured from the lower gunwale: a taller side above it is wasted anyway.)
   if (fitsAt(top) && Math.max(h[0][1], h[h.length - 1][1]) - top < 1e-9) return { h, cut: null };
@@ -276,7 +306,7 @@ function sailAnalyze(d) {
   const r = { ok: true, problems: [] };
   if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin on the boat yet, so the water comes straight through.'); return r; }
   // The skin goes as high as its sheet reaches; above that the sticks stick out.
-  const trims = d.hulls.map(h => skinTrim(h, L, d.bow));
+  const trims = d.hulls.map(h => skinTrim(h, L, d.bow, d.bowRise));
   r.skinCut = trims.map(t => t.cut);
   d = Object.assign({}, d, { hulls: trims.map(t => t.h), frameHulls: d.frameHulls || d.hulls });
 
@@ -291,7 +321,7 @@ function sailAnalyze(d) {
   // Skin: each hull's net (bottom and sides, plus end flaps) on one sheet.
   r.skins = d.hulls.map(h => {
     const G = girth(h), D = Math.max(...h.map(p => p[1])) - lowest(h)[1];
-    const long = L + (d.bow === 'pointed' ? D : 2 * D);
+    const long = skinLong(d, D);
     const fits = (long <= P.SHEET_A + 1e-9 && G <= P.SHEET_B + 1e-9) || (long <= P.SHEET_B + 1e-9 && G <= P.SHEET_A + 1e-9);
     return { G, D, long, fits };
   });
@@ -299,7 +329,7 @@ function sailAnalyze(d) {
   // Say which way it's too big (Nick, 2026-11-19: "what is this about breaking a rule?").
   r.skins.forEach((s, i) => {
     if (s.fits) return;
-    const hn = d.hulls.length > 1 ? `Hull ${i + 1}'s skin` : 'The skin', ends = d.bow === 'pointed' ? 'one end' : 'both ends';
+    const hn = d.hulls.length > 1 ? `Hull ${i + 1}'s skin` : 'The skin', ends = bowPlain(d) && d.bow !== 'pointed' ? 'both ends' : 'its ends';
     r.problems.push(`${hn} doesn't fit on its sheet (3.05 x 2.73 m). It has to reach under the boat and up both sides (${s.G.toFixed(2)} m around), and along the boat plus up ${ends} (${s.long.toFixed(2)} m long). `
       + `It needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece: make the boat shorter, or the hull shallower or narrower.`);
   });
@@ -344,7 +374,13 @@ function sailAnalyze(d) {
   r.KG = items.reduce((s, it) => s + it.m * it.y, 0) / M;
 
   // Float: find the waterline T where the hulls displace M.
-  const vol = T => d.hulls.reduce((s, h) => s + polyArea(clipBelow(h, T)).A * L * tp.c1, 0);
+  // A round or sloped front: add up slices (bowSlices). A slice scaled by s across
+  // and k up/down (about the top of its sides, htop) is under water to T where the
+  // full section is under water to htop - (htop - T) / k.
+  const SL = bowPlain(d) ? null : bowSlices(d), hTop = h => Math.min(h[0][1], h[h.length - 1][1]);
+  const at = (h, sl, T) => sl.k <= 1e-6 ? null : hTop(h) - (hTop(h) - T) / sl.k;
+  const vol = SL ? T => d.hulls.reduce((s, h) => s + SL.reduce((t, sl) => { const Tk = at(h, sl, T); return Tk == null ? t : t + sl.dz * sl.s * sl.k * polyArea(clipBelow(h, Tk)).A; }, 0), 0)
+    : T => d.hulls.reduce((s, h) => s + polyArea(clipBelow(h, T)).A * L * tp.c1, 0);
   const lo0 = Math.min(...d.hulls.map(h => lowest(h)[1]));
   const top = Math.min(...d.hulls.map(h => Math.min(h[0][1], h[h.length - 1][1])));
   const need = M / P.RHO_W;
@@ -358,6 +394,19 @@ function sailAnalyze(d) {
   let IT = 0, IL = 0, KBm = 0, Rf = 0, Rw = 0;
   const per = d.hulls.map(h => {
     const sub = polyArea(clipBelow(h, T)), wl = waterline(h, T) || { B: 0, xc: 0 };
+    if (SL) { // the same sums, slice by slice
+      const c = (Math.min(...h.map(p => p[0])) + Math.max(...h.map(p => p[0]))) / 2, ht = hTop(h); let Sw = 0, A0 = 0, M0 = 0; const strips = [];
+      for (const sl of SL) {
+        const Tk = at(h, sl, T); if (Tk == null) continue;
+        const sb = polyArea(clipBelow(h, Tk)), w = waterline(h, Tk) || { B: 0, xc: 0 }, B = w.B * sl.s, xc = c + (w.xc - c) * sl.s;
+        IT += (Math.pow(B, 3) / 12 + B * xc * xc) * sl.dz;
+        KBm += sl.dz * sl.s * sl.k * sb.A * (ht - (ht - sb.cy) * sl.k);
+        Sw += sl.dz * wettedGirth(h, Tk) * (sl.s + sl.k) / 2;
+        strips.push([sl.z, B * sl.dz, B, sl.dz]); A0 += B * sl.dz; M0 += B * sl.dz * sl.z;
+      }
+      const zf = A0 ? M0 / A0 : L / 2; for (const [z, a, B, dz] of strips) IL += a * (z - zf) * (z - zf) + B * Math.pow(dz, 3) / 12;
+      return { Ax: sub.A, B: wl.B, xc: wl.xc, Sw };
+    }
     IT += (Math.pow(wl.B, 3) / 12 * tp.c3 + wl.B * tp.c1 * wl.xc * wl.xc) * L;
     IL += longInertia(wl.B, L, d.bow);
     KBm += sub.A * L * tp.c1 * sub.cy;
@@ -383,7 +432,7 @@ function sailAnalyze(d) {
       const Re = Math.max(1e4, v * L / P.NU), Cf = 0.075 / Math.pow(Math.log10(Re) - 2, 2);
       const fr = 0.5 * P.RHO_W * Cf * P.FORM * p.Sw * v * v;
       const Fn = v / Math.sqrt(P.G * L), h6 = Math.pow(Fn / P.FN0, 6);
-      const wv = P.KW * P.RHO_W * P.G * p.Ax * p.Ax / L * h6 / (1 + h6) * (d.bow === 'pointed' ? 1 : P.SQUARE_BOW);
+      const wv = P.KW * P.RHO_W * P.G * p.Ax * p.Ax / L * h6 / (1 + h6) * ((P.BOW_DRAG[d.bow] || P.BOW_DRAG.square)[bowRise(d)]);
       R += fr + wv;
     }
     return R;
@@ -540,4 +589,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, bowSlices, skinLong, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
