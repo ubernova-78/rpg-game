@@ -24,7 +24,7 @@ const SAIL = {
   STICK_L: 1.13, STICK_W: 0.097, STICK_T: 0.021, STICK_KG: 1.38, STICKS: 70,
   SPLICE: 0.15,             // overlap when two sticks are glued end to end
   SHEET_A: 3.05, SHEET_B: 2.73, SKIN_KG_M2: 0.43, SKINS: 2, // foil 3.6 kg a sheet
-  SAIL_W: 2.16, SAIL_H: 2.79, CLOTH_KG_M2: 0.8,
+  SAIL_W: 2.16, SAIL_H: 2.79, CLOTH_KG_M2: 0.8, CLOTHS: 2, MASTS: 4, // two sheets of cloth (two sheets of paper in class), up to 4 masts
   RIDER_KG: 60, RIDER_SIT: 0.25, HIPS: 0.5, // the rider needs 50 cm of room to sit
   STONES: 6, STONE_KG: 5, STONE_R: 0.08,
   RIB_GAP: 1.0,             // ribs at least every 1 m along the hull
@@ -142,6 +142,20 @@ function sailGeom(sail) {
     hang: SAIL.MAST_GAP, mastH: sail.h + SAIL.MAST_GAP, inCloth: sail.w <= SAIL.SAIL_W + 1e-9 && sail.h <= SAIL.SAIL_H + 1e-9 };
 }
 
+// All the sails (Nick, 2026-11-19: two sheets of cloth, cut into as many sails as
+// you like, each on its own mast, up to MASTS). d.sails is a list of
+// { sheet, poly, mastH, hang }; the sweep's single d.sail still works.
+const sailList = d => d.sails || [d.sail];
+const inPoly = (x, y, p) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+// Do two pieces cut from the same sheet overlap? Checked on a 2.5 cm grid of points.
+function clothOverlap(sails) {
+  for (let i = 0; i < sails.length; i++) for (let j = i + 1; j < sails.length; j++) {
+    const a = sails[i], b = sails[j]; if (!a.poly || !b.poly || (a.sheet || 0) !== (b.sheet || 0)) continue;
+    for (let x = 0.0125; x < SAIL.SAIL_W; x += 0.025) for (let y = 0.0125; y < SAIL.SAIL_H; y += 0.025) if (inPoly(x, y, a.poly) && inPoly(x, y, b.poly)) return [i, j];
+  }
+  return null;
+}
+
 // A stick is part of a hull (not a seat or a beam) when it lies along the hull's
 // skin line. Checked by its midpoint, since the builder's skin line can split or
 // merge sticks where others are glued to them.
@@ -193,10 +207,10 @@ function sailWood(d) {
   const verts = new Map();
   for (const h of d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
-  const mastH = sailGeom(d.sail).mastH;
-  for (const pc of splicedPieces(mastH)) pieces.push(pc);
-  addWood(mastH, d.mastFoot[1] + mastH / 2);
-  return { sticks: packSticks(pieces), nRib, mastH, woodM, woodMy, tooLong, stringers: verts.size };
+  // The masts are sticks too, spliced to their height: one mast per sail.
+  const mastPieces = [], mastHs = sailList(d).map(sl => sailGeom(sl).mastH);
+  for (const mh of mastHs) { for (const pc of splicedPieces(mh)) { pieces.push(pc); mastPieces.push(pc); } addWood(mh, d.mastFoot[1] + mh / 2); }
+  return { sticks: packSticks(pieces), nRib, mastH: mastHs.length ? Math.max(...mastHs) : 0, mastHs, mastSticks: packSticks(mastPieces), woodM, woodMy, tooLong, stringers: verts.size };
 }
 
 function sailAnalyze(d) {
@@ -207,7 +221,7 @@ function sailAnalyze(d) {
   // Wood: pieces and their heights (for the center of gravity).
   const w = sailWood(d), woodM = w.woodM, woodMy = w.woodMy;
   if (w.tooLong) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
-  const sg = sailGeom(d.sail), sailA = sg.A;
+  const sgs = sailList(d).map(sailGeom), sailA = sgs.reduce((t, g) => t + g.A, 0);
   r.sticks = w.sticks; r.nRib = w.nRib; r.mastH = w.mastH;
   if (r.sticks > P.STICKS) r.problems.push(`That takes ${r.sticks} sticks; you have ${P.STICKS}.`);
 
@@ -220,9 +234,14 @@ function sailAnalyze(d) {
   });
   if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 pieces of monster skin.');
   r.skins.forEach((s, i) => { if (!s.fits) r.problems.push(`Hull ${d.hulls.length > 1 ? i + 1 + ' ' : ''}needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece of skin; a sheet is 3.05 x 2.73 m.`); });
-  if (!sg.inCloth) r.problems.push('The sail is bigger than the cloth.');
-  if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push('The bottom of the sail must be at least 0.5 m up the mast, over your head.');
-  if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push('The sail goes higher than the top of the mast.');
+  const many = sgs.length > 1, nm = i => many ? `Sail ${i + 1}` : 'The sail';
+  sgs.forEach((sg, i) => {
+    if (!sg.inCloth) r.problems.push(`${nm(i)} is bigger than the cloth.`);
+    if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push(`The bottom of ${many ? 'sail ' + (i + 1) : 'the sail'} must be at least 0.5 m up its mast, over your head.`);
+    if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push(`${nm(i)} goes higher than the top of its mast.`);
+  });
+  if (sgs.length > P.MASTS) r.problems.push(`You can have up to ${P.MASTS} masts.`);
+  if (d.sails) { const ov = clothOverlap(d.sails); if (ov) r.problems.push(`Sails ${ov[0] + 1} and ${ov[1] + 1} overlap on the cloth: you can't cut the same cloth twice.`); }
   if (sailA < 0.01) r.problems.push('There is no sail.');
 
   // Masses and heights.
@@ -231,20 +250,22 @@ function sailAnalyze(d) {
   let skinA = 0, skinMy = 0;
   d.hulls.forEach(h => { for (let i = 0; i < h.length - 1; i++) { const a = sLen(h[i], h[i + 1]) * L * tp.c1; skinA += a; skinMy += a * (h[i][1] + h[i + 1][1]) / 2; } });
   items.push({ m: skinA * P.SKIN_KG_M2, y: skinA ? skinMy / skinA : 0, what: 'skin' });
-  const sailFoot = d.mastFoot[1] + sg.hang;
-  r.ceY = sailFoot + sg.ceUp;
-  items.push({ m: sailA * P.CLOTH_KG_M2, y: r.ceY, what: 'sail' });
+  // Where the wind pushes: the area-weighted middle of all the sails together.
+  r.ceY = sailA ? sgs.reduce((t, g) => t + g.A * (d.mastFoot[1] + g.hang + g.ceUp), 0) / sailA : d.mastFoot[1];
+  sgs.forEach(g => items.push({ m: g.A * P.CLOTH_KG_M2, y: d.mastFoot[1] + g.hang + g.ceUp, what: 'sail' }));
   // The rider sits in the middle: on a stick across it (a seat or a beam), or
   // down in the hull where it's at least HIPS wide, whichever is lower.
   const seat = riderSeat(d);
   if (seat == null) { r.problems.push('Your rider has nowhere to sit. They sit in the middle, and need 50 cm of room.'); }
   r.seatY = seat == null ? 0 : seat;
   r.riderY = r.seatY + P.RIDER_SIT;
-  items.push({ m: P.RIDER_KG, y: r.riderY, what: 'rider' });
+  // d.load (optional, for the builder's intro): who's aboard. Default: you and all 6 stones.
+  const load = d.load || {}, withRider = load.rider !== false, nStones = load.stones != null ? load.stones : P.STONES;
+  if (withRider) items.push({ m: P.RIDER_KG, y: r.riderY, what: 'rider' });
   // Stones settle at the lowest inside point; with two hulls they share it.
   const lows = d.hulls.map(h => lowest(h)[1]).sort((a, b) => a - b);
   r.stoneY = [];
-  for (let i = 0; i < P.STONES; i++) {
+  for (let i = 0; i < nStones; i++) {
     const y = (lows.length > 1 && lows[1] - lows[0] < 0.01) ? lows[i % 2] : lows[0];
     r.stoneY.push(y + P.STONE_R); items.push({ m: P.STONE_KG, y: y + P.STONE_R, what: 'stone' });
   }
@@ -436,4 +457,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, sailSkin, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };

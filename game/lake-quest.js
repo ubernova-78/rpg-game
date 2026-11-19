@@ -535,7 +535,7 @@ const BOATWRIGHT_TALK = [
   'I\'ve watched that serpent for years. It isn\'t evil, you know. It\'s <strong>lost</strong>. Its colony lives far out in the ocean, and it\'s been trapped in our lake since it was small. It lashes out because it can\'t get home.',
   'The lake runs out to the ocean through a narrow <strong>inlet</strong>. If someone sails out of it, fast, the serpent will chase them all the way out to sea, and then it will be free.',
   'But it swims at <strong>6 knots</strong>. I\'m looking for someone brave, but also smart, to design a sailboat faster than that, carrying themselves (60 kg) and <strong>6 stones of 5 kg</strong> to keep it steady. The wind blows <strong>20 knots</strong> straight out the inlet, with gusts.',
-  'You\'ll have <strong>70 sticks</strong>, <strong>two pieces of monster skin</strong> and <strong>one sheet of sail cloth</strong>. Use the <strong>Sail Desk</strong>. And after every run, write down how long it took and how far you got. A good boatwright always measures.',
+  'You\'ll have <strong>70 sticks</strong>, <strong>two pieces of monster skin</strong> and <strong>two sheets of sail cloth</strong>. Use the <strong>Sail Desk</strong>. And after every run, write down how long it took and how far you got. A good boatwright always measures.',
 ];
 function boatwrightTalk() {
   const done = srState() && srState().passed;
