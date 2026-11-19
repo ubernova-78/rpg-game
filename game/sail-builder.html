@@ -216,8 +216,8 @@
       <div class="panel tabpanel" id="p-frame">
         <div class="note" style="margin-top:0">Your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle and looked from behind. The 3D boat under the drawing builds itself as you go.</div>
         <div class="row"><span><b>Draw your slice, stick by stick</b></span></div>
-        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
-        <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button></div></div>
+        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). <b>✋ Move</b> lets you grab a joint and drag it somewhere else. The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
+        <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button><button data-v="move">✋ Move</button></div></div>
         <div class="row"><span>Mirror</span><div class="seg" id="mirror"><button data-v="on">🪞 On</button><button data-v="off">Off</button></div></div>
         <div class="note" id="mirrornote" style="margin-top:2px"></div>
         <div class="btnrow"><button class="btn alt small" id="btn-undo">↶ Undo</button><button class="btn alt small" id="btn-clear">Clear all</button></div>
@@ -492,6 +492,36 @@
   // stays even; turn it off for a boat that isn't the same on both sides. (This
   // replaced ready-made hull shapes: the students design the bottom themselves.)
   let mirror = true;
+  // Move (Nick, 2026-11-19: "click a node and drag it, so they don't have to only
+  // go back"): grab a joint and every stick end there comes with it; with Mirror
+  // on, its twin on the other side moves the other way, and a joint on the middle
+  // line only slides up and down. A stick stretched past 1.13 m springs back.
+  let moving = null; // { refs: [[seg, 'a'|'b']], twins, mid, start: the design before, over }
+  function grabJoint(m) {
+    let best = null, bd = 12 / k;
+    for (const sg of D.segs) for (const p of [sg.a, sg.b]) { const d0 = dist(p, m); if (d0 < bd) { bd = d0; best = p.slice(); } }
+    if (!best) return null;
+    const at = q => D.segs.flatMap((sg, i) => ['a', 'b'].filter(e => dist(sg[e], q) < 1e-6).map(e => [i, e]));
+    const mid = mirror && Math.abs(best[0]) < 1e-6, refs = at(best), twins = mirror && !mid ? at([-best[0], best[1]]) : [];
+    return { refs, twins, mid, side: Math.sign(best[0]), start: JSON.stringify(D), over: false };
+  }
+  function dragJoint(m) {
+    let p = snap(m).p;
+    if (moving.mid) p = [0, p[1]];
+    else if (mirror && Math.sign(p[0]) !== moving.side) p = [0, p[1]]; // (a mirrored joint can come to the middle, not past it)
+    for (const [i, e] of moving.refs) D.segs[i][e] = p.slice();
+    for (const [i, e] of moving.twins) D.segs[i][e] = [r3(-p[0]) || 0, p[1]];
+    moving.over = D.segs.some(sg => dist(sg.a, sg.b) > P.STICK_L + 1e-6);
+    drawCad();
+  }
+  function dropJoint() {
+    const mv = moving; moving = null;
+    if (mv.over) { D = JSON.parse(mv.start); flash = { t: performance.now(), text: 'Too long: a stick is only 1.13 m. It sprang back.' }; refresh(); drawCad(); return; }
+    // Tidy up: a stick squashed to nothing goes, and two sticks now on top of each other become one.
+    const seen = new Set(); D.segs = D.segs.filter(sg => { const kk = segKey(sg.a, sg.b); if (dist(sg.a, sg.b) < 0.02 || seen.has(kk)) return false; seen.add(kk); return true; });
+    if (JSON.stringify(D) === mv.start) { drawCad(); return; }
+    undo.push(mv.start); if (undo.length > 80) undo.shift(); changed();
+  }
   const flipSeg = s => ({ a: [r3(-s.a[0]) || 0, s.a[1]], b: [r3(-s.b[0]) || 0, s.b[1]] });
   const mirrorOn = () => mirror || !!demo; // the intro always draws mirrored
   // What Mirror makes of a stick from a to b. A level stick across the middle line
@@ -523,6 +553,7 @@
     if (mode === 'race') return;
     if (mode === 'cloth') return clothClick(e);
     const m = evPt(e);
+    if (tool === 'move') { const g = grabJoint(m); if (g) { moving = g; cad.setPointerCapture(e.pointerId); } return; }
     if (tool === 'stick') {
       const p = snap(m).p;
       if (pend) { addStick(pend, p); pend = null; drawCad(); return; }
@@ -539,11 +570,13 @@
     if (mode === 'race') return;
     if (mode === 'cloth') { const q = clothSnap(e); cloth.hover = q.inside || cloth.draft.length ? q.p : null; cloth.hoverSheet = q.sheet; drawCloth(); return; }
     const m = evPt(e);
-    hover = tool === 'stick' ? snap(m) : null; hoverSeg = tool === 'stick' ? -1 : nearestSeg(m);
+    if (moving) { dragJoint(m); return; }
+    hover = tool === 'stick' || tool === 'move' ? snap(m) : null; hoverSeg = tool === 'erase' ? nearestSeg(m) : -1;
     if (drag) drag.b = hover.p;
     drawCad();
   });
   cad.addEventListener('pointerup', () => {
+    if (moving) { dropJoint(); return; }
     if (!drag) return;
     if (dist(drag.a, drag.b) < 0.02) pend = drag.a; // a click: wait for the other end
     else addStick(drag.a, drag.b);
@@ -611,7 +644,7 @@
       g.beginPath(); h.forEach((p, i) => i ? g.lineTo(...S(p)) : g.moveTo(...S(p))); g.stroke();
     }
     // Sticks: wood, red when loose or too long, highlighted under the eraser.
-    const bad = new Set(a ? a.fc.loose.concat(a.fc.long) : []);
+    const bad = new Set(moving ? D.segs.map((sg, i) => dist(sg.a, sg.b) > P.STICK_L + 1e-6 ? i : -1).filter(i => i >= 0) : a ? a.fc.loose.concat(a.fc.long) : []);
     D.segs.forEach((s, i) => {
       const hi = i === hoverSeg;
       g.lineCap = 'round';
@@ -621,6 +654,15 @@
       if (hi) label(s.a, s.b, dist(s.a, s.b));
     });
     for (const s of D.segs) for (const p of [s.a, s.b]) { const [sx, sy] = S(p); g.fillStyle = '#4a3018'; g.beginPath(); g.arc(sx, sy, 2.6, 0, 7); g.fill(); }
+    // Move: every joint is a handle; the one under the pointer (or in your hand) is bigger.
+    if (tool === 'move' && mode === 'cad' && !demo) {
+      const held = moving && moving.refs.length ? D.segs[moving.refs[0][0]][moving.refs[0][1]] : null;
+      for (const s of D.segs) for (const p of [s.a, s.b]) {
+        const on = held ? dist(p, held) < 1e-6 : hover && dist(p, hover.p) < 1e-6, [sx, sy] = S(p);
+        g.fillStyle = on ? '#f6c90e' : 'rgba(246,201,14,0.55)'; g.strokeStyle = '#7a5a00'; g.lineWidth = 1.5; g.beginPath(); g.arc(sx, sy, on ? 8 : 5.5, 0, 7); g.fill(); g.stroke();
+      }
+      if (moving) for (const [i] of moving.refs.concat(moving.twins)) { const sg = D.segs[i]; label(sg.a, sg.b, dist(sg.a, sg.b), dist(sg.a, sg.b) > P.STICK_L + 1e-6); }
+    }
     if (a && a.mf != null) {
       const [sx, sy] = S([0, a.mf]); g.fillStyle = '#20313d';
       g.beginPath(); g.moveTo(sx, sy - 2); g.lineTo(sx - 6, sy - 12); g.lineTo(sx + 6, sy - 12); g.fill();
@@ -1037,7 +1079,7 @@
   const paintTool = seg('tool', () => tool, v => { setTool(v); });
   const paintMirror = seg('mirror', () => mirror ? 'on' : 'off', v => { mirror = v === 'on'; paintMirror(); paintMirrorNote(); drawCad(); });
   function paintMirrorNote() { $('mirrornote').textContent = mirror ? 'Every stick you add or erase is copied to the other side of the middle line, so your boat stays even.' : 'Mirror is off: sticks go only where you draw them, so the two sides can be different.'; }
-  function setTool(v) { tool = v; pend = null; drag = null; paintTool(); cad.style.cursor = v === 'stick' ? 'crosshair' : 'pointer'; drawCad(); }
+  function setTool(v) { tool = v; pend = null; drag = null; moving = null; paintTool(); cad.style.cursor = v === 'stick' ? 'crosshair' : v === 'move' ? 'grab' : 'pointer'; drawCad(); }
   function doUndo() { if (!undo.length) return; D = JSON.parse(undo.pop()); changed(); }
   $('btn-undo').addEventListener('click', doUndo);
   $('btn-clear').addEventListener('click', () => { if (!D.segs.length) return; remember(); D.segs = []; changed(); });
@@ -1057,7 +1099,7 @@
     $('readout').style.display = m === 'cad' || m === 'cloth' ? '' : 'none';
     $('counter').style.display = m === 'cad' || m === '3d' ? '' : 'none';
     document.querySelector('.modebtns').style.display = m === 'race' ? 'none' : '';
-    cad.style.cursor = m === 'race' ? 'default' : m === 'cloth' ? 'crosshair' : tool === 'stick' ? 'crosshair' : 'pointer';
+    cad.style.cursor = m === 'race' ? 'default' : m === 'cloth' ? 'crosshair' : tool === 'stick' ? 'crosshair' : tool === 'move' ? 'grab' : 'pointer';
     if (m !== '3d') { cadSize(); drawCad(); } else if (three) three.resize();
   }
   document.querySelectorAll('.modebtns button').forEach(b => b.addEventListener('click', () => {
