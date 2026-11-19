@@ -529,6 +529,13 @@
   // started off-center was copied on top of itself); two meeting in the middle if
   // that's longer than a stick. A sloping one across the middle mirrors into an X
   // (a cross-brace). Anything else gets its copy on the other side.
+  // The first stick hangs on the middle line (Nick, 2026-11-19: so the boat starts
+  // even, centered on you): while the grid is empty, the end nearer the middle goes
+  // onto it, at the same height. (A stick already across the middle stays put.)
+  function firstFix(a, b) {
+    if (D.segs.length || demo || a[0] * b[0] < -1e-9 || Math.abs(a[0]) < 1e-6 || Math.abs(b[0]) < 1e-6) return [a, b];
+    return Math.abs(a[0]) <= Math.abs(b[0]) ? [[0, a[1]], b] : [a, [0, b[1]]];
+  }
   function mirrorPlan(a, b) {
     if (!mirrorOn()) return [{ a, b }];
     if (a[0] * b[0] < -1e-9 && Math.abs(a[1] - b[1]) < 0.011) {
@@ -539,6 +546,7 @@
     return segKey(f.a, f.b) !== segKey(a, b) ? [{ a, b }, f] : [{ a, b }];
   }
   function addStick(a, b, quiet) {
+    [a, b] = firstFix(a, b);
     if (dist(a, b) < 0.02) return;
     if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long: a stick is only 1.13 m. Cut it shorter, or glue two together.` }; return; }
     const add = mirrorPlan(a, b);
@@ -654,6 +662,14 @@
       if (hi) label(s.a, s.b, dist(s.a, s.b));
     });
     for (const s of D.segs) for (const p of [s.a, s.b]) { const [sx, sy] = S(p); g.fillStyle = '#4a3018'; g.beginPath(); g.arc(sx, sy, 2.6, 0, 7); g.fill(); }
+    // On an empty grid: where the boat starts, on the middle line.
+    if (!D.segs.length && mode === 'cad' && !demo) {
+      const [sx, sy] = S([0, 0]), pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+      g.strokeStyle = '#1a936f'; g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 7 + 3 * pulse, 0, 7); g.stroke();
+      g.fillStyle = '#1a936f'; g.beginPath(); g.arc(sx, sy, 3, 0, 7); g.fill();
+      g.font = 'bold 12px system-ui'; g.textAlign = 'left'; g.fillText('your first stick starts on the middle line', sx + 14, sy - 10);
+      if (!drawCad.pulsing) { drawCad.pulsing = true; setTimeout(() => { drawCad.pulsing = false; if (!D.segs.length && mode === 'cad') drawCad(); }, 60); }
+    }
     // Move: every joint is a handle; the one under the pointer (or in your hand) is bigger.
     if (tool === 'move' && mode === 'cad' && !demo) {
       const held = moving && moving.refs.length ? D.segs[moving.refs[0][0]][moving.refs[0][1]] : null;
@@ -669,7 +685,8 @@
       g.font = '10px system-ui'; g.textAlign = 'left'; g.fillText('mast', sx + 8, sy - 6);
     }
     // Drawing a stick: a dashed line with its length; red past 1.13 m.
-    const from = drag ? drag.a : pend, to = drag ? drag.b : pend && hover ? hover.p : null;
+    let from = drag ? drag.a : pend, to = drag ? drag.b : pend && hover ? hover.p : null;
+    if (from && to) [from, to] = firstFix(from, to);
     if (from && to) {
       const L = dist(from, to), over = L > P.STICK_L + 1e-6;
       g.strokeStyle = over ? '#c1443a' : '#20313d'; g.lineWidth = 3; g.setLineDash([6, 4]);
@@ -1974,9 +1991,9 @@
   // scratch (the boat as it stands at that point), so Back and Next can jump to any
   // step from anywhere: mid-tween, paused, or from the "Too slow!" card.
   // The boat's slice: a floor across the middle, and a wall each side (the second one mirrored).
-  const DEMO_FLOOR = { a: [-0.35, 0], b: [0.35, 0] }, DEMO_WALL = { a: [-0.35, 0], b: [-0.35, 0.2] };
-  const DEMO_STICKS = () => [DEMO_FLOOR, DEMO_WALL, flipSeg(DEMO_WALL)].map(s => ({ a: s.a.slice(), b: s.b.slice() }));
-  const demoBoat = (sticks, sail) => { const d = DEMO_D(); d.segs = sticks === 'floor' ? [{ a: DEMO_FLOOR.a.slice(), b: DEMO_FLOOR.b.slice() }] : sticks ? DEMO_STICKS() : []; if (!sail) d.sails = []; return d; };
+  const DEMO_FLOOR = { a: [-0.35, 0], b: [0, 0] }, DEMO_WALL = { a: [-0.35, 0], b: [-0.35, 0.2] };
+  const DEMO_STICKS = () => [DEMO_FLOOR, flipSeg(DEMO_FLOOR), DEMO_WALL, flipSeg(DEMO_WALL)].map(s => ({ a: s.a.slice(), b: s.b.slice() }));
+  const demoBoat = (sticks, sail) => { const d = DEMO_D(); d.segs = sticks === 'floor' ? DEMO_STICKS().slice(0, 2) : sticks ? DEMO_STICKS() : []; if (!sail) d.sails = []; return d; };
   // The pointing hand drags out a stick, the way you would.
   async function demoDraw(sk, ms) {
     demoCursor = sk.a.slice(); hover = { p: sk.a, on: 'grid' }; drawCad(); await wait(450);
@@ -2000,15 +2017,17 @@
   const DEMO_STEPS = [
     { go: async () => { // 1. Draw the floor...
       demoSet({ tab: 'p-frame', view: 'cad', show: {} });
-      cap('<b>1.</b> Draw one slice of your boat, stick by stick. First the floor: drag from one end to the other.');
+      const mb0 = document.querySelector('#mirror [data-v="on"]'); mb0.classList.add('next');
+      cap('<b>1.</b> Draw one slice of your boat, stick by stick. First the floor: drag from the side <b>to the middle line</b>, and <b>Mirror</b> copies the other half.');
       await wait(800);
-      await demoDraw(DEMO_FLOOR, 1200);
+      await demoDraw(DEMO_FLOOR, 1100);
+      await wait(300); mb0.classList.remove('next');
       await hold();
     } },
     { go: async () => { // ...then one wall, and Mirror draws the other.
       demoSet({ tab: 'p-frame', view: 'cad', sticks: 'floor', show: {} });
       const mb = document.querySelector('#mirror [data-v="on"]'); mb.classList.add('next');
-      cap('Now one wall. <b>Mirror</b> is on, so the other wall appears by itself and the boat stays even.');
+      cap('Now one wall: Mirror puts in the other one, so the boat stays even.');
       await wait(900);
       await demoDraw(DEMO_WALL, 900);
       await wait(400); mb.classList.remove('next');
