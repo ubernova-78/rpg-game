@@ -6,10 +6,12 @@
 <title>Sail Builder</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="sail-physics.js"></script>
+<script src="measure-shared.js"></script>
 <style>
   :root{
     --ink:#1f2a33; --dim:#6b7780; --paper:#f2efe7; --line:#d6d0c2;
     --teal:#1a936f; --gold:#f6c90e; --bad:#c1443a; --good:#2d936c; --water:#2f6fb5; --skin:#6b3f7a;
+    --accent:#e94560; --bench3:#20313d;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--paper);color:var(--ink);}
@@ -77,6 +79,44 @@
   .coach{margin-top:8px;padding:8px 12px;border-radius:10px;background:#fff8d6;border:2px solid var(--gold);font-size:0.9rem;line-height:1.4;}
   .next{animation:nextpulse 1.2s ease-in-out infinite;}
   @keyframes nextpulse{0%,100%{box-shadow:0 0 0 0 rgba(246,201,14,0.9);}50%{box-shadow:0 0 0 6px rgba(246,201,14,0);}}
+  /* The chase: the gyro (how far it tips each way), GULP, the dream, the tape. */
+  .gyro{position:absolute;right:8px;bottom:8px;z-index:4;background:rgba(255,255,255,0.92);border-radius:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.2);display:none;}
+  .gulp{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:2.2rem;font-weight:900;color:#fff;z-index:6;
+    text-shadow:0 3px 0 #1d5e2c,0 0 12px rgba(0,0,0,0.5);display:none;pointer-events:none;letter-spacing:2px;}
+  .dream{position:absolute;inset:0;background:#05080c;display:none;opacity:0;z-index:7;}
+  .dream .wake{position:absolute;inset:0;opacity:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:16px;}
+  .dream .wake.sleep{background:linear-gradient(#ffe7b8,#ffd08a 60%,#f2b56b);color:#3a2a14;}
+  .dream .wake.free{background:linear-gradient(#bfe3ff,#7fc0ef 60%,#2f6fb5);color:#0f2a44;}
+  .dream .bed{font-size:2.6rem;line-height:1;}
+  .dream h4{margin:8px 0 4px;font-size:1.2rem;}
+  .dream p{margin:0 0 12px;font-size:0.92rem;max-width:440px;line-height:1.4;}
+  .measure{position:absolute;inset:0;z-index:8;background:var(--paper);display:none;flex-direction:column;padding:12px 14px;overflow:auto;}
+  .measure h4{margin:0 0 4px;font-size:1.05rem;}
+  .measure .q{font-size:0.9rem;line-height:1.4;margin-bottom:8px;}
+  .measure .ans{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;}
+  .measure input{width:110px;padding:7px;font-size:1.05rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:ui-monospace,Menlo,monospace;}
+  .measure .fb{margin-top:8px;font-size:0.92rem;line-height:1.4;font-weight:600;}
+  .measure .fb.bad{color:var(--bad);} .measure .fb.ok{color:var(--good);}
+  .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
+  .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
+    border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
+  .tape-wrap:active{cursor:grabbing;}
+  .tape-inner{position:relative;height:100%;}
+  .measure-bar{position:absolute;bottom:26px;height:26px;background:rgba(52,120,180,0.25);
+    border:2px solid #3478b4;border-radius:3px 0 0 3px;}
+  .unit-badge{position:absolute;top:10px;left:8px;font-weight:800;font-size:1.2rem;color:var(--bench3);
+    background:rgba(255,255,255,0.85);border:2px solid var(--bench3);border-radius:6px;padding:1px 10px;z-index:5;pointer-events:none;}
+  .tick{position:absolute;width:2px;background:#333;}
+  .tape-inner-m .tick.cm{width:1px;height:18px;bottom:8px;}
+  .tape-inner-m .tick.cm5{width:1.5px;height:26px;bottom:0;}
+  .tape-inner-m .tick.cm10{width:2px;height:40px;bottom:0;}
+  .tape-inner-m .tick.meter{width:3px;height:56px;bottom:0;background:var(--accent);}
+  .tick-label{position:absolute;bottom:56px;font-size:0.78rem;font-weight:700;color:#333;transform:translateX(-50%);white-space:nowrap;}
+  .tick-label.cm5{bottom:55px;font-size:0.72rem;font-weight:700;color:var(--dim);}
+  .tick-label.cm10{bottom:72px;font-size:0.9rem;font-weight:800;}
+  .tick-label.meter{bottom:94px;font-size:1.1rem;font-weight:900;color:var(--accent);}
   .tour-block{position:fixed;inset:0;z-index:50;background:rgba(15,25,33,0.62);}
   .tour-spot{position:relative;z-index:51;box-shadow:0 0 0 4px var(--gold) !important;border-radius:10px;}
   .tour-card{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:52;width:min(460px,calc(100% - 32px));
@@ -106,6 +146,10 @@
         <div class="viewbtns"><button data-v="3d">Angle</button><button data-v="side">Side</button><button data-v="front">Back</button><button data-v="top">Top</button></div>
         <div class="counter" id="counter"></div>
         <div class="readout" id="readout"></div>
+        <canvas class="gyro" id="gyro"></canvas>
+        <div class="gulp" id="gulp">GULP! 🐉</div>
+        <div class="dream" id="dream"><div class="wake" id="wake"></div></div>
+        <div class="measure" id="measure"></div>
       </div>
       <div class="coach" id="coach"></div>
     </div>
@@ -137,9 +181,9 @@
       </div>
       <div class="panel tabpanel" id="p-go">
         <div class="stats" id="stats"></div>
-        <div class="btnrow"><button class="btn" id="btn-go">⛵ Test sail</button></div>
+        <div class="btnrow"><button class="btn" id="btn-go">⛵ Sail for the inlet!</button></div>
         <div class="result" id="result"></div>
-        <div class="note">(Coming next: the chase out of the inlet, with the serpent behind you.)</div>
+        <div class="note">The serpent will be right behind you. Sail 20 m from the dock to the mouth of the inlet, and out to the ocean.</div>
       </div>
     </div>
   </div>
@@ -290,6 +334,7 @@
   let flash = null;
   const evPt = e => { const r = cad.getBoundingClientRect(); return M(e.clientX - r.left, e.clientY - r.top); };
   cad.addEventListener('pointerdown', e => {
+    if (mode === 'race') return;
     if (mode === 'cloth') return clothClick(e);
     const m = evPt(e);
     if (tool === 'stick') {
@@ -304,6 +349,7 @@
     }
   });
   cad.addEventListener('pointermove', e => {
+    if (mode === 'race') return;
     if (mode === 'cloth') { cloth.hover = clothSnap(e); drawCloth(); return; }
     const m = evPt(e); hover = tool === 'stick' ? snap(m) : null; hoverSeg = tool === 'stick' ? -1 : nearestSeg(m);
     if (drag) drag.b = hover.p;
@@ -323,6 +369,7 @@
 
   function drawCad() {
     if (mode === 'cloth') return drawCloth();
+    if (mode === 'race') { if (race && race.phase === 'chase') raceShow(raceT()); return; }
     if (mode !== 'cad') return;
     const g = cx; g.clearRect(0, 0, W, H);
     const a = A;
@@ -613,17 +660,21 @@
     cad.style.display = m !== '3d' ? '' : 'none';
     if (three) three.el.style.display = m === '3d' ? '' : 'none';
     if (no3d) no3d.style.display = m === '3d' ? '' : 'none';
-    $('readout').style.display = m !== '3d' ? '' : 'none';
-    $('counter').style.display = m === 'cloth' ? 'none' : '';
-    cad.style.cursor = m === 'cloth' ? 'crosshair' : tool === 'stick' ? 'crosshair' : 'pointer';
+    $('readout').style.display = m === 'cad' || m === 'cloth' ? '' : 'none';
+    $('counter').style.display = m === 'cad' || m === '3d' ? '' : 'none';
+    document.querySelector('.modebtns').style.display = m === 'race' ? 'none' : '';
+    cad.style.cursor = m === 'race' ? 'default' : m === 'cloth' ? 'crosshair' : tool === 'stick' ? 'crosshair' : 'pointer';
     if (m !== '3d') { cadSize(); drawCad(); } else if (three) three.resize();
   }
-  document.querySelectorAll('.modebtns button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+  document.querySelectorAll('.modebtns button').forEach(b => b.addEventListener('click', () => {
+    if (race && (race.phase === 'chase' || race.phase === 'gulp')) { stopRace(); refresh(); }
+    setMode(b.dataset.m);
+  }));
   function showTab(id) {
     tab = id;
     document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('on', p.id === id));
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
-    // The frame and skin are worked on in the drawing; the sail is easier to judge in 3D.
+    if (race && (race.phase === 'chase' || race.phase === 'gulp')) stopRace();
     // The frame is drawn in the frame view, the sail on the cloth; length and the test in 3D.
     if (id === 'p-frame') setMode('cad');
     if (id === 'p-sail') setMode('cloth');
@@ -632,34 +683,365 @@
   }
   document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
-  // ---------- The test sail (numbers only, until the chase is built) ----------
+  // ---------- The chase (Nick, 2026-11-19) ----------
+  // Sail from the end of the dock (x = 0) to the mouth of the inlet (x = COURSE)
+  // and out to sea, the serpent behind you. Top down, in pixel art like the game;
+  // a gyro in the corner shows how far the boat tips side to side and front to
+  // back, with red where it goes under. Caught: a cut to the 3D serpent for the
+  // gulp, then you wake at the desk. Either way you then measure, on the shared
+  // meter tape starting at 0, how far the boat got: required to finish.
+  //
+  // Where it ends is worked out from the physics, then rounded to the cm so it
+  // lands on a tick:
+  //   slow  the serpent surfaces GAP behind and swims 6 kt, so it catches a boat
+  //         at v after v * GAP / (6 kt - v). (Near 6 kt that would be far out at
+  //         sea; past COURSE - 0.5 m it's caught in the last few meters instead.)
+  //   bow   a 30 kt gust drives the bow under at a random point, 3-16 m;
+  //   roll  the serpent's waves roll it over at a random point, 2-14 m;
+  //   pass  it reaches the inlet's mouth: COURSE.
+  // Random so the answer can't be learned. Everything drawn is a pure function of
+  // the time since the start (raceShow), so it can be frozen at any moment (seekRace).
+  // COURSE is 20 m because the tape is 9 px per cm and starts at 0: 18,000 px of tape.
+  const COURSE = 20, GAP = 1.5, VS = P.MONSTER_KT * P.KT, SEE = 12, GULP_T = 3.6;
+  const cmR = x => Math.round(x * 100) / 100, rnd = (a, b) => a + Math.random() * (b - a);
+  const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  let race = null;
+  function planRace(r) {
+    const v = Math.max(0.05, (r.speedKt || 0) * P.KT), pl = { v, fail: r.fail || null, gusts: [] };
+    pl.limPitch = r.freeboard != null ? Math.atan(r.freeboard / (D.L / 2)) * 180 / Math.PI : 10;
+    pl.limHeel = r.floodDeg || 45;
+    pl.trimGust = r.trimDeg || 0; pl.trimSteady = r.gustPush ? r.trimDeg * r.push / r.gustPush : 0;
+    pl.heel = r.heelDeg || 0; pl.diveOK = r.bowDip < r.freeboard;
+    if (pl.fail === 'sinks' || pl.fail === 'capsize') { pl.dock = true; pl.D = 0; pl.tEnd = 1.4; return pl; }
+    if (!pl.fail) { pl.D = COURSE; pl.tOut = COURSE / v; pl.vs = VS; pl.tEnd = pl.tOut + 3.5; pl.gusts.push(rnd(3, 8) / v, rnd(11, 17) / v); return pl; }
+    if (pl.fail === 'slow') {
+      let x = v * GAP / (VS - v); if (!(x < COURSE - 0.5)) x = rnd(COURSE - 3, COURSE - 0.6);
+      pl.D = Math.max(0.05, cmR(x)); pl.tStop = pl.D / v; pl.vs = (pl.D + GAP) / pl.tStop; pl.tCatch = pl.tStop;
+      if (pl.diveOK && pl.tStop > 2) pl.gusts.push(rnd(0.8, pl.tStop - 0.8));
+    } else {
+      pl.D = cmR(pl.fail === 'bow' ? rnd(3, 16) : rnd(2, 14));
+      pl.x1 = pl.D - v * 0.15; pl.t1 = pl.x1 / v; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
+      pl.tCatch = Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
+      if (pl.fail === 'bow') pl.gusts.push(pl.t1);
+      else if (pl.diveOK && pl.t1 > 1.2) pl.gusts.push(rnd(0.5, pl.t1 - 0.6));
+    }
+    pl.tEnd = pl.tCatch + 0.25;
+    return pl;
+  }
+  // The scene at time t: boat (stern) and serpent (snout) positions, tilt, gust.
+  function raceAt(pl, t) {
+    const s = { t, xb: 0, gust: 0, sunk: 0, flip: 0 };
+    if (pl.dock) s.xb = 0;
+    else if (pl.fail === 'slow') s.xb = pl.v * Math.min(t, pl.tStop);
+    else if (pl.fail) { if (t < pl.t1) s.xb = pl.v * t; else { const u = Math.min(t - pl.t1, 0.3); s.xb = pl.x1 + pl.v * (u - u * u / 0.6); } }
+    else s.xb = pl.v * t;
+    const moving = pl.dock ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
+    s.kt = moving ? pl.v / P.KT : 0;
+    s.xs = pl.dock ? Math.min(-0.6, -2.5 + 2.5 * t) : -GAP + pl.vs * t;
+    if (pl.fail) s.xs = Math.min(s.xs, s.xb);
+    s.ys = 0; s.rise = ease(t / 0.6);
+    if (!pl.fail && t > pl.tOut + 0.4) { const u = t - pl.tOut - 0.4; s.ys = -u * u * 0.5; s.rise *= 1 - ease((u - 1.8) / 1.0); }
+    // Tipping side to side, in the serpent's waves.
+    const lim = pl.limHeel, A = Math.min(pl.heel, 0.9 * lim);
+    if (pl.fail === 'capsize') { s.heel = 110 * ease(t / 0.8); s.flip = ease((t - 0.4) / 0.4); }
+    else if (pl.fail === 'roll') {
+      if (t < pl.t1) { const n = Math.max(0, Math.round(pl.t1 / 1.4 - 0.25)), w = (Math.PI / 2 + 2 * Math.PI * n) / pl.t1; s.heel = lim * ease(t / pl.t1) * Math.sin(w * t); }
+      else { s.heel = lim + (110 - lim) * ease((t - pl.t1) / 0.6); s.flip = ease((t - pl.t1 - 0.2) / 0.4); }
+    } else s.heel = pl.dock ? 0 : A * ease(t / 1.5) * Math.sin(2 * Math.PI * t / 1.4) * (moving ? 1 : 0.4);
+    // Front to back: the steady push, plus each gust's.
+    s.pitch = moving ? pl.trimSteady * ease(t / 1.0) : 0;
+    for (const g of pl.gusts) { const b = Math.exp(-Math.pow((t - g) / 0.3, 2)); s.pitch += (pl.trimGust - pl.trimSteady) * b; s.gust = Math.max(s.gust, Math.exp(-Math.pow((t - g) / 0.5, 2))); }
+    // A boat that fails some other way first never shows its bow going under.
+    if (!pl.diveOK && pl.fail !== 'bow' && pl.fail !== 'sinks') s.pitch = Math.min(s.pitch, 0.9 * pl.limPitch);
+    if (pl.fail === 'bow' && t >= pl.t1) s.pitch = pl.trimGust + (25 - pl.trimGust) * ease((t - pl.t1) / 0.4);
+    if (pl.fail === 'bow') s.sunk = ease((t - pl.t1) / 0.6);
+    if (pl.fail === 'sinks') { s.sunk = ease(t / 0.9); s.pitch = 6 * s.sunk; }
+    return s;
+  }
+
+  // ---------- Drawing the chase: pixel art at 1/3 scale, blown up with no smoothing ----------
+  let rbuf = null;
+  const OUT = '#0b1410', BODY = '#1f4d33', LIGHT = '#2e6b45', BELLY = '#8f9c5c', BONE = '#d9d2b4';
+  const hash = v => { const x = Math.sin(v * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  function drawRace(s) {
+    const g = cx; g.clearRect(0, 0, W, H);
+    const bw = Math.ceil(W / 3), bh = Math.ceil(H / 3);
+    if (!rbuf || rbuf.width !== bw || rbuf.height !== bh) { rbuf = document.createElement('canvas'); rbuf.width = bw; rbuf.height = bh; }
+    const b = rbuf.getContext('2d'); b.imageSmoothingEnabled = false; b.clearRect(0, 0, bw, bh);
+    const ppm = bw / SEE, camX = Math.max(-4.5, Math.min(COURSE + 5, s.xb + D.L / 2 - SEE * 0.42));
+    const X = x => Math.round((x - camX) * ppm), Y = y => Math.round(bh / 2 + y * ppm);
+    const dot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(Math.round(x), Math.round(y), Math.max(0.5, r), 0, Math.PI * 2); b.fill(); };
+    // The lake narrows into the inlet (from 11 m), which opens to the ocean at COURSE.
+    const half = x => x < 11 ? 7 : x < 15 ? 7 - (x - 11) / 4 * 4.6 : x < COURSE ? 2.4 : 2.4 + Math.min(1, (x - COURSE) / 1.5) * 9;
+    const sand = Math.round(0.7 * ppm);
+    for (let px = 0; px < bw; px++) {
+      const x = camX + (px + 0.5) / ppm, h = half(x), t1 = Y(-h), t2 = Y(h);
+      b.fillStyle = x > COURSE ? '#245a9c' : '#2f6fb5'; b.fillRect(px, 0, 1, bh);
+      b.fillStyle = '#d9c38a'; b.fillRect(px, 0, 1, t1); b.fillRect(px, t2, 1, bh - t2);
+      b.fillStyle = '#5a9a45'; b.fillRect(px, 0, 1, t1 - sand); b.fillRect(px, t2 + sand, 1, bh - t2 - sand);
+    }
+    // Ripples fixed to the water, so you can see the boat move past them.
+    b.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let i = Math.floor(camX * 2) - 2; i < (camX + SEE) * 2 + 2; i++) for (let j = -24; j < 24; j++) {
+      const hx = hash(i * 91 + j), x = i / 2 + hx * 0.5, y = j / 2 + hash(i + j * 57) * 0.5;
+      if (Math.abs(y) < half(x) - 0.2 && hx > 0.55) b.fillRect(X(x), Y(y), x > COURSE ? 3 : 2, 1);
+    }
+    // The dock.
+    b.fillStyle = '#5e3e22'; b.fillRect(X(-4.5), Y(-0.8), X(0) - X(-4.5), Y(0.8) - Y(-0.8));
+    b.fillStyle = '#a0703f'; b.fillRect(X(-4.5), Y(-0.7), X(0) - X(-4.5) - 1, Y(0.7) - Y(-0.7));
+    b.fillStyle = '#7a5230'; for (let x = -4.5; x < 0; x += 0.3) b.fillRect(X(x), Y(-0.7), 1, Y(0.7) - Y(-0.7));
+    for (const y of [-0.8, 0.8]) dot(X(-0.05), Y(y), 2, '#3d2814');
+    // The serpent's waves, rolling out ahead of it.
+    if (s.rise > 0.05) {
+      b.strokeStyle = 'rgba(255,255,255,0.55)'; b.lineWidth = 1;
+      for (let k = 0; k < 3; k++) { const rr = ((s.t * 1.3 + k * 0.8) % 2.4) * ppm + 4; b.beginPath(); b.arc(X(s.xs - 1.1), Y(s.ys), rr, -0.9, 0.9); b.stroke(); }
+    }
+    // The wake.
+    if (s.kt > 0.2) for (let k = 1; k <= 8; k++) { b.fillStyle = `rgba(255,255,255,${0.7 - k * 0.08})`; for (const sd of [-1, 1]) b.fillRect(X(s.xb - k * 0.3), Y(sd * (0.25 + k * 0.1)), 2, 1); }
+    drawBoatTop(b, X, Y, ppm, s);
+    if (s.rise > 0.01) drawSerpent(b, { x: X(s.xs - 1.1), y: Y(s.ys) }, { x: X(s.xs) - 10, y: Y(s.ys) - Math.round(1.1 * ppm * s.rise) }, s.rise, s.t);
+    // A gust: streaks racing across the water.
+    if (s.gust > 0.05) { b.fillStyle = `rgba(255,255,255,${0.75 * s.gust})`; for (let i = 0; i < 30; i++) b.fillRect(Math.round((i * 37 + s.t * 420) % (bw + 20)) - 10, (i * 53) % bh, 9, 1); }
+    g.save(); g.imageSmoothingEnabled = false; g.drawImage(rbuf, 0, 0, bw * 3, bh * 3); g.restore();
+    // Words on top, at full resolution.
+    g.font = 'bold 13px system-ui'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 3;
+    const mx = X(COURSE + 1.2) * 3; if (mx > 40 && mx < W - 20) { g.strokeText('the ocean →', mx, Y(-half(COURSE + 1.2) + 0.6) * 3); g.fillText('the ocean →', mx, Y(-half(COURSE + 1.2) + 0.6) * 3); }
+    const ix = X(13.5) * 3; if (ix > 40 && ix < W - 20) { g.strokeText('the inlet', ix, Y(-half(13.5) - 0.9) * 3); g.fillText('the inlet', ix, Y(-half(13.5) - 0.9) * 3); }
+    g.textAlign = 'left'; g.font = 'bold 13px system-ui';
+    const hud = [`⛵ you: ${s.kt.toFixed(1)} kt`, `🐍 serpent: ${P.MONSTER_KT.toFixed(1)} kt`, s.gust > 0.4 ? '💨 GUST: 30 kt!' : '💨 wind: 20 kt from behind'];
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(8, 8, 190, 62);
+    g.fillStyle = '#20313d'; hud.forEach((t, i) => g.fillText(t, 16, 26 + i * 18));
+  }
+  function drawBoatTop(b, X, Y, ppm, s) {
+    const L = D.L, hs = A.ch.hulls, x0 = s.xb;
+    if (s.flip > 0.5) { // upside down: just the hull's bottom, the sail spread on the water beside it
+      b.fillStyle = 'rgba(245,236,214,0.8)'; b.fillRect(X(x0 + 0.3), Y(0.6), Math.max(2, X(x0 + L * 0.8) - X(x0 + 0.3)), Math.max(2, Math.round(0.8 * ppm)));
+    }
+    b.globalAlpha = 1 - 0.45 * s.sunk;
+    for (const h of hs) {
+      const ys = h.map(p => p[0]), y0 = Math.min(...ys), y1 = Math.max(...ys), yc = (y0 + y1) / 2;
+      const pts = D.bow === 'pointed' ? [[x0, y0], [x0 + L * (1 - P.TAPER), y0], [x0 + L, yc], [x0 + L * (1 - P.TAPER), y1], [x0, y1]] : [[x0, y0], [x0 + L, y0], [x0 + L, y1], [x0, y1]];
+      b.fillStyle = s.flip > 0.5 ? '#4e2c5a' : '#6b3f7a'; b.strokeStyle = '#2c1633'; b.lineWidth = 1;
+      b.beginPath(); pts.forEach((p, i) => i ? b.lineTo(X(p[0]) + 0.5, Y(p[1]) + 0.5) : b.moveTo(X(p[0]) + 0.5, Y(p[1]) + 0.5)); b.closePath(); b.fill(); b.stroke();
+      if (s.flip <= 0.5) { b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * i / (A.wood.nRib - 1); if (x < x0 + L * (1 - (D.bow === 'pointed' ? P.TAPER : 0)) + 1e-6) b.fillRect(X(x), Y(y0) + 1, 1, Math.max(1, Y(y1) - Y(y0) - 2)); } }
+    }
+    if (hs.length > 1 && s.flip <= 0.5) { // beams across between the hulls
+      const all = hs.flat().map(p => p[0]), lo = Math.min(...all), hi = Math.max(...all);
+      b.fillStyle = '#a0703f'; for (let i = 0; i < A.wood.nRib; i++) { const x = x0 + L * i / (A.wood.nRib - 1); if (D.bow !== 'pointed' || x <= x0 + L * (1 - P.TAPER)) b.fillRect(X(x), Y(lo), 1, Y(hi) - Y(lo)); }
+    }
+    if (s.sunk > 0) { b.globalAlpha = 0.5 * s.sunk; b.fillStyle = '#2f6fb5'; b.fillRect(X(x0) - 1, Y(-1.5), X(x0 + L) - X(x0) + 2, Y(1.5) - Y(-1.5)); }
+    b.globalAlpha = 1;
+    if (s.flip > 0.5) return;
+    // The rider (head and shoulders), then the mast and the sail across it, bellied forward by the wind.
+    const zr = x0 + Math.max(0.3, L * 0.55 - 0.75), xm = x0 + L * 0.55;
+    const sw = (() => { const xs = D.sail.poly.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); })();
+    const sway = s.heel / 90 * 0.5; // tipping shows from above as the mast top leaning out
+    const rdot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(X(x), Y(y), r, 0, 7); b.fill(); };
+    rdot(zr, sway * 0.4, Math.max(2, 0.2 * ppm), '#7a5020'); rdot(zr, sway * 0.4, Math.max(1.5, 0.16 * ppm), '#e0a050');
+    b.strokeStyle = '#8a7a58'; b.lineWidth = 3; b.beginPath();
+    for (let i = 0; i <= 12; i++) { const y = -sw / 2 + sw * i / 12, u = y / (sw / 2), x = xm + 0.18 * sw * (1 - u * u); i ? b.lineTo(X(x), Y(y + sway)) : b.moveTo(X(x), Y(y + sway)); }
+    b.stroke(); b.strokeStyle = '#f5ecd6'; b.lineWidth = 1.5; b.stroke();
+    rdot(xm, sway, 1.5, '#5e3e22');
+  }
+  // The serpent, in the same pixel art as Witch Hazel's flashback (lake-quest.js):
+  // near-black outline, swamp green, bone spines, red eyes, fangs; head to the right.
+  function drawSerpent(b, base, head, up, t) {
+    const dot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(Math.round(x), Math.round(y), Math.max(0.5, r), 0, Math.PI * 2); b.fill(); };
+    b.strokeStyle = 'rgba(255,255,255,0.7)'; b.lineWidth = 1;
+    b.beginPath(); b.ellipse(base.x, base.y, 9 + 2 * Math.sin(t * 6), 3, 0, 0, Math.PI * 2); b.stroke();
+    for (const [dx, dy, r] of [[-14, 1, 6], [-27, 2, 4], [-37, 2, 2.5]]) { dot(base.x + dx, base.y + dy, r * up + 1, OUT); dot(base.x + dx, base.y + dy - 1, r * up, BODY); }
+    const ctrl = { x: (base.x + head.x) / 2 - 8, y: Math.min(base.y, head.y) - 6 };
+    const pts = [];
+    for (let i = 0; i <= 16; i++) { const u = i / 16, iu = 1 - u; pts.push({ x: iu * iu * base.x + 2 * iu * u * ctrl.x + u * u * head.x, y: iu * iu * base.y + 2 * iu * u * ctrl.y + u * u * head.y, r: 6.5 - u * 2.5 }); }
+    for (const q of pts) dot(q.x, q.y, q.r + 1, OUT);
+    for (const [i, q] of pts.entries()) { dot(q.x, q.y, q.r, i % 2 ? BODY : LIGHT); dot(q.x + 1, q.y + q.r * 0.5, q.r * 0.45, BELLY); }
+    for (const [i, q] of pts.entries()) if (i % 2 === 1 && i < 15) {
+      b.fillStyle = OUT; b.beginPath(); b.moveTo(q.x - 3, q.y - q.r + 1); b.lineTo(q.x - 1, q.y - q.r - 6); b.lineTo(q.x + 2, q.y - q.r + 1); b.fill();
+      b.fillStyle = BONE; b.beginPath(); b.moveTo(q.x - 2, q.y - q.r + 1); b.lineTo(q.x - 1, q.y - q.r - 4); b.lineTo(q.x + 1, q.y - q.r + 1); b.fill();
+    }
+    const open = 0.5 + 0.5 * Math.sin(t * 5);
+    const hx = Math.round(head.x), hy = Math.round(head.y), jaw = Math.round(2 + open * 3);
+    const colTop = x => Math.round(-6 + Math.max(0, x - 3) * 0.45), colLen = 18;
+    for (let x = -1; x <= colLen; x++) { const top = colTop(Math.max(0, x)); b.fillStyle = OUT; b.fillRect(hx - 7 + x, hy + top - 1, 1, 4 - top); }
+    for (let x = 0; x < colLen; x++) { const top = colTop(x); b.fillStyle = BODY; b.fillRect(hx - 7 + x, hy + top, 1, 2 - top); b.fillStyle = LIGHT; b.fillRect(hx - 7 + x, hy + top, 1, 1); }
+    b.fillStyle = OUT; b.fillRect(hx - 6, hy + 2, colLen - 2, jaw + 3);
+    b.fillStyle = '#4a0f14'; b.fillRect(hx - 5, hy + 2, colLen - 4, jaw);
+    b.fillStyle = BELLY; b.fillRect(hx - 5, hy + 2 + jaw, colLen - 5, 2);
+    b.fillStyle = BONE; for (let x = hx - 4; x < hx + colLen - 8; x += 3) { b.fillRect(x, hy + 2, 1, 2); b.fillRect(x + 1, hy + jaw, 1, 2); }
+    b.fillRect(hx + colLen - 9, hy + 2, 1, 3);
+    b.fillStyle = OUT; b.fillRect(hx - 5, hy - 9, 3, 4); b.fillRect(hx - 1, hy - 8, 2, 3);
+    b.fillStyle = BONE; b.fillRect(hx - 4, hy - 8, 1, 3);
+    b.fillStyle = OUT; b.fillRect(hx - 1, hy - 6, 6, 1);
+    b.fillStyle = '#ff2a1a'; b.fillRect(hx, hy - 5, 3, 2);
+    b.fillStyle = '#ffd34a'; b.fillRect(hx + 1, hy - 5, 1, 1);
+    b.globalAlpha = 0.35; dot(hx + 1, hy - 4, 4, '#ff2a1a'); b.globalAlpha = 1;
+    b.fillStyle = OUT; b.fillRect(hx + colLen - 9, hy - 3, 1, 1);
+  }
+
+  // ---------- The gyro: two dials, side to side and front to back ----------
+  // Each shows the boat (from behind, and from the side, bow to the right) tilted
+  // by its real angle against a level horizon, with red past the angle where its
+  // side, or its bow, goes under.
+  function drawGyro(s, pl) {
+    const c = $('gyro'), dpr = window.devicePixelRatio || 1, w = 236, h = 128;
+    if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; c.style.width = w + 'px'; c.style.height = h + 'px'; }
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    dial(59, 56, 44, s.heel, pl.limHeel, 'Side to side', 'back');
+    dial(177, 56, 44, s.pitch, pl.limPitch, 'Front to back', 'side');
+    function dial(x, y, R, ang, lim, label, view) {
+      g.save(); g.beginPath(); g.arc(x, y, R, 0, 7); g.clip();
+      g.fillStyle = '#cfe6f7'; g.fillRect(x - R, y - R, 2 * R, R); g.fillStyle = '#2f6fb5'; g.fillRect(x - R, y, 2 * R, R);
+      // Red past the limit, both ways.
+      g.fillStyle = 'rgba(193,68,58,0.35)';
+      // (Where the mast's tip points once it has tipped past the limit.)
+      const lm = Math.min(89, lim);
+      for (const [a0, a1] of [[-90 + lm, 0], [-180, -90 - lm]]) { g.beginPath(); g.moveTo(x, y); g.arc(x, y, R, a0 * Math.PI / 180, a1 * Math.PI / 180); g.closePath(); g.fill(); }
+      g.translate(x, y); g.rotate(Math.max(-120, Math.min(120, ang)) * Math.PI / 180);
+      if (view === 'back') {
+        const hs = A.ch.hulls, all = hs.flat(), xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+        const k = 0.75 * R / Math.max(0.4, Math.max(...xs.map(Math.abs)), (Math.max(...ys) - Math.min(...ys))), T = A.r.T || 0;
+        g.fillStyle = '#6b3f7a'; g.strokeStyle = '#2c1633'; g.lineWidth = 1.5;
+        for (const hh of hs) { g.beginPath(); hh.forEach((p, i) => { const px = p[0] * k, py = -(p[1] - T) * k; i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.fill(); g.stroke(); }
+        const foot = -((A.mf || 0) - T) * k; g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, foot); g.lineTo(0, foot - 0.45 * R); g.stroke();
+      } else {
+        const all = A.ch.hulls.flat(), ys = all.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), T = A.r.T || 0;
+        const k = 1.5 * R / Math.max(D.L, 1), Lh = D.L / 2 * k;
+        g.fillStyle = '#6b3f7a'; g.strokeStyle = '#2c1633'; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(-Lh, -(hi - T) * k); g.lineTo(Lh, -(hi - T) * k); g.lineTo(Lh - (D.bow === 'pointed' ? 0.12 * Lh : 0), -(lo - T) * k); g.lineTo(-Lh, -(lo - T) * k); g.closePath(); g.fill(); g.stroke();
+        g.strokeStyle = '#7a5230'; g.lineWidth = 2; g.beginPath(); g.moveTo(0.1 * Lh, -(hi - T) * k); g.lineTo(0.1 * Lh, -(hi - T) * k - 0.45 * R); g.stroke();
+      }
+      g.restore();
+      g.strokeStyle = '#20313d'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, R, 0, 7); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x - R, y); g.lineTo(x - R + 8, y); g.moveTo(x + R - 8, y); g.lineTo(x + R, y); g.stroke();
+      const over = Math.abs(ang) >= lim;
+      g.fillStyle = over ? '#c1443a' : Math.abs(ang) > 0.75 * lim ? '#9a6a00' : '#20313d'; g.font = 'bold 11px system-ui'; g.textAlign = 'center';
+      g.fillText(`${label} ${Math.abs(ang).toFixed(0)}°`, x, y + R + 14);
+    }
+  }
+
+  // ---------- Running it ----------
+  function startRace() {
+    if (!A.ready || race) return;
+    if (A.r.fail === 'rules') { tested = true; refresh(); return; }
+    race = { pl: planRace(A.r), t0: performance.now(), frozen: null, phase: 'chase', shown: null };
+    $('gyro').style.display = 'block'; setMode('race'); refresh(); requestAnimationFrame(raceTick);
+  }
+  function stopRace() {
+    race = null;
+    for (const id of ['gyro', 'gulp', 'dream', 'measure']) $(id).style.display = 'none';
+    if (three) three.gulpStop();
+  }
+  const raceT = () => race.frozen != null ? race.frozen : (performance.now() - race.t0) / 1000;
+  function raceTick() { if (!race || (race.phase !== 'chase' && race.phase !== 'gulp')) return; raceShow(raceT()); requestAnimationFrame(raceTick); }
+  // Everything on screen at time t since the start.
+  function raceShow(t) {
+    const pl = race.pl;
+    if (t < pl.tEnd) {
+      race.phase = 'chase';
+      if (mode !== 'race') setMode('race');
+      const s = raceAt(pl, t); drawRace(s); drawGyro(s, pl);
+      for (const id of ['gulp', 'dream']) $(id).style.display = 'none';
+      return;
+    }
+    if (!pl.fail) { if (race.shown !== 'free') { race.phase = 'free'; showCard('free'); } return; }
+    // Caught: the 3D serpent rises behind you and swallows you, then black, then the desk.
+    const u = t - pl.tEnd;
+    race.phase = u < GULP_T ? 'gulp' : 'wake';
+    if (three) { if (mode !== '3d') { setMode('3d'); three.gulpStart(pl.fail); } three.gulpSet(Math.min(u, GULP_T)); }
+    $('gyro').style.display = 'none';
+    $('gulp').style.display = u >= 1.45 && u < 3.0 ? 'block' : 'none';
+    const dr = $('dream'); dr.style.display = u >= 2.8 ? 'block' : 'none'; dr.style.opacity = ease((u - 2.8) / 0.6);
+    if (u >= GULP_T && race.shown !== 'sleep') showCard('sleep');
+  }
+  function showCard(kind) {
+    race.shown = kind;
+    const pl = race.pl, dr = $('dream'), wk = $('wake');
+    dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake ' + kind;
+    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. Behind you it swims out of the inlet too, into the open ocean, and dives. Maybe it's going home.</p><p>Now: how far did you sail from the dock to get away?</p><button class="btn" id="btn-meas">📏 Measure it</button>`;
+    else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>It was only a dream: your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} right at the dock, before it even set off, and the serpent got you there. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
+    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>Face-down on your plans, pencil still in your hand. Only a dream! But dreams can teach you something: how far did your boat get before the serpent caught you?</p><button class="btn" id="btn-meas">📏 Measure it</button>`;
+    const m = $('btn-meas'); if (m) m.addEventListener('click', showMeasure);
+    const bk = $('btn-back'); if (bk) bk.addEventListener('click', () => { stopRace(); tested = true; setMode('3d'); refresh(); });
+    coach();
+  }
+  // The tape: hooked on the end of the dock, the bar running to where the boat got
+  // to. Read to the cm. A wrong reading says look again without the answer; after
+  // two, the answer is shown and holds until Continue (as fix-loop.js does).
+  function showMeasure() {
+    const pl = race.pl, m = $('measure');
+    race.phase = 'measure'; race.tries = 0;
+    $('dream').style.display = 'none'; m.style.display = 'flex';
+    m.innerHTML = `<h4>📏 How far did you get?</h4><div class="q">The tape is hooked on the end of the dock. The blue bar runs to ${pl.fail ? 'where the serpent caught you' : 'the mouth of the inlet, where you got away'}. Drag the tape along to the end of the bar and read it to the nearest centimeter.</div>`
+      + `<div id="tapebox"></div><div class="ans"><input id="m-in" inputmode="decimal" autocomplete="off" placeholder="0.00"><b>m</b><button class="btn" id="m-ok">Check</button></div><div class="fb" id="m-fb"></div>`;
+    MeasureShared.buildRulerDOM($('tapebox'), Math.round(pl.D * 1000), { scale: 'm', badge: 'm', tapeHeight: '160px', startAtZero: true,
+      scaleLabel: 'Scale: small ticks = cm · numbered ticks = 10 cm · red ticks = each meter' });
+    const inp = $('m-in'), go = () => checkMeasure(inp.value);
+    $('m-ok').addEventListener('click', go); inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    setTimeout(() => inp.focus(), 50);
+    coach();
+  }
+  function checkMeasure(txt) {
+    if (!race || race.phase !== 'measure') return;
+    const pl = race.pl, fb = $('m-fb'), v = parseFloat(String(txt).replace(',', '.').replace(/[^0-9.\-]/g, ''));
+    if (!isFinite(v)) { fb.className = 'fb bad'; fb.textContent = 'Type the distance in meters, like 3.47.'; return; }
+    const right = Math.round(v * 100) === Math.round(pl.D * 100);
+    if (right) return settle(true, v);
+    race.tries++;
+    if (race.tries < 2) {
+      fb.className = 'fb bad';
+      fb.innerHTML = `Not quite: you put ${v.toFixed(2)} m. Look again. Count the red meter marks from 0 first, then the numbered 10 cm marks after the last one, then the small centimeter ticks to the end of the bar.`;
+      return;
+    }
+    $('m-ok').disabled = true; $('m-in').disabled = true;
+    fb.className = 'fb bad';
+    fb.innerHTML = `You put ${v.toFixed(2)} m. It's <b>${pl.D.toFixed(2)} m</b>: ${Math.floor(pl.D)} whole meters (red marks), then ${Math.round((pl.D % 1) * 100)} cm. Find that on the tape before you go on.<div style="margin-top:8px"><button class="btn" id="m-cont">Continue</button></div>`;
+    $('m-cont').addEventListener('click', () => settle(false, v));
+  }
+  function settle(right, v) {
+    const pl = race.pl, m = $('measure');
+    race.phase = 'done'; tested = true; lastRun = { D: pl.D, right, pass: !pl.fail };
+    const res = resultText(A.r);
+    m.innerHTML = `<h4>${right ? '✓ Right: ' + pl.D.toFixed(2) + ' m.' : 'The distance was ' + pl.D.toFixed(2) + ' m.'}</h4>`
+      + `<div class="result ${pl.fail ? 'bad' : 'good'}" style="display:block">${res[0]}<div class="why">${res[1]}</div></div>`
+      + `<div class="btnrow">${!pl.fail && IN_GAME ? '<button class="btn" id="btn-use">⛵ Use this boat</button>' : ''}<button class="btn ${pl.fail ? '' : 'alt'}" id="m-done">${pl.fail ? 'Back to work' : 'Done'}</button></div>`;
+    $('m-done').addEventListener('click', () => { stopRace(); setMode('3d'); refresh(); });
+    const use = $('btn-use'); if (use) use.addEventListener('click', () => { window.parent.postMessage({ type: 'sail-passed', distance: pl.D, design: JSON.stringify(D) }, '*'); use.disabled = true; use.textContent = '⛵ Boat saved'; });
+    refresh();
+  }
+  let lastRun = null;
+  function resultText(r) {
+    const kt = v => (v || 0).toFixed(1) + ' kt';
+    return r.ok ? [`${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!`, 'You got away. Try changing one thing at a time to see what matters most.'] : ({
+      sinks: ['It sank at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
+      capsize: ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
+      slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and caught you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
+      bow: ['A 30-knot gust drove the bow under!', 'Watch the front-to-back dial: the sail pushes high up, and that tips the front down. A lower or smaller sail, a longer hull, or higher sides.'],
+      roll: ['The serpent\'s waves rolled it until the side went under!', 'Watch the side-to-side dial: it needs to be steadier. Wider, with the weight lower, or with higher sides.'],
+      rules: ['This boat breaks a rule.', r.problems.join(' ')],
+    })[r.fail];
+  }
+
+  // ---------- 4. Sail out: the button, and afterwards the numbers ----------
+  // The numbers (speed, how far it tipped) appear only after a run has been
+  // measured, so the chase is what tells the student how it went.
   let tested = false;
-  $('btn-go').addEventListener('click', () => { tested = true; refresh(); });
+  $('btn-go').addEventListener('click', startRace);
   function paintGo() {
     const a = A, r = a.r, el = $('stats'), res = $('result');
     const st = (v, k, cls) => `<div class="stat ${cls || ''}"><div class="v">${v}</div><div class="k">${k}</div></div>`;
     el.innerHTML = st(r.mass ? Math.round(r.mass) + ' kg' : '—', 'boat + you + stones')
       + st(a.wood.sticks + ' / 70', 'sticks used', a.wood.sticks > 70 ? 'bad' : '');
-    $('btn-go').disabled = !a.ready;
-    if (!tested || !a.ready) { res.className = 'result'; res.innerHTML = ''; return; }
+    $('btn-go').disabled = !a.ready || !!race;
+    if (!tested || !a.ready || race) { res.className = 'result'; res.innerHTML = ''; return; }
     const kt = v => v.toFixed(1) + ' kt';
-    const lines = r.speedKt != null ? [
+    if (r.speedKt != null) el.innerHTML += [
       st(kt(r.speedKt), 'top speed (serpent: 6 kt)', r.speedKt >= P.MONSTER_KT ? 'good' : 'bad'),
       st(r.bowDip.toFixed(2) + ' m', `bow dips in a 30 kt gust (sides ${r.freeboard.toFixed(2)} m up)`, r.bowDip < r.freeboard ? 'good' : 'bad'),
       st(r.heelDeg.toFixed(0) + '°', `tips in the serpent's waves (side goes under at ${r.floodDeg.toFixed(0)}°)`, r.heelDeg < r.floodDeg ? 'good' : 'bad'),
-      st(r.freeboard.toFixed(2) + ' m', 'sides above the water'),
-    ].join('') : '';
-    el.innerHTML += lines;
-    const msg = {
-      sinks: ['It sinks at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
-      capsize: ['It rolls over as soon as you climb in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
-      slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and catches you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
-      bow: ['A 30-knot gust drives the bow under!', 'The sail pushes high up, and that tips the front down. A shorter sail, a longer hull, or higher sides at the front.'],
-      roll: ['The serpent\'s waves roll it until the side goes under!', 'It needs to be steadier side to side: wider, with the weight lower, or with higher sides.'],
-      rules: ['This boat breaks a rule.', r.problems.join(' ')],
-    }[r.fail];
-    if (r.ok) { res.className = 'result good'; res.innerHTML = `${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!<div class="why">It would get away. (The chase comes next.)</div>`; }
-    else { res.className = 'result bad'; res.innerHTML = `${msg[0]}<div class="why">${msg[1]}</div>`; }
+      st(lastRun ? lastRun.D.toFixed(2) + ' m' : '—', 'how far you got'),
+    ].join('');
+    const m = resultText(r);
+    res.className = 'result ' + (r.ok ? 'good' : 'bad'); res.innerHTML = `${m[0]}<div class="why">${m[1]}</div>`;
   }
 
   // ---------- Readouts ----------
@@ -690,7 +1072,11 @@
     else if (tab === 'p-frame' && !tested) { text = '<b>Next:</b> on <b>2. Length</b>, choose how long the boat is.'; tabTo = 'p-skin'; }
     else if (tab === 'p-skin' && !tested) { text = '<b>Next:</b> on <b>3. Sail</b>, cut your sail out of the cloth and put it on the mast.'; tabTo = 'p-sail'; }
     else if (tab === 'p-sail' && !tested) { text = 'Cut any shape you like. When it\'s ready, test it on <b>4. Sail out</b>.'; tabTo = 'p-go'; }
-    else if (!tested) { text = '<b>Next:</b> press <b>⛵ Test sail</b>.'; target = 'btn-go'; }
+    else if (race && race.phase === 'chase') text = '<b>Sail!</b> Watch the dials in the corner: they show how far your boat tips side to side and front to back. Red means water comes in.';
+    else if (race && (race.phase === 'gulp' || race.phase === 'wake' || race.phase === 'free')) text = race.pl.fail ? 'GULP…' : '<b>You got away!</b>';
+    else if (race && race.phase === 'measure') text = '<b>Measure</b> how far your boat got: drag the tape to the end of the blue bar, and type what it reads, in meters to the nearest centimeter.';
+    else if (race && race.phase === 'done') text = race.pl.fail ? '<b>Back to work:</b> change one thing and sail again.' : '<b>You did it!</b>' + (IN_GAME ? ' Press <b>⛵ Use this boat</b>.' : '');
+    else if (!tested) { text = '<b>Next:</b> press <b>⛵ Sail for the inlet!</b>'; target = 'btn-go'; }
     else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing at a time to see what matters most.';
     else text = '<b>It didn\'t make it.</b> Read why on <b>4. Sail out</b>, change one thing, and test again.';
     $('coach').innerHTML = text;
@@ -698,7 +1084,11 @@
     if (tabTo && tabTo !== tab) document.querySelector(`#tabs [data-tab="${tabTo}"]`).classList.add('next');
   }
 
-  function changed() { tested = false; save(); refresh(); if (three) three.rebuild(); }
+  function changed() {
+    // A change while sailing calls the run off; a run waiting to be measured stays.
+    if (race && (race.phase === 'chase' || race.phase === 'gulp')) stopRace();
+    tested = false; save(); refresh(); if (three) three.rebuild();
+  }
   function refresh() {
     analyze();
     paintSelects(); paintBow(); paintTool();
@@ -720,7 +1110,8 @@
     const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(4, 7, 3); scene.add(sun);
     const water = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshPhongMaterial({ color: 0x2f6fb5, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
     water.rotation.x = -Math.PI / 2; water.renderOrder = 2; scene.add(water);
-    const boat = new THREE.Group(); scene.add(boat);
+    const pivot = new THREE.Group(); scene.add(pivot);  // tips the whole boat when it's swamped or rolled
+    const boat = new THREE.Group(); pivot.add(boat);
     const MAT = {
       wood: new THREE.MeshLambertMaterial({ color: 0xa0703f }), skin: new THREE.MeshLambertMaterial({ color: 0x6b3f7a, side: THREE.DoubleSide }),
       cloth: new THREE.MeshLambertMaterial({ color: 0xf2e8cf, side: THREE.DoubleSide }), mast: new THREE.MeshLambertMaterial({ color: 0x7a5230 }),
@@ -781,7 +1172,7 @@
       for (let i = 0; i < pa.count; i++) { const u = pa.getX(i) / hw, v = pa.getY(i) / hh * 2 - 1; pa.setZ(i, 0.12 * Math.min(hw * 2, hh) * Math.max(0, 1 - u * u) * Math.max(0, 1 - v * v)); }
       sg.computeVertexNormals();
       const sail = new THREE.Mesh(sg, MAT.cloth); sail.position.set(0, sf, zM - 0.08); boat.add(sail);
-      if (a.seat != null) { const rd = makeRider(); rd.position.set(0, a.seat, Math.max(-L / 2 + 0.3, zM - 0.75)); boat.add(rd); }
+      if (a.seat != null) { const rd = makeRider(); rd.position.set(0, a.seat, Math.max(-L / 2 + 0.3, zM - 0.75)); rd.name = 'rider'; boat.add(rd); }
       if (hs.length && a.r.stoneY) {
         const low = hs.map(h => h.reduce((m, p) => p[1] < m[1] ? p : m, h[0])), geo = new THREE.DodecahedronGeometry(P.STONE_R);
         a.r.stoneY.forEach((y, i) => { const l = low.length > 1 && Math.abs(low[1][1] - low[0][1]) < 0.01 ? low[i % 2] : low.reduce((m, p) => p[1] < m[1] ? p : m);
@@ -822,9 +1213,70 @@
       Object.assign(orbit, { '3d': { theta: 0.9, phi: 1.15 }, side: { theta: Math.PI / 2, phi: 1.5 }, front: { theta: Math.PI, phi: 1.45 }, top: { theta: 0, phi: 0.16 } }[b.dataset.v]);
     }));
     function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
-    function frame() { if (mode === '3d') { place(); renderer.render(scene, camera); } requestAnimationFrame(frame); }
+    // ---- The gulp: the lake serpent from the Boat Builder (boat-builder.html) ----
+    // A body hump at the waterline, tail humps behind it, and a neck on the front of
+    // the body that leans in. Its own +x points away from you; it leans toward -x.
+    const green = new THREE.MeshLambertMaterial({ color: 0x3f9a4d }), bellyMat = new THREE.MeshLambertMaterial({ color: 0xb8d98a });
+    const white = new THREE.MeshLambertMaterial({ color: 0xffffff }), black = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const monster = new THREE.Group(); monster.visible = false; scene.add(monster);
+    const NECK = 1.4;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), green); body.scale.set(1.25, 0.62, 0.85); monster.add(body);
+    const bellyM = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 10), bellyMat); bellyM.scale.set(1.1, 0.5, 0.78); bellyM.position.set(-0.08, -0.07, 0); monster.add(bellyM);
+    for (const [x, y, r] of [[1.05, 0.0, 0.25], [1.72, -0.03, 0.17], [2.2, -0.05, 0.1]]) { const hm = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), green); hm.scale.set(1.3, 0.9, 0.9); hm.position.set(x, y, 0); monster.add(hm); }
+    const BODY_RX = 0.5 * 1.25, BODY_RY = 0.5 * 0.62, bodyTop = x => BODY_RY * Math.sqrt(Math.max(0, 1 - (x / BODY_RX) ** 2));
+    for (const x of [-0.25, 0, 0.22, 0.42]) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.18, 6), bellyMat); sp.position.set(x, bodyTop(x) + 0.05, 0); monster.add(sp); }
+    const neckG = new THREE.Group(); neckG.position.set(-0.42, 0.12, 0); monster.add(neckG);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, NECK, 14), green); neck.position.y = NECK / 2; neckG.add(neck);
+    for (let i = 0; i < 4; i++) { const hh = 0.3 + i * 0.3, rr = 0.24 - 0.1 * hh / NECK; const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), bellyMat); sp.position.set(rr + 0.04, hh, 0); sp.rotation.z = -Math.PI / 2; neckG.add(sp); }
+    const head = new THREE.Group(); monster.add(head);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), green); skull.scale.set(1.5, 0.8, 1); skull.position.x = -0.18; head.add(skull);
+    const jaw = new THREE.Group(); jaw.position.set(0.05, -0.08, 0); head.add(jaw);
+    const jawM = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.36), bellyMat); jawM.position.x = -0.3; jaw.add(jawM);
+    for (const z of [-0.14, 0.14]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), white); eye.position.set(-0.05, 0.18, z); head.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), black); pupil.position.set(-0.11, 0.2, z * 1.15); head.add(pupil);
+    }
+    const freeRider = new THREE.Group(); freeRider.visible = false; freeRider.add(makeRider()); scene.add(freeRider);
+    const ease3 = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    let gul = null;
+    // kind: why it failed. Too slow: you're still sitting in the boat. Swamped (bow,
+    // sinks): the boat goes down by the bow and you're in the water. Rolled (roll,
+    // capsize): it's upside down and you're in the water beside it.
+    function gulpStart(kind) {
+      const rd = boat.getObjectByName('rider'), wp = new THREE.Vector3(); (rd || boat).getWorldPosition(wp);
+      gul = { kind, u: 0, x: wp.x, y: wp.y, z: wp.z, view: { theta: orbit.theta, phi: orbit.phi, r: orbit.r } };
+      Object.assign(orbit, { theta: Math.PI / 2 - 0.45, phi: 1.28, r: Math.max(6.5, D.L + 4.5) });
+    }
+    function gulpStop() {
+      if (gul) Object.assign(orbit, gul.view);
+      gul = null; monster.visible = false; freeRider.visible = false; pivot.rotation.set(0, 0, 0); pivot.position.y = 0;
+      const rd = boat.getObjectByName('rider'); if (rd) rd.visible = true;
+    }
+    // The same beats as the Boat Builder's sink show, from t = 0 here:
+    //   0-0.9 s it rises behind you; 1.0-1.5 s it leans in, jaw open; 1.45 s GULP;
+    //   1.7-2.2 s it straightens; 2.1-3.1 s it sinks away.
+    function gulpPose(t) {
+      const k = gul.kind, swamp = k === 'bow' || k === 'sinks', over = k === 'roll' || k === 'capsize', wet = swamp || over;
+      pivot.rotation.set(swamp ? 0.3 : 0, 0, over ? -2.6 : 0); pivot.position.y = swamp ? -0.4 : over ? 0.1 : 0;
+      const rd = boat.getObjectByName('rider'); if (rd) rd.visible = !wet && t < 1.45;
+      freeRider.visible = wet && t < 1.45;
+      const panic = ease3((t - 0.3) / 0.4);
+      freeRider.position.set(gul.x + (over ? 0.7 : 0.35), -0.45 + 0.15 * panic + 0.05 * Math.sin(t * (5 + 7 * panic)), gul.z);
+      freeRider.rotation.set(0.15 * Math.sin(t * 9) * panic, 0, 0.25 * Math.sin(t * 7));
+      const tz = gul.z, tx = wet ? freeRider.position.x : gul.x;
+      monster.visible = t < 3.1;
+      const bodyY = -2.0 + 1.85 * ease3(t / 0.9) - 2.1 * ease3((t - 2.1) / 1.0);
+      monster.position.set(tx, bodyY + 0.03 * Math.sin(t * 3), tz - 1.55);
+      monster.rotation.y = Math.PI / 2;
+      const lean = 1.2 * ease3((t - 1.0) / 0.5) - 1.2 * ease3((t - 1.7) / 0.5);
+      neckG.rotation.z = lean;
+      head.position.set(neckG.position.x - Math.sin(lean) * NECK, neckG.position.y + Math.cos(lean) * NECK, 0);
+      head.rotation.z = lean * 0.6;
+      jaw.rotation.z = -0.7 * ease3((t - 1.0) / 0.3) + 0.7 * ease3((t - 1.4) / 0.12);
+    }
+    function frame() { if (gul) gulpPose(gul.u); if (mode === '3d') { place(); renderer.render(scene, camera); } requestAnimationFrame(frame); }
     requestAnimationFrame(frame);
-    return { el, rebuild, resize, orbit, scene, boat };
+    return { el, rebuild, resize, orbit, scene, boat, gulpStart, gulpStop, gulpSet: u => { if (gul) { gul.u = u; gulpPose(u); } } };
   }
   window.addEventListener('resize', () => { if (mode !== '3d') { cadSize(); drawCad(); } else if (three) three.resize(); drawPattern(); drawSide(); });
 
@@ -864,7 +1316,10 @@
   let seen = false; try { seen = localStorage.getItem('sailTourSeen') === '1'; } catch (e) {}
   if (!seen) setTimeout(() => tourShow(0), 400);
   // For checking from the console; nothing in the page uses it.
-  window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three };
+  window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three,
+    get race() { return race; }, startRace, stopRace, planRace, raceAt, checkMeasure, showMeasure,
+    // seekRace(t, freeze): show the run at t seconds (frozen there if freeze), for checking it frame by frame.
+    seekRace: (t, freeze) => { if (!race) return; race.t0 = performance.now() - t * 1000; race.frozen = freeze ? t : null; raceShow(t); if (!freeze) requestAnimationFrame(raceTick); } };
 })();
 </script>
 </body>

@@ -167,6 +167,7 @@ const MeasureShared = (function () {
   //   opts.badge      – text for the unit badge (default 'cm')
   //   opts.scaleLabel – text above the ruler (default auto)
   //   opts.tapeHeight – CSS height of the tape wrapper (default '150px')
+  //   opts.startAtZero – open the tape at 0 instead of at the bar's end
   //   opts.scale      – 'mm' | 'cm' | 'm'.  'm' draws a meter tape
   //                     (red meter marks + 10 cm marks) instead of a
   //                     cm ruler with mm sub-ticks (default 'cm')
@@ -297,7 +298,9 @@ const MeasureShared = (function () {
         // mark on screen instead, which at 9 px/cm pushed the end of a
         // x.77 m bar off the right edge; attachMeterMarker covers the meter.
         const target = barEndX - wrapWidth * 0.6;
-        tapeWrap.scrollLeft = Math.max(0, target);
+        // opts.startAtZero: open at the zero mark, so the student finds the end
+        // themselves (the Sail Race's distance, Nick 2026-11-19).
+        tapeWrap.scrollLeft = opts.startAtZero ? 0 : Math.max(0, target);
         tapeWrap.dispatchEvent(new Event('scroll')); // refresh the meter marker
       });
       enableDragScroll(tapeWrap);
