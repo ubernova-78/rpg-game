@@ -134,12 +134,12 @@ function sailGeom(sail) {
   if (sail.poly) {
     const p = sail.poly, c = polyArea(p), ys = p.map(q => q[1]), xs = p.map(q => q[0]);
     const lo = Math.min(...ys), hi = Math.max(...ys);
-    return { poly: p, A: c.A, ceUp: c.cy - lo, h: hi - lo, w: Math.max(...xs) - Math.min(...xs), hang: sail.hang, mastH: sail.mastH,
+    return { x: sail.x || 0, foot: sail.foot, poly: p, A: c.A, ceUp: c.cy - lo, h: hi - lo, w: Math.max(...xs) - Math.min(...xs), hang: sail.hang, mastH: sail.mastH,
       inCloth: xs.every(x => x >= -1e-9 && x <= SAIL.SAIL_W + 1e-9) && ys.every(y => y >= -1e-9 && y <= SAIL.SAIL_H + 1e-9) };
   }
   const tri = sail.shape === 'tri';
   const poly = tri ? [[0, 0], [sail.w, 0], [sail.w / 2, sail.h]] : [[0, 0], [sail.w, 0], [sail.w, sail.h], [0, sail.h]];
-  return { poly, A: tri ? sail.w * sail.h / 2 : sail.w * sail.h, ceUp: tri ? sail.h / 3 : sail.h / 2, h: sail.h, w: sail.w,
+  return { x: sail.x || 0, foot: sail.foot, poly, A: tri ? sail.w * sail.h / 2 : sail.w * sail.h, ceUp: tri ? sail.h / 3 : sail.h / 2, h: sail.h, w: sail.w,
     hang: SAIL.MAST_GAP, mastH: sail.h + SAIL.MAST_GAP, inCloth: sail.w <= SAIL.SAIL_W + 1e-9 && sail.h <= SAIL.SAIL_H + 1e-9 };
 }
 
@@ -147,6 +147,9 @@ function sailGeom(sail) {
 // you like, each on its own mast, up to MASTS). d.sails is a list of
 // { sheet, poly, mastH, hang }; the sweep's single d.sail still works.
 const sailList = d => d.sails || [d.sail];
+// How high a sail's mast stands: on the wood under it (sail.foot, worked out by the
+// builder for a mast off the middle), else on the middle's (d.mastFoot).
+const footOf = (d, g) => g.foot != null ? g.foot : d.mastFoot[1];
 const inPoly = (x, y, p) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 // Do two pieces cut from the same sheet overlap? Checked on a 2.5 cm grid of points.
 function clothOverlap(sails) {
@@ -211,8 +214,8 @@ function sailWood(d) {
   for (const h of d.frameHulls || d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
   // The masts are sticks too, spliced to their height: one mast per sail.
-  const mastPieces = [], mastHs = sailList(d).map(sl => sailGeom(sl).mastH);
-  for (const mh of mastHs) { for (const pc of splicedPieces(mh)) { pieces.push(pc); mastPieces.push(pc); } addWood(mh, d.mastFoot[1] + mh / 2); }
+  const mastPieces = [], gs = sailList(d).map(sailGeom), mastHs = gs.map(g => g.mastH);
+  gs.forEach(g => { for (const pc of splicedPieces(g.mastH)) { pieces.push(pc); mastPieces.push(pc); } addWood(g.mastH, footOf(d, g) + g.mastH / 2); });
   return { sticks: packSticks(pieces), nRib, mastH: mastHs.length ? Math.max(...mastHs) : 0, mastHs, mastSticks: packSticks(mastPieces), woodM, woodMy, tooLong, stringers: verts.size };
 }
 
@@ -222,7 +225,7 @@ function sailWood(d) {
 // sail's outline goes through the cloth. Touching (within 1 cm) is fine.
 function sailHitsFrame(d, sg) {
   const xs = sg.poly.map(p => p[0]), ys = sg.poly.map(p => p[1]);
-  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, y0 = Math.min(...ys), foot = d.mastFoot[1] + sg.hang;
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2 - (sg.x || 0), y0 = Math.min(...ys), foot = footOf(d, sg) + sg.hang;
   const poly = sg.poly.map(p => [p[0] - cx, foot + p[1] - y0]), E = 0.01;
   const cross = (a, b, c, e) => { const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
     const d1 = o(c, e, a), d2 = o(c, e, b), d3 = o(a, b, c), d4 = o(a, b, e); return d1 * d2 < 0 && d3 * d4 < 0; };
@@ -318,8 +321,8 @@ function sailAnalyze(d) {
   d.hulls.forEach(h => { for (let i = 0; i < h.length - 1; i++) { const a = sLen(h[i], h[i + 1]) * L * tp.c1; skinA += a; skinMy += a * (h[i][1] + h[i + 1][1]) / 2; } });
   items.push({ m: skinA * P.SKIN_KG_M2, y: skinA ? skinMy / skinA : 0, what: 'skin' });
   // Where the wind pushes: the area-weighted middle of all the sails together.
-  r.ceY = sailA ? sgs.reduce((t, g) => t + g.A * (d.mastFoot[1] + g.hang + g.ceUp), 0) / sailA : d.mastFoot[1];
-  sgs.forEach(g => items.push({ m: g.A * P.CLOTH_KG_M2, y: d.mastFoot[1] + g.hang + g.ceUp, what: 'sail' }));
+  r.ceY = sailA ? sgs.reduce((t, g) => t + g.A * (footOf(d, g) + g.hang + g.ceUp), 0) / sailA : d.mastFoot[1];
+  sgs.forEach(g => items.push({ m: g.A * P.CLOTH_KG_M2, y: footOf(d, g) + g.hang + g.ceUp, what: 'sail' }));
   // The rider sits in the middle: on a stick across it (a seat or a beam), or
   // down in the hull where it's at least HIPS wide, whichever is lower.
   const seat = riderSeat(d);
@@ -410,7 +413,10 @@ function sailAnalyze(d) {
   for (let i = 0; i < nStones; i++) share[(order.length > 1 && order[1].lo - order[0].lo < 0.01) ? order[i % 2].i : order[0].i]++;
   r.stoneRoll = d.hulls.map(flat);
   r.rollNm = share.reduce((t, n, i) => t + n * P.STONE_KG * P.G * r.stoneRoll[i], 0);
-  r.heelDeg = (P.WAVE_NM + r.rollNm) / (W * r.GMT) * 180 / Math.PI;
+  // A mast off the middle leans the boat that way with its weight and its sail's
+  // (Nick, 2026-11-19: masts can stand where you click). Added to the waves' push.
+  r.offNm = Math.abs(sgs.reduce((t, g) => t + (g.mastH / P.STICK_L * P.STICK_KG + g.A * P.CLOTH_KG_M2) * P.G * (g.x || 0), 0));
+  r.heelDeg = (P.WAVE_NM + r.rollNm + r.offNm) / (W * r.GMT) * 180 / Math.PI;
 
   if (r.speedKt < P.MONSTER_KT) { r.ok = false; r.fail = 'slow'; }
   else if (r.bowDip >= r.freeboard) { r.ok = false; r.fail = 'bow'; }
