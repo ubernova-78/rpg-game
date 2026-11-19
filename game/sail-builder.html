@@ -150,7 +150,8 @@
     background:rgba(32,49,61,0.94);color:#f2efe7;border-radius:10px;padding:9px 14px;font-size:1rem;line-height:1.4;text-align:center;
     box-shadow:0 3px 12px rgba(0,0,0,0.3);display:none;}
   .demo-cap b{color:var(--gold);}
-  .demo-skip{position:fixed;right:16px;bottom:16px;z-index:42;display:none;}
+  .demo-bar{position:fixed;right:16px;bottom:16px;z-index:42;display:none;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 32px);}
+  .demo-bar button:disabled{opacity:0.45;cursor:default;}
   .sails .sl{border:2px solid var(--line);border-radius:8px;padding:5px 8px;margin-top:6px;font-size:0.85rem;}
   .sails .sl.on{border-color:#d4a017;background:#fffbea;}
   .sails .sl .hd{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:700;cursor:pointer;}
@@ -170,7 +171,7 @@
 </head>
 <body>
 <div class="app">
-  <button class="btn alt demo-skip" id="demoskip">Skip the intro ⏭</button>
+  <div class="demo-bar" id="demobar"><button class="btn alt" id="demo-back">◀ Back</button><button class="btn alt" id="demo-pause">⏸ Pause</button><button class="btn alt" id="demo-next">Next ▶</button><button class="btn alt" id="demo-skip">Skip the intro ⏭</button></div>
   <div class="titlebar"><h1>⛵ Sail Builder</h1><div><span class="badge">SAIL RACE</span><button class="helpbtn" id="btn-help">❓ How it works</button></div></div>
 
   <div class="goal">
@@ -1423,7 +1424,7 @@
   function coach() {
     document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
     const a = A; let text, target = null, tabTo = null;
-    if (demo) text = 'Watch how a boat gets built… (Skip the intro is in the corner.)';
+    if (demo) text = 'Watch how a boat gets built… (Pause, Back, Next and Skip are in the corner.)';
     else if (!D.segs.length && !guide) { text = '<b>Start:</b> on <b>1. Frame</b>, pick a hull shape: flat, V, round, or V with walls.'; target = 'shapes'; tabTo = 'p-frame'; }
     else if (guide) { text = '<b>Size it:</b> drag the yellow handle out for wider, up for deeper. Then press <b>🪵 Glue sticks along it</b>.'; target = 'btn-glue'; }
     else if (a.frame.length || a.seat == null) { text = '<b>Next:</b> on <b>1. Frame</b>, fix what\'s marked in red. ' + (a.frame[0] || 'Give yourself somewhere to sit.'); tabTo = 'p-frame'; }
@@ -1670,12 +1671,18 @@
   let demoCursor = null; // where the pointing hand is, in the drawing's or the cloth's meters
   // (Plain timers, not requestAnimationFrame: rAF stops in a hidden tab and in
   // headless Chrome, where the intro then sat on its first step.)
-  const wait = ms => new Promise((res, rej) => { const t0 = performance.now(), tick = () => { if (!demo || demo.cancel) return rej('skip'); if (performance.now() - t0 >= ms) return res(); setTimeout(tick, 16); }; tick(); });
+  // The intro's own clock: it stops while paused, so every wait and tween stops too.
+  const dnow = () => { const n = performance.now(); return n - demo.idle - (demo.pausedAt != null ? n - demo.pausedAt : 0); };
+  // A wait or tween ends early, by rejecting, when the intro is skipped ('skip') or
+  // Back or Next jumps to another step ('jump').
+  const halt = () => !demo || demo.cancel ? 'skip' : demo.jump != null ? 'jump' : null;
+  const wait = ms => new Promise((res, rej) => { const t0 = dnow(), tick = () => { const h = halt(); if (h) return rej(h); if (dnow() - t0 >= ms) return res(); setTimeout(tick, 16); }; tick(); });
   // Run fn(k) every frame for ms, k going 0 to 1.
-  const tween = (ms, fn) => new Promise((res, rej) => { const t0 = performance.now(), tick = () => { if (!demo || demo.cancel) return rej('skip'); const k = Math.min(1, (performance.now() - t0) / ms); fn(k); if (k >= 1) return res(); setTimeout(tick, 16); }; tick(); });
+  const tween = (ms, fn) => new Promise((res, rej) => { const t0 = dnow(), tick = () => { const h = halt(); if (h) return rej(h); const k = Math.min(1, (dnow() - t0) / ms); fn(k); if (k >= 1) return res(); setTimeout(tick, 16); }; tick(); });
   const cap = html => { const c = $('democap'); c.innerHTML = html; c.style.display = 'block'; };
   // How high the boat floats with who's aboard (sailAnalyze with d.load).
   const floatY = load => { const r = sailAnalyze(Object.assign({}, A.d, { load })); return r.T != null ? -r.T : 0; };
+  const fb = load => (sailAnalyze(Object.assign({}, A.d, { load })).freeboard || 0).toFixed(2);
   // What the 3D boat shows: k for each part, 0 (not there) to 1 (in place).
   let show = null;
   demoPose = () => {
@@ -1695,21 +1702,32 @@
     three.MAT.skin.transparent = show.skin < 1; three.MAT.skin.opacity = show.skin;
     b.position.y = show.y;
   };
-  async function runDemo(firstTime) {
-    if (demo) return;
-    tourEnd(true);
-    if (race) stopRace();
-    demo = { saved: JSON.stringify(D), firstTime, cancel: false };
-    const block = document.createElement('div'); block.className = 'demo-block'; document.body.appendChild(block); demo.block = block;
-    $('demoskip').style.display = 'block';
-    try {
-      D = DEMO_D(); tested = false; showTab('p-frame'); setMode('cad'); refresh(); if (three) three.rebuild();
-      show = { ribs: 99, stringers: 1, skin: 1, mast: 0, sail: 0, rider: 0, stones: 0, y: 0 };
+  // The intro is a list of steps. Each one sets up its own starting picture from
+  // scratch (the boat as it stands at that point), so Back and Next can jump to any
+  // step from anywhere: mid-tween, paused, or from the "Too slow!" card.
+  const DEMO_GUIDE = { kind: 'flat', w: 0.7, d: 0.2 };
+  const demoBoat = (sticks, sail) => { const d = DEMO_D(); if (sticks) d.segs = guideSticks(DEMO_GUIDE); if (!sail) d.sails = []; return d; };
+  // Put the builder in a step's starting state: tab, view, boat, what the 3D shows.
+  function demoSet(o) {
+    stopRace(); guide = null; guideDrag = null; demoCursor = null; hover = null; drag = null; cloth.draft = []; cloth.hover = null;
+    document.querySelectorAll('#shapes .next').forEach(b => b.classList.remove('next'));
+    $('dream').style.display = 'none'; demo.eaten = false;
+    if (!demo.block) { demo.block = document.createElement('div'); demo.block.className = 'demo-block'; document.body.appendChild(demo.block); }
+    D = demoBoat(o.sticks, o.sail); tested = false;
+    showTab(o.tab); refresh(); paintShapes();
+    if (three) { three.MAT.skin.transparent = false; three.MAT.skin.opacity = 1; three.rebuild(); }
+    if (o.view === '3d' && three) { setMode('3d'); Object.assign(three.orbit, o.orbit); } else if (o.view === 'cad') { setMode('cad'); drawCad(); }
+    if (o.show) show = Object.assign({ ribs: 99, stringers: 1, skin: 1, mast: 0, sail: 0, rider: 0, stones: 0 }, o.show, { y: floatY(o.load || { rider: false, stones: 0 }) });
+    else show = null;
+  }
+  const ORBIT_HULL = { theta: 0.85, phi: 1.12, r: 4.6, ty: 0.45 }, ORBIT_MAST = { theta: 0.85, phi: 1.2, r: 5.4, ty: 0.9 };
+  const DEMO_STEPS = [
+    { go: async () => { // 1. Pick a shape, size it, glue sticks along it.
+      demoSet({ tab: 'p-frame', view: 'cad', show: {} });
       cap('<b>1.</b> Pick a hull shape. This one is a <b>flat bottom</b>.');
       await wait(900);
-      document.querySelector('#shapes [data-v="flat"]').classList.add('next');
-      await wait(700);
-      document.querySelector('#shapes [data-v="flat"]').classList.remove('next');
+      const fl = document.querySelector('#shapes [data-v="flat"]');
+      fl.classList.add('next'); await wait(700); fl.classList.remove('next');
       guide = { kind: 'flat', w: 1.0, d: 0.35 }; paintShapes(); drawCad();
       await wait(900);
       cap('Drag the yellow handle to make it the size you want: <b>0.70 m wide, 0.20 m deep</b>.');
@@ -1720,59 +1738,126 @@
       await wait(900);
       const add = guideSticks(guide); guide = null; paintShapes();
       for (const sk of add) { demoCursor = [(sk.a[0] + sk.b[0]) / 2, (sk.a[1] + sk.b[1]) / 2]; D.segs.push(sk); refresh(); if (three) three.rebuild(); show.y = floatY({ rider: false, stones: 0 }); await wait(650); }
-      demoCursor = null; hover = null; drawCad();
+      demoCursor = null; hover = null; drawCad(); await wait(600);
+    } },
+    { go: async () => {
+      demoSet({ tab: 'p-frame', view: 'cad', sticks: true, show: {} });
       cap('That\'s the slice: the shape you\'d see if you sawed the boat in half and looked from behind. The skin wraps itself round the outside (purple).');
-      await wait(3200);
-      // 2. In 3D: the ribs, the long sticks, the skin.
-      if (three) {
-        setMode('3d'); Object.assign(three.orbit, { theta: 0.85, phi: 1.12, r: 4.6, ty: 0.45 });
-        show = { ribs: 1, stringers: 0, skin: 0, mast: 0, sail: 0, rider: 0, stones: 0, y: floatY({ rider: false, stones: 0 }) };
-        cap(`<b>2.</b> The builder copies your slice along the boat, at least every 1 m. These are the <b>ribs</b>: this ${D.L} m boat has ${A.wood.nRib}, and each one uses all ${D.segs.length} of your sticks.`);
-        await wait(1200);
-        for (let i = 1; i < A.wood.nRib; i++) { await tween(900, k => { show.ribs = i + k; }); await wait(250); }
-        await wait(1200);
-        cap('<b>3.</b> Long sticks run along the boat at every corner, to hold the ribs together.');
-        await tween(1300, k => { show.stringers = k; }); await wait(1300);
-        cap(`<b>4.</b> The monster skin wraps round the outside to keep the water out. That's <b>${A.wood.sticks - 1} sticks</b> so far, out of 70.`);
-        await tween(1200, k => { show.skin = k; }); await wait(1800);
-      }
-      // 3. Cut a sail out of the cloth, corner by corner.
-      showTab('p-sail'); D.sails = []; cloth.draft = []; cloth.sheet = 0; refresh();
+      await wait(3600);
+    } },
+    { threeD: true, go: async () => { // 2. The ribs.
+      demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { ribs: 1, stringers: 0, skin: 0 } });
+      cap(`<b>2.</b> The builder copies your slice along the boat, at least every 1 m. These are the <b>ribs</b>: this ${D.L} m boat has ${A.wood.nRib}, and each one uses all ${D.segs.length} of your sticks.`);
+      await wait(1200);
+      for (let i = 1; i < A.wood.nRib; i++) { await tween(900, k => { show.ribs = i + k; }); await wait(250); }
+      await wait(1500);
+    } },
+    { threeD: true, go: async () => { // 3. The long sticks.
+      demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { stringers: 0, skin: 0 } });
+      cap('<b>3.</b> Long sticks run along the boat at every corner, to hold the ribs together.');
+      await tween(1300, k => { show.stringers = k; }); await wait(1800);
+    } },
+    { threeD: true, go: async () => { // 4. The skin.
+      demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { skin: 0 } });
+      cap(`<b>4.</b> The monster skin wraps round the outside to keep the water out. That's <b>${A.wood.sticks - 1} sticks</b> so far, out of 70.`);
+      await tween(1200, k => { show.skin = k; }); await wait(2400);
+    } },
+    { go: async () => { // 5. Cut a sail out of the cloth, corner by corner.
+      demoSet({ tab: 'p-sail', sticks: true }); cloth.sheet = 0; drawCloth();
       cap('<b>5.</b> Cut a sail out of the cloth: click its corners, then the first corner again.');
       await wait(1100);
       for (const p of DEMO_CUT) { await tween(450, k => { const prev = cloth.draft.length ? cloth.draft[cloth.draft.length - 1] : [p[0] - 0.4, p[1] - 0.4]; demoCursor = [prev[0] + (p[0] - prev[0]) * k, prev[1] + (p[1] - prev[1]) * k]; cloth.hover = demoCursor; drawCloth(); }); cloth.draft.push(p); drawCloth(); await wait(250); }
       await tween(450, k => { const a = DEMO_CUT[3], b = DEMO_CUT[0]; demoCursor = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; cloth.hover = demoCursor; drawCloth(); });
       D.sails = [{ sheet: 0, poly: DEMO_CUT.map(p => p.slice()), mastH: 1.5, hang: 0.5 }]; cloth.sel = 0; cloth.draft = []; cloth.hover = null; demoCursor = null; refresh(); if (three) three.rebuild(); drawCloth();
-      await wait(1300);
-      if (three) {
-        setMode('3d'); Object.assign(three.orbit, { theta: 0.85, phi: 1.2, r: 5.4, ty: 0.9 });
-        show = { ribs: 99, stringers: 1, skin: 1, mast: 0, sail: 0, rider: 0, stones: 0, y: floatY({ rider: false, stones: 0 }) };
-        cap(`…and hang it on the mast. This sail is ${A.r.sailA.toFixed(2)} m².`);
-        await tween(900, k => { show.mast = k; }); await tween(900, k => { show.sail = k; }); await wait(1100);
-        // 4. You, then the stones: down it goes.
-        const fb = load => (sailAnalyze(Object.assign({}, A.d, { load })).freeboard || 0).toFixed(2);
-        cap(`<b>6.</b> Climb aboard: <b>60 kg</b>. Watch the boat sink lower in the water. (Its sides were ${fb({ rider: false, stones: 0 })} m above the water.)`);
-        await wait(900);
-        const y0 = show.y, y1 = floatY({ stones: 0 });
-        await tween(700, k => { show.rider = k; }); await tween(800, k => { show.y = y0 + (y1 - y0) * ease(k); });
-        cap(`Now its sides are only ${fb({ stones: 0 })} m above the water. <b>7.</b> Load the <b>6 stones</b>, 5 kg each…`);
-        await wait(1400);
-        for (let i = 0; i < P.STONES; i++) {
-          const ya = show.y, yb = floatY({ stones: i + 1 });
-          await tween(380, k => { show.stones = i + k; }); await tween(250, k => { show.y = ya + (yb - ya) * k; });
-        }
-        cap(`It <b>barely floats</b>: only ${fb({})} m of its sides left above the water!`);
-        await wait(2600);
+      await wait(1500);
+    } },
+    { threeD: true, go: async () => { // ...and up the mast.
+      demoSet({ tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: {} });
+      cap(`…and hang it on the mast. This sail is ${A.r.sailA.toFixed(2)} m².`);
+      await tween(900, k => { show.mast = k; }); await tween(900, k => { show.sail = k; }); await wait(1600);
+    } },
+    { threeD: true, go: async () => { // 6. You climb in.
+      demoSet({ tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: { mast: 1, sail: 1 } });
+      cap(`<b>6.</b> Climb aboard: <b>60 kg</b>. Watch the boat sink lower in the water. (Its sides are ${fb({ rider: false, stones: 0 })} m above the water.)`);
+      await wait(900);
+      const y0 = show.y, y1 = floatY({ stones: 0 });
+      await tween(700, k => { show.rider = k; }); await tween(800, k => { show.y = y0 + (y1 - y0) * ease(k); });
+      cap(`Now its sides are only <b>${fb({ stones: 0 })} m</b> above the water.`);
+      await wait(2000);
+    } },
+    { threeD: true, go: async () => { // 7. The stones.
+      demoSet({ tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: { mast: 1, sail: 1, rider: 1 }, load: { stones: 0 } });
+      cap('<b>7.</b> Load the <b>6 stones</b>, 5 kg each…');
+      await wait(1200);
+      for (let i = 0; i < P.STONES; i++) {
+        const ya = show.y, yb = floatY({ stones: i + 1 });
+        await tween(380, k => { show.stones = i + k; }); await tween(250, k => { show.y = ya + (yb - ya) * k; });
       }
-      // 5. Off it goes, too slowly.
-      show = null; if (three) { three.MAT.skin.transparent = false; three.MAT.skin.opacity = 1; three.rebuild(); }
+      cap(`It <b>barely floats</b>: only ${fb({})} m of its sides left above the water!`);
+      await wait(2800);
+    } },
+    { go: async () => { // 8. Off it goes, too slowly.
+      demoSet({ tab: 'p-go', sticks: true, sail: true });
       cap(`<b>8.</b> Sail for the inlet! It goes ${A.r.speedKt.toFixed(1)} knots. The serpent swims 6…`);
-      showTab('p-go'); startRace(); race.demo = true;
-    } catch (e) { if (e !== 'skip') { console.warn('[sail] intro', e); } endDemo(); }
+      startRace(); race.demo = true;
+      // (Also redrawn from here: the chase's own frames can stall where animation frames are scarce.)
+      while (!demo.eaten) { await wait(100); if (race && race.frozen == null && (race.phase === 'chase' || race.phase === 'gulp')) raceShow(raceT()); }
+    } },
+    { card: true, go: async () => { // The "Too slow!" card, until Start building.
+      if (!demo.eaten) { stopRace(); demoEaten(); }
+      await wait(1e9);
+    } },
+  ];
+  async function runDemo(firstTime) {
+    if (demo) return;
+    tourEnd(true);
+    if (race) stopRace();
+    demo = { saved: JSON.stringify(D), firstTime, cancel: false, step: 0, jump: null, idle: 0, pausedAt: null, t0: 0, eaten: false };
+    $('demobar').style.display = 'flex';
+    try {
+      while (true) {
+        const st = DEMO_STEPS[demo.step];
+        if (st.threeD && !three) { demo.step++; continue; } // no 3D (no WebGL): skip the 3D steps
+        demo.t0 = dnow(); demoBar();
+        try { await st.go(); demo.step = Math.min(demo.step + 1, DEMO_STEPS.length - 1); }
+        catch (e) { if (e !== 'jump') throw e; demo.step = demo.jump; demo.jump = null; }
+      }
+    } catch (e) { if (e !== 'skip') { console.warn('[sail] intro', e); endDemo(); } }
+  }
+  // The buttons under the intro: Back, Pause/Play, Next, Skip.
+  function demoBar() {
+    if (!demo) return;
+    const st = DEMO_STEPS[demo.step];
+    $('demo-pause').textContent = demo.pausedAt != null ? '▶ Play' : '⏸ Pause';
+    $('demo-pause').disabled = !!st.card;
+    $('demo-next').disabled = !!st.card;
+    $('demo-back').disabled = demo.step === 0;
+  }
+  function demoPause(on) {
+    if (!demo) return;
+    const n = performance.now();
+    if (on && demo.pausedAt == null) { demo.pausedAt = n; if (race && race.frozen == null) race.frozen = (n - race.t0) / 1000; }
+    else if (!on && demo.pausedAt != null) {
+      demo.idle += n - demo.pausedAt; demo.pausedAt = null;
+      if (race && race.frozen != null) { race.t0 = n - race.frozen * 1000; race.frozen = null; requestAnimationFrame(raceTick); }
+    }
+    demoBar();
+  }
+  // Back: to the start of this step, or to the one before if this one has only just begun.
+  function demoGo(dir) {
+    if (!demo) return;
+    let to = demo.step;
+    if (dir > 0) to++;
+    else if (DEMO_STEPS[to].card || dnow() - demo.t0 < 1500) to--;
+    const skip3 = i => DEMO_STEPS[i] && DEMO_STEPS[i].threeD && !three;
+    while (skip3(to)) to += dir > 0 ? 1 : -1;
+    to = Math.max(0, Math.min(DEMO_STEPS.length - 1, to));
+    demoPause(false); demo.jump = to;
   }
   // The chase calls this instead of the wake card when the intro's boat is eaten.
   function demoEaten() {
     if (!demo) return;
+    demo.eaten = true;
     $('democap').style.display = 'none';
     const dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake sleep';
@@ -1781,21 +1866,25 @@
     $('demo-go').addEventListener('click', () => endDemo());
     $('demo-tour').addEventListener('click', () => { endDemo(); tourShow(0); });
     if (demo.block) { demo.block.remove(); demo.block = null; } // the card's buttons must be clickable
+    if (demo.jump == null) { demo.step = DEMO_STEPS.length - 1; demoBar(); }
   }
   function endDemo() {
     if (!demo) return;
     const d0 = demo;
-    d0.cancel = true; demo = null; show = null; demoCursor = null; drag = null; hover = null; cloth.draft = []; cloth.hover = null;
+    d0.cancel = true; demo = null; show = null; demoCursor = null; drag = null; hover = null; guide = null; guideDrag = null; cloth.draft = []; cloth.hover = null;
     if (d0.block) d0.block.remove();
-    $('demoskip').style.display = 'none'; $('democap').style.display = 'none';
+    $('demobar').style.display = 'none'; $('democap').style.display = 'none';
     stopRace();
     try { localStorage.setItem('sailIntroSeen', '1'); } catch (e) {}
     // First time: you start with nothing. Replayed: your own boat back.
     D = d0.firstTime ? START() : JSON.parse(d0.saved);
     if (three) { three.MAT.skin.transparent = false; three.MAT.skin.opacity = 1; }
-    tested = false; showTab('p-frame'); setMode('cad'); refresh(); if (three) three.rebuild(); if (d0.firstTime) save();
+    tested = false; showTab('p-frame'); setMode('cad'); paintShapes(); refresh(); if (three) three.rebuild(); if (d0.firstTime) save();
   }
-  $('demoskip').addEventListener('click', endDemo);
+  $('demo-skip').addEventListener('click', endDemo);
+  $('demo-pause').addEventListener('click', () => demoPause(demo && demo.pausedAt == null));
+  $('demo-back').addEventListener('click', () => demoGo(-1));
+  $('demo-next').addEventListener('click', () => demoGo(1));
 
   // ---------- First-time tour ----------
   const TOUR = [
