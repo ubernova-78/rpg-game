@@ -328,10 +328,11 @@
   const mastY = k => { const x = mastX(k), f = x ? mastFoot(x) : A && A.mf; return f == null ? (A && A.mf) || 0 : f; };
   // Where rib i of n is, from the back (0) to the front (1): evenly spread, or
   // every D.ribGap meters from the back with the last one at the front.
-  const ribFrac = (i, n) => n <= 1 ? 0 : D.ribGap ? (i >= n - 1 ? 1 : Math.min(1, i * D.ribGap / D.L)) : i / (n - 1);
+  // (The physics' own: a shaped end's last rib stands a little way in from its tip.)
+  const ribFrac = (i, n) => ribFracs(D, n)[i];
   const ribsFor = (L, g) => Math.ceil(L / g - 1e-9) + 1;
   // (Clear of a back that narrows or rises: you sit where the boat is still wide.)
-  const riderZ = L => -L / 2 + Math.max(0.25, Math.min(L * 0.55 - 0.75, L * 0.32 - 0.3), L * sternTo() * 0.75);
+  const riderZ = L => -L / 2 + Math.max(0.25, Math.min(L * 0.55 - 0.75, L * 0.32 - 0.3), L * sternTo());
   // Where the 6 stones lie, {x, y, z}: on the floor at its lowest (where the physics
   // puts them), as near the middle as they fit, clear of you and the masts. (They
   // used to sit on the floor's corner, half through the wall: Nick, 2026-11-19.)
@@ -430,7 +431,7 @@
   function analyze() {
     const fc = frameCheck(), ch = chains(), mf = mastFoot();
     // The cut-out is centered on the mast for the physics' sake (its shape, not where it was cut).
-    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
     const wood = sailWood(d);
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
@@ -1709,9 +1710,9 @@
       // Ribs: every section stick, at each rib. In a pointed nose only hull sticks, narrowed.
       for (let i = 0; i < nR; i++) {
         const z = -L / 2 + L * ribFrac(i, nR), s = sAt(z), kk = kAt(z);
-        if (s < 0.05 || kk < 0.05) continue;
+        if (s < 0.02 || kk < 0.02) continue;
         for (const sg of D.segs) {
-          if ((s < 0.999 || kk < 0.999) && !hs.some(h => onChain([(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2], h))) continue;
+          if ((s < 0.999 || kk < 0.999) && !(a.ch.frameHulls || hs).some(h => onChain([(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2], h))) continue;
           const hi = hullOf.get(sg) || 0;
           const m = stick(tx(sg.a, z, hi), tx(sg.b, z, hi), t); m.userData = { part: 'rib', i, z0: m.position.z, zFirst: -L / 2 + m.position.z - z }; boat.add(m);
         }

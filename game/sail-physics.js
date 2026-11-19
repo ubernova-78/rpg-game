@@ -248,16 +248,44 @@ const segKey = (a, b) => { const k1 = a[0].toFixed(3) + ',' + a[1].toFixed(3), k
 // The wood alone: every piece cut, whole sticks used, and its mass and height.
 // The builder's live stick counter calls this too, so it can't drift from the
 // physics. (Before any skin is on, there are no hulls and so no stringers yet.)
+// Where the ribs go, as fractions along the hull (0 the back, 1 the front): evenly
+// spread, or every d.ribGap meters from the back with the last at the front. A
+// shaped end has no width (or no depth) at its tip, so its end rib stands a little
+// way in, where the end is still 20% of its full size.
+function ribFracs(d, n) {
+  const L = d.L, out = [];
+  for (let i = 0; i < n; i++) out.push(n <= 1 ? 0 : d.ribGap ? (i >= n - 1 ? 1 : Math.min(1, i * d.ribGap / L)) : i / (n - 1));
+  const tb = endLen(sternShape(d), sternRise(d)), tf = endLen(d.bow, bowRise(d)), lo = 0.2 * tb, hi = 1 - 0.2 * tf;
+  return out.map(f => Math.max(lo, Math.min(hi, f)));
+}
+// One rib at f along: the slice's sticks, narrowed about their hull's middle and
+// raised toward the top of its sides by that point's end scales. Where the boat
+// is narrowed or raised, only the hull's own sticks are in it (not a seat or a beam).
+function ribShape(d, f) {
+  const e = endScales(d, f), hs = d.frameHulls || d.hulls;
+  if (e.s > 0.999 && e.k > 0.999) return d.segs;
+  const cs = hs.map(h => (h[0][0] + h[h.length - 1][0]) / 2), tops = hs.map(h => Math.min(h[0][1], h[h.length - 1][1]));
+  const out = [];
+  for (const sg of d.segs) {
+    const mid = [(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2];
+    const hi = hs.findIndex(h => onChain(mid, h)); if (hi < 0) continue;
+    const tx = p => [cs[hi] + (p[0] - cs[hi]) * e.s, tops[hi] - (tops[hi] - p[1]) * e.k];
+    out.push({ a: tx(sg.a), b: tx(sg.b) });
+  }
+  return out;
+}
+
 function sailWood(d) {
   // d.ribs: how many ribs the builder chose (default: the fewest that are at most 1 m apart).
   const P = SAIL, L = d.L, nRib = d.ribs ? Math.max(2, Math.round(d.ribs)) : ribCount(L);
   const pieces = []; let woodM = 0, woodMy = 0, tooLong = false;
   const addWood = (len, y) => { const m = len / P.STICK_L * P.STICK_KG; woodM += m; woodMy += m * y; };
-  for (const s of d.segs) {
-    const len = sLen(s.a, s.b), y = (s.a[1] + s.b[1]) / 2;
-    for (let k = 0; k < nRib; k++) { pieces.push(len); addWood(len, y); }
-    if (len > P.STICK_L + 1e-6) tooLong = true;
-  }
+  // Each rib is a copy of the slice; in a shaped end it's shrunk to fit there
+  // (ribShape), so it's made of shorter pieces (Nick, 2026-11-19: the ribs vanished
+  // when the ends were pinched; they should shrink).
+  const fr = ribFracs(d, nRib);
+  for (const s of d.segs) { if (sLen(s.a, s.b) > P.STICK_L + 1e-6) tooLong = true; }
+  for (const f of fr) for (const sk of ribShape(d, f)) { const len = sLen(sk.a, sk.b); if (len < 0.005) continue; pieces.push(len); addWood(len, (sk.a[1] + sk.b[1]) / 2); }
   const verts = new Map();
   // (The long sticks run along the frame's corners, above the skin's top too.)
   for (const h of d.frameHulls || d.hulls) for (const p of h) verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p);
@@ -608,4 +636,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, bowSlices, skinLong, endScales, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
