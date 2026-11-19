@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="sail-physics.js"></script>
 <script src="measure-shared.js"></script>
+<script src="bench-math.js"></script>
 <style>
   :root{
     --ink:#1f2a33; --dim:#6b7780; --paper:#f2efe7; --line:#d6d0c2;
@@ -99,6 +100,25 @@
   .measure input{width:110px;padding:7px;font-size:1.05rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:ui-monospace,Menlo,monospace;}
   .measure .fb{margin-top:8px;font-size:0.92rem;line-height:1.4;font-weight:600;}
   .measure .fb.bad{color:var(--bad);} .measure .fb.ok{color:var(--good);}
+  /* The replay: scrub to when the boat starts and when it finishes (as the Elapsed Time bench). */
+  .replay{position:absolute;left:0;right:0;bottom:0;z-index:8;display:none;background:rgba(32,49,61,0.94);color:#f2efe7;
+    padding:8px 12px 10px;font-size:0.86rem;line-height:1.35;}
+  .replay .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;}
+  .replay .timer{background:#000;color:#0f0;font-family:'Courier New',monospace;font-size:1.25rem;font-weight:700;padding:2px 9px;border-radius:6px;border:1px solid #0f0;white-space:nowrap;}
+  .timeline-wrap{position:relative;width:100%;height:30px;background:#222;border-radius:6px;border:1px solid #555;margin:14px 0 8px;cursor:pointer;touch-action:none;}
+  .timeline-thumb{position:absolute;top:0;width:3px;height:100%;background:var(--gold);pointer-events:none;z-index:3;}
+  .timeline-marker{position:absolute;top:0;width:3px;height:100%;z-index:2;display:none;}
+  .timeline-marker.start-marker{background:#00cc66;} .timeline-marker.end-marker{background:var(--accent);}
+  .timeline-label{position:absolute;top:-15px;font-size:0.68rem;font-weight:700;transform:translateX(-50%);white-space:nowrap;}
+  .start-marker .timeline-label{color:#00cc66;} .end-marker .timeline-label{color:var(--accent);}
+  .scrub-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;}
+  .scrub-step{padding:5px 9px;border-radius:4px;border:1px solid #888;background:#333;color:#f2efe7;font-weight:700;cursor:pointer;font-size:0.95rem;font-family:inherit;}
+  .scrub-btn{padding:6px 12px;border-radius:6px;border:2px solid #5b6770;background:#2a3d4a;color:#f2efe7;font-weight:700;cursor:pointer;font-size:0.84rem;font-family:inherit;}
+  .scrub-btn.start-set{border-color:#00cc66;color:#00cc66;} .scrub-btn.end-set{border-color:var(--accent);color:var(--accent);}
+  .replay .ans{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px;}
+  .replay input{width:96px;padding:6px;font-size:1rem;border:2px solid #ccc;border-radius:6px;text-align:center;font-family:ui-monospace,Menlo,monospace;}
+  .replay .fb{margin-top:6px;text-align:center;font-weight:700;}
+  .replay .fb.bad{color:#ffb4a8;} .replay .fb.ok{color:#9be3c0;}
   .tape-scale-label{font-size:0.78rem;color:var(--dim);margin:0 0 4px;}
   .tape-wrap{position:relative;overflow-x:auto;overflow-y:hidden;background:#faf8f2;border:2px solid #ccc;
     border-radius:6px;height:150px;cursor:grab;margin-bottom:8px;}
@@ -150,6 +170,7 @@
         <div class="gulp" id="gulp">GULP! 🐉</div>
         <div class="dream" id="dream"><div class="wake" id="wake"></div></div>
         <div class="measure" id="measure"></div>
+        <div class="replay" id="replay"></div>
       </div>
       <div class="coach" id="coach"></div>
     </div>
@@ -369,7 +390,7 @@
 
   function drawCad() {
     if (mode === 'cloth') return drawCloth();
-    if (mode === 'race') { if (race && race.phase === 'chase') raceShow(raceT()); return; }
+    if (mode === 'race') { if (race && race.phase === 'chase') raceShow(raceT()); else if (race && race.phase === 'replay') setRF(race.rf); return; }
     if (mode !== 'cad') return;
     const g = cx; g.clearRect(0, 0, W, H);
     const a = A;
@@ -675,6 +696,7 @@
     document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('on', p.id === id));
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
     if (race && (race.phase === 'chase' || race.phase === 'gulp')) stopRace();
+    if (race && race.phase === 'replay') { refresh(); return; } // the replay stays on screen until it's done
     // The frame is drawn in the frame view, the sail on the cloth; length and the test in 3D.
     if (id === 'p-frame') setMode('cad');
     if (id === 'p-sail') setMode('cloth');
@@ -712,34 +734,51 @@
     pl.limHeel = r.floodDeg || 45;
     pl.trimGust = r.trimDeg || 0; pl.trimSteady = r.gustPush ? r.trimDeg * r.push / r.gustPush : 0;
     pl.heel = r.heelDeg || 0; pl.diveOK = r.bowDip < r.freeboard;
+    pl.go = 0;
     if (pl.fail === 'sinks' || pl.fail === 'capsize') { pl.dock = true; pl.D = 0; pl.tEnd = 1.4; return pl; }
-    if (!pl.fail) { pl.D = COURSE; pl.tOut = COURSE / v; pl.vs = VS; pl.tEnd = pl.tOut + 3.5; pl.gusts.push(rnd(3, 8) / v, rnd(11, 17) / v); return pl; }
+    // It waits at the start line while the serpent surfaces behind it, then sets
+    // off: a random 0.300-1.200 s, in whole thousandths like the Elapsed Time bench.
+    pl.go = Math.round(rnd(300, 1200)) / 1000;
+    if (!pl.fail) { pl.D = COURSE; pl.tOut = COURSE / v; pl.vs = VS; pl.tEnd = pl.go + pl.tOut + 3.5; pl.gusts.push(rnd(3, 8) / v, rnd(11, 17) / v); return mark(pl, pl.tOut); }
     if (pl.fail === 'slow') {
       let x = v * GAP / (VS - v); if (!(x < COURSE - 0.5)) x = rnd(COURSE - 3, COURSE - 0.6);
       pl.D = Math.max(0.05, cmR(x)); pl.tStop = pl.D / v; pl.vs = (pl.D + GAP) / pl.tStop; pl.tCatch = pl.tStop;
       if (pl.diveOK && pl.tStop > 2) pl.gusts.push(rnd(0.8, pl.tStop - 0.8));
+      mark(pl, pl.tStop);
     } else {
       pl.D = cmR(pl.fail === 'bow' ? rnd(3, 16) : rnd(2, 14));
       pl.x1 = pl.D - v * 0.15; pl.t1 = pl.x1 / v; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
       pl.tCatch = Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
       if (pl.fail === 'bow') pl.gusts.push(pl.t1);
       else if (pl.diveOK && pl.t1 > 1.2) pl.gusts.push(rnd(0.5, pl.t1 - 0.6));
+      mark(pl, pl.tStop);
     }
-    pl.tEnd = pl.tCatch + 0.25;
+    pl.tEnd = pl.go + pl.tCatch + 0.25;
+    return pl;
+  }
+  // The two moments the replay asks for, in whole thousandths: it starts moving,
+  // and it crosses the finish line (or stops, swamped or caught).
+  function mark(pl, tAfterGo) {
+    pl.startF = Math.round(pl.go * 1000); pl.endF = Math.round((pl.go + tAfterGo) * 1000);
+    pl.clipF = pl.endF + 900;
     return pl;
   }
   // The scene at time t: boat (stern) and serpent (snout) positions, tilt, gust.
-  function raceAt(pl, t) {
-    const s = { t, xb: 0, gust: 0, sunk: 0, flip: 0 };
+  function raceAt(pl, T) {
+    // T: since the run began; t: since the boat set off (negative while it waits).
+    const t = Math.max(0, T - pl.go), wait = T < pl.go;
+    const s = { t, T, xb: 0, gust: 0, sunk: 0, flip: 0 };
     if (pl.dock) s.xb = 0;
     else if (pl.fail === 'slow') s.xb = pl.v * Math.min(t, pl.tStop);
     else if (pl.fail) { if (t < pl.t1) s.xb = pl.v * t; else { const u = Math.min(t - pl.t1, 0.3); s.xb = pl.x1 + pl.v * (u - u * u / 0.6); } }
     else s.xb = pl.v * t;
-    const moving = pl.dock ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
+    const moving = pl.dock || wait ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
     s.kt = moving ? pl.v / P.KT : 0;
-    s.xs = pl.dock ? Math.min(-0.6, -2.5 + 2.5 * t) : -GAP + pl.vs * t;
+    // s.d: how far the boat's front has come from the start line; xb is its stern.
+    s.d = s.xb; s.xb = s.d - D.L;
+    s.xs = pl.dock ? Math.min(-D.L - 0.6, -D.L - 2.5 + 2.5 * t) : -D.L - GAP + pl.vs * t;
     if (pl.fail) s.xs = Math.min(s.xs, s.xb);
-    s.ys = 0; s.rise = ease(t / 0.6);
+    s.ys = 0; s.rise = pl.dock ? ease(t / 0.6) : ease((T - pl.go + 0.6) / 0.6);
     if (!pl.fail && t > pl.tOut + 0.4) { const u = t - pl.tOut - 0.4; s.ys = -u * u * 0.5; s.rise *= 1 - ease((u - 1.8) / 1.0); }
     // Tipping side to side, in the serpent's waves.
     const lim = pl.limHeel, A = Math.min(pl.heel, 0.9 * lim);
@@ -768,7 +807,7 @@
     const bw = Math.ceil(W / 3), bh = Math.ceil(H / 3);
     if (!rbuf || rbuf.width !== bw || rbuf.height !== bh) { rbuf = document.createElement('canvas'); rbuf.width = bw; rbuf.height = bh; }
     const b = rbuf.getContext('2d'); b.imageSmoothingEnabled = false; b.clearRect(0, 0, bw, bh);
-    const ppm = bw / SEE, camX = Math.max(-4.5, Math.min(COURSE + 5, s.xb + D.L / 2 - SEE * 0.42));
+    const ppm = bw / SEE, camX = Math.max(-D.L - 3, Math.min(COURSE + 5, s.xb + D.L / 2 - SEE * 0.42));
     const X = x => Math.round((x - camX) * ppm), Y = y => Math.round(bh / 2 + y * ppm);
     const dot = (x, y, r, c) => { b.fillStyle = c; b.beginPath(); b.arc(Math.round(x), Math.round(y), Math.max(0.5, r), 0, Math.PI * 2); b.fill(); };
     // The lake narrows into the inlet (from 11 m), which opens to the ocean at COURSE.
@@ -786,11 +825,15 @@
       const hx = hash(i * 91 + j), x = i / 2 + hx * 0.5, y = j / 2 + hash(i + j * 57) * 0.5;
       if (Math.abs(y) < half(x) - 0.2 && hx > 0.55) b.fillRect(X(x), Y(y), x > COURSE ? 3 : 2, 1);
     }
-    // The dock.
-    b.fillStyle = '#5e3e22'; b.fillRect(X(-4.5), Y(-0.8), X(0) - X(-4.5), Y(0.8) - Y(-0.8));
-    b.fillStyle = '#a0703f'; b.fillRect(X(-4.5), Y(-0.7), X(0) - X(-4.5) - 1, Y(0.7) - Y(-0.7));
-    b.fillStyle = '#7a5230'; for (let x = -4.5; x < 0; x += 0.3) b.fillRect(X(x), Y(-0.7), 1, Y(0.7) - Y(-0.7));
-    for (const y of [-0.8, 0.8]) dot(X(-0.05), Y(y), 2, '#3d2814');
+    // The dock, alongside where the boat starts, and the start and finish lines:
+    // a row of red and white floats across the water at 0 and at COURSE.
+    const dy0 = -1.5 - 1.2, dy1 = -1.5;
+    b.fillStyle = '#5e3e22'; b.fillRect(X(-5), Y(dy0), X(0) - X(-5), Y(dy1) - Y(dy0));
+    b.fillStyle = '#a0703f'; b.fillRect(X(-5), Y(dy0) + 1, X(0) - X(-5) - 1, Y(dy1) - Y(dy0) - 2);
+    b.fillStyle = '#7a5230'; for (let x = -5; x < 0; x += 0.3) b.fillRect(X(x), Y(dy0) + 1, 1, Y(dy1) - Y(dy0) - 2);
+    for (const [lx, y0, y1] of [[0, dy1, half(0) - 0.3], [COURSE, -half(COURSE) + 0.1, half(COURSE) - 0.1]]) {
+      for (let y = y0, i = 0; y <= y1; y += 0.25, i++) { b.fillStyle = i % 2 ? '#ffffff' : '#d8262b'; b.fillRect(X(lx), Y(y), 2, 2); }
+    }
     // The serpent's waves, rolling out ahead of it.
     if (s.rise > 0.05) {
       b.strokeStyle = 'rgba(255,255,255,0.55)'; b.lineWidth = 1;
@@ -806,7 +849,9 @@
     // Words on top, at full resolution.
     g.font = 'bold 13px system-ui'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 3;
     const mx = X(COURSE + 1.2) * 3; if (mx > 40 && mx < W - 20) { g.strokeText('the ocean →', mx, Y(-half(COURSE + 1.2) + 0.6) * 3); g.fillText('the ocean →', mx, Y(-half(COURSE + 1.2) + 0.6) * 3); }
+    for (const [lx, t] of [[0, 'start'], [COURSE, 'finish']]) { const fx = X(lx) * 3; if (fx > 30 && fx < W - 30) { const fy = Y(half(lx) - 0.2) * 3 + 14; g.strokeText(t, fx, fy); g.fillText(t, fx, fy); } }
     const ix = X(13.5) * 3; if (ix > 40 && ix < W - 20) { g.strokeText('the inlet', ix, Y(-half(13.5) - 0.9) * 3); g.fillText('the inlet', ix, Y(-half(13.5) - 0.9) * 3); }
+    if (s.replay) return;
     g.textAlign = 'left'; g.font = 'bold 13px system-ui';
     const hud = [`⛵ you: ${s.kt.toFixed(1)} kt`, `🐍 serpent: ${P.MONSTER_KT.toFixed(1)} kt`, s.gust > 0.4 ? '💨 GUST: 30 kt!' : '💨 wind: 20 kt from behind'];
     g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(8, 8, 190, 62);
@@ -927,8 +972,8 @@
     $('gyro').style.display = 'block'; setMode('race'); refresh(); requestAnimationFrame(raceTick);
   }
   function stopRace() {
-    race = null;
-    for (const id of ['gyro', 'gulp', 'dream', 'measure']) $(id).style.display = 'none';
+    stopPlay(); race = null;
+    for (const id of ['gyro', 'gulp', 'dream', 'measure', 'replay']) $(id).style.display = 'none';
     if (three) three.gulpStop();
   }
   const raceT = () => race.frozen != null ? race.frozen : (performance.now() - race.t0) / 1000;
@@ -957,13 +1002,116 @@
     race.shown = kind;
     const pl = race.pl, dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake ' + kind;
-    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. Behind you it swims out of the inlet too, into the open ocean, and dives. Maybe it's going home.</p><p>Now: how far did you sail from the dock to get away?</p><button class="btn" id="btn-meas">📏 Measure it</button>`;
+    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. Behind you it swims out of the inlet too, into the open ocean, and dives. Maybe it's going home.</p><p>Now look back at your run: how long did it take, and how far did you sail?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
     else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>It was only a dream: your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} right at the dock, before it even set off, and the serpent got you there. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
-    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>Face-down on your plans, pencil still in your hand. Only a dream! But dreams can teach you something: how far did your boat get before the serpent caught you?</p><button class="btn" id="btn-meas">📏 Measure it</button>`;
-    const m = $('btn-meas'); if (m) m.addEventListener('click', showMeasure);
+    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>Face-down on your plans, pencil still in your hand. Only a dream! But dreams can teach you something. Look back at your run: how long did your boat last, and how far did it get?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    const m = $('btn-meas'); if (m) m.addEventListener('click', showReplay);
     const bk = $('btn-back'); if (bk) bk.addEventListener('click', () => { stopRace(); tested = true; setMode('3d'); refresh(); });
     coach();
   }
+  // ---------- The replay (Nick, 2026-11-19) ----------
+  // Like the Elapsed Time bench: scrub the run to the moment the boat starts
+  // moving and the moment it crosses the finish line (or stops, swamped or
+  // caught), mark both, and work out the elapsed time to the hundredth. One frame
+  // is one thousandth of a second; a mark within 0.250 s of the moment snaps to
+  // it, and must be within 0.050 s to count. Wrong: say which part, and try
+  // again; the second wrong check shows the answer and holds until Continue.
+  const fmtT = sec => { const th = Math.round(sec * 1000), m = Math.floor(th / 60000), s2 = Math.floor(th % 60000 / 1000);
+    return String(m).padStart(2, '0') + ':' + String(s2).padStart(2, '0') + '.' + String(th % 1000).padStart(3, '0'); };
+  const SNAP = 250, MARK_OK = 50;
+  function showReplay() {
+    const pl = race.pl, el = $('replay');
+    race.phase = 'replay'; race.rf = 0; race.marks = { s: null, e: null }; race.rtries = 0;
+    $('dream').style.display = 'none'; $('gyro').style.display = 'none';
+    if (three) three.gulpStop();
+    setMode('race');
+    const endWord = pl.fail ? (pl.fail === 'slow' ? 'stops, caught by the serpent' : 'stops, swamped') : 'crosses the finish line';
+    el.innerHTML = `<div class="top"><div><b>Replay.</b> Find the moment your boat <b>starts moving</b> and the moment it <b>${endWord}</b>. Mark both, then work out the elapsed time.</div><div class="timer" id="r-timer">00:00.000</div></div>`
+      + `<div class="timeline-wrap" id="r-tl"><div class="timeline-thumb" id="r-thumb"></div><div class="timeline-marker start-marker" id="r-ms"><div class="timeline-label"></div></div><div class="timeline-marker end-marker" id="r-me"><div class="timeline-label"></div></div></div>`
+      + `<div class="scrub-btns"><button class="scrub-step" data-d="-10" title="Back 10 thousandths">❮❮</button><button class="scrub-step" data-d="-1" title="Back 1 thousandth">◀</button>`
+      + `<button class="scrub-step" id="r-play" title="Play / pause">▶</button><button class="scrub-step" data-d="1" title="Forward 1 thousandth">▶</button><button class="scrub-step" data-d="10" title="Forward 10 thousandths">❯❯</button>`
+      + `<button class="scrub-btn" id="r-mark-s">Mark Start</button><button class="scrub-btn" id="r-mark-e">Mark End</button></div>`
+      + `<div class="ans"><label for="r-in"><b>Elapsed time (seconds):</b></label><input id="r-in" inputmode="decimal" autocomplete="off" placeholder="0.00"><button class="btn small" id="r-ok" disabled>Check</button></div><div class="fb" id="r-fb"></div>`;
+    el.style.display = 'block';
+    const tl = $('r-tl');
+    const fromEv = e => { const r = tl.getBoundingClientRect(); setRF(Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * pl.clipF)); };
+    tl.addEventListener('pointerdown', e => { tl.setPointerCapture(e.pointerId); race.dragTL = true; fromEv(e); });
+    tl.addEventListener('pointermove', e => { if (race && race.dragTL) fromEv(e); });
+    tl.addEventListener('pointerup', () => { if (race) race.dragTL = false; });
+    el.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => setRF(race.rf + +b.dataset.d)));
+    $('r-play').addEventListener('click', togglePlay);
+    $('r-mark-s').addEventListener('click', () => markAt('s'));
+    $('r-mark-e').addEventListener('click', () => markAt('e'));
+    $('r-ok').addEventListener('click', checkReplay);
+    $('r-in').addEventListener('keydown', e => { if (e.key === 'Enter') checkReplay(); });
+    setRF(0); coach();
+  }
+  function setRF(f) {
+    if (!race || race.phase !== 'replay') return;
+    const pl = race.pl; race.rf = Math.max(0, Math.min(pl.clipF, Math.round(f)));
+    const s = raceAt(pl, race.rf / 1000); s.replay = true; drawRace(s);
+    $('r-timer').textContent = fmtT(race.rf / 1000);
+    $('r-thumb').style.left = race.rf / pl.clipF * 100 + '%';
+  }
+  function togglePlay() {
+    if (race.play) { clearInterval(race.play); race.play = null; $('r-play').textContent = '▶'; return; }
+    if (race.rf >= race.pl.clipF) setRF(0);
+    $('r-play').textContent = '⏸';
+    const t0 = performance.now(), f0 = race.rf;
+    race.play = setInterval(() => {
+      if (!race || race.phase !== 'replay') return;
+      const f = f0 + Math.round(performance.now() - t0); // real time, however often the timer fires
+      setRF(f);
+      if (f >= race.pl.clipF) { clearInterval(race.play); race.play = null; $('r-play').textContent = '▶'; }
+    }, 15);
+  }
+  function stopPlay() { if (race && race.play) { clearInterval(race.play); race.play = null; const b = $('r-play'); if (b) b.textContent = '▶'; } }
+  function markAt(which) {
+    stopPlay();
+    const pl = race.pl, truth = which === 's' ? pl.startF : pl.endF;
+    let f = race.rf; if (Math.abs(f - truth) <= SNAP) f = truth;
+    race.marks[which] = f; setRF(f);
+    const mk = $(which === 's' ? 'r-ms' : 'r-me'), btn = $(which === 's' ? 'r-mark-s' : 'r-mark-e');
+    mk.style.display = 'block'; mk.style.left = f / pl.clipF * 100 + '%'; mk.firstChild.textContent = fmtT(f / 1000);
+    btn.classList.add(which === 's' ? 'start-set' : 'end-set'); btn.textContent = (which === 's' ? 'Start: ' : 'End: ') + fmtT(f / 1000);
+    $('r-ok').disabled = race.marks.s == null || race.marks.e == null;
+  }
+  function checkReplay() {
+    if (!race || race.phase !== 'replay' || race.marks.s == null || race.marks.e == null) return;
+    stopPlay();
+    const pl = race.pl, fb = $('r-fb'), inp = $('r-in');
+    const p = BenchMath.parseHundredths(inp.value);
+    if (!p.ok) { BenchMath.nudge(inp, p.reason === 'tooManyDecimals' ? BenchMath.TOO_MANY_DECIMALS : 'Type a number of seconds, like 4.37'); return; }
+    const want = BenchMath.hundredthsFromFraction(pl.endF - pl.startF, 1000);
+    const sOK = Math.abs(race.marks.s - pl.startF) <= MARK_OK, eOK = Math.abs(race.marks.e - pl.endF) <= MARK_OK, tOK = p.hundredths === want;
+    if (sOK && eOK && tOK) return replayDone(true, p.hundredths);
+    race.rtries++;
+    const what = [];
+    if (!sOK) what.push('your <b>start</b> mark isn\'t on the first moment the boat moves');
+    if (!eOK) what.push(`your <b>end</b> mark isn't on the moment it ${pl.fail ? 'stops' : 'crosses the finish line'}`);
+    if (sOK && eOK && !tOK) what.push(`your marks are right, but ${BenchMath.fmt2(p.hundredths)} s isn't the time between them: end minus start, rounded to the hundredth`);
+    fb.className = 'fb bad';
+    if (race.rtries < 2) { fb.innerHTML = 'Not quite: ' + what.join(', and ') + '. Have another look.'; return; }
+    el2(true);
+    fb.innerHTML = `Not quite: ${what.join(', and ')}. The boat set off at <b>${fmtT(pl.startF / 1000)}</b> and ${pl.fail ? 'stopped' : 'crossed the line'} at <b>${fmtT(pl.endF / 1000)}</b>: `
+      + `${fmtT(pl.endF / 1000)} − ${fmtT(pl.startF / 1000)} = <b>${BenchMath.fmt2(want)} s</b>.<div style="margin-top:6px"><button class="btn small" id="r-cont">Continue</button></div>`;
+    $('r-cont').addEventListener('click', () => replayDone(false, p.hundredths));
+    function el2(dis) { for (const id of ['r-ok', 'r-in', 'r-mark-s', 'r-mark-e']) $(id).disabled = dis; }
+  }
+  function replayDone(right, yours) {
+    const pl = race.pl;
+    race.elapsed = { right, H: BenchMath.hundredthsFromFraction(pl.endF - pl.startF, 1000) };
+    $('replay').style.display = 'none';
+    showMeasure();
+    if (right) { const m = $('measure'), d = document.createElement('div'); d.className = 'fb ok'; d.style.margin = '0 0 6px'; d.textContent = `✓ Right: ${BenchMath.fmt2(race.elapsed.H)} seconds. Now the distance.`; m.insertBefore(d, m.children[1]); }
+  }
+  document.addEventListener('keydown', e => {
+    if (!race || race.phase !== 'replay' || e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); setRF(race.rf - (e.shiftKey ? 10 : 1)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); setRF(race.rf + (e.shiftKey ? 10 : 1)); }
+    else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  });
+
   // The tape: hooked on the end of the dock, the bar running to where the boat got
   // to. Read to the cm. A wrong reading says look again without the answer; after
   // two, the answer is shown and holds until Continue (as fix-loop.js does).
@@ -971,7 +1119,7 @@
     const pl = race.pl, m = $('measure');
     race.phase = 'measure'; race.tries = 0;
     $('dream').style.display = 'none'; m.style.display = 'flex';
-    m.innerHTML = `<h4>📏 How far did you get?</h4><div class="q">The tape is hooked on the end of the dock. The blue bar runs to ${pl.fail ? 'where the serpent caught you' : 'the mouth of the inlet, where you got away'}. Drag the tape along to the end of the bar and read it to the nearest centimeter.</div>`
+    m.innerHTML = `<h4>📏 How far did you get?</h4><div class="q">The tape is hooked on the start line. The blue bar runs to where the front of your boat got to: ${pl.fail ? (pl.fail === 'slow' ? 'where the serpent caught you' : 'where it went under') : 'the finish line at the mouth of the inlet'}. Drag the tape along to the end of the bar and read it to the nearest centimeter.</div>`
       + `<div id="tapebox"></div><div class="ans"><input id="m-in" inputmode="decimal" autocomplete="off" placeholder="0.00"><b>m</b><button class="btn" id="m-ok">Check</button></div><div class="fb" id="m-fb"></div>`;
     MeasureShared.buildRulerDOM($('tapebox'), Math.round(pl.D * 1000), { scale: 'm', badge: 'm', tapeHeight: '160px', startAtZero: true,
       scaleLabel: 'Scale: small ticks = cm · numbered ticks = 10 cm · red ticks = each meter' });
@@ -999,9 +1147,9 @@
   }
   function settle(right, v) {
     const pl = race.pl, m = $('measure');
-    race.phase = 'done'; tested = true; lastRun = { D: pl.D, right, pass: !pl.fail };
+    race.phase = 'done'; tested = true; lastRun = { D: pl.D, right, pass: !pl.fail, H: race.elapsed ? race.elapsed.H : null };
     const res = resultText(A.r);
-    m.innerHTML = `<h4>${right ? '✓ Right: ' + pl.D.toFixed(2) + ' m.' : 'The distance was ' + pl.D.toFixed(2) + ' m.'}</h4>`
+    m.innerHTML = `<h4>${right ? '✓ Right: ' + pl.D.toFixed(2) + ' m' : 'The distance was ' + pl.D.toFixed(2) + ' m'}${race.elapsed ? ', in ' + BenchMath.fmt2(race.elapsed.H) + ' seconds.' : '.'}</h4>`
       + `<div class="result ${pl.fail ? 'bad' : 'good'}" style="display:block">${res[0]}<div class="why">${res[1]}</div></div>`
       + `<div class="btnrow">${!pl.fail && IN_GAME ? '<button class="btn" id="btn-use">⛵ Use this boat</button>' : ''}<button class="btn ${pl.fail ? '' : 'alt'}" id="m-done">${pl.fail ? 'Back to work' : 'Done'}</button></div>`;
     $('m-done').addEventListener('click', () => { stopRace(); setMode('3d'); refresh(); });
@@ -1039,6 +1187,7 @@
       st(r.bowDip.toFixed(2) + ' m', `bow dips in a 30 kt gust (sides ${r.freeboard.toFixed(2)} m up)`, r.bowDip < r.freeboard ? 'good' : 'bad'),
       st(r.heelDeg.toFixed(0) + '°', `tips in the serpent's waves (side goes under at ${r.floodDeg.toFixed(0)}°)`, r.heelDeg < r.floodDeg ? 'good' : 'bad'),
       st(lastRun ? lastRun.D.toFixed(2) + ' m' : '—', 'how far you got'),
+      st(lastRun && lastRun.H != null ? BenchMath.fmt2(lastRun.H) + ' s' : '—', 'how long it took'),
     ].join('');
     const m = resultText(r);
     res.className = 'result ' + (r.ok ? 'good' : 'bad'); res.innerHTML = `${m[0]}<div class="why">${m[1]}</div>`;
@@ -1074,6 +1223,7 @@
     else if (tab === 'p-sail' && !tested) { text = 'Cut any shape you like. When it\'s ready, test it on <b>4. Sail out</b>.'; tabTo = 'p-go'; }
     else if (race && race.phase === 'chase') text = '<b>Sail!</b> Watch the dials in the corner: they show how far your boat tips side to side and front to back. Red means water comes in.';
     else if (race && (race.phase === 'gulp' || race.phase === 'wake' || race.phase === 'free')) text = race.pl.fail ? 'GULP…' : '<b>You got away!</b>';
+    else if (race && race.phase === 'replay') text = '<b>Replay:</b> drag the timeline, or step with ◀ ▶ (the arrow keys work too). Mark the moment the boat starts moving and the moment it ' + (race.pl.fail ? 'stops' : 'crosses the finish line') + '.';
     else if (race && race.phase === 'measure') text = '<b>Measure</b> how far your boat got: drag the tape to the end of the blue bar, and type what it reads, in meters to the nearest centimeter.';
     else if (race && race.phase === 'done') text = race.pl.fail ? '<b>Back to work:</b> change one thing and sail again.' : '<b>You did it!</b>' + (IN_GAME ? ' Press <b>⛵ Use this boat</b>.' : '');
     else if (!tested) { text = '<b>Next:</b> press <b>⛵ Sail for the inlet!</b>'; target = 'btn-go'; }
@@ -1317,7 +1467,7 @@
   if (!seen) setTimeout(() => tourShow(0), 400);
   // For checking from the console; nothing in the page uses it.
   window.__sail = { get D() { return D; }, set D(v) { D = v; changed(); }, get A() { return A; }, refresh, changed, showTab, setMode, three,
-    get race() { return race; }, startRace, stopRace, planRace, raceAt, checkMeasure, showMeasure,
+    get race() { return race; }, startRace, stopRace, planRace, raceAt, checkMeasure, showMeasure, showReplay, setRF, markAt, checkReplay,
     // seekRace(t, freeze): show the run at t seconds (frozen there if freeze), for checking it frame by frame.
     seekRace: (t, freeze) => { if (!race) return; race.t0 = performance.now() - t * 1000; race.frozen = freeze ? t : null; raceShow(t); if (!freeze) requestAnimationFrame(raceTick); } };
 })();
