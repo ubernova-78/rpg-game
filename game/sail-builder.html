@@ -870,8 +870,8 @@
 
   // ---------- Skin cutting pattern ----------
   function drawPattern() {
-    // Both sheets of skin, side by side (Nick, 2026-11-19: so they see the second one,
-    // and that it can patch the first or make another hull). On each, the piece its
+    // Both sheets of skin, side by side (Nick, 2026-11-19: so they see the second one
+    // exists). Never hint at a second hull with it: that stays a secret. On each, the piece its
     // hull needs, centered: the strip under the boat and up its sides, and a flap up
     // each flat end (darker), as tall as the skin goes. A patch shows on sheet 2.
     const c = $('pattern'), g = c.getContext('2d'), a = A, hs = a.ch.hulls;
@@ -915,7 +915,7 @@
     if (hs.length === 1 && !(a.r.seams && a.r.seams[0])) { // the spare sheet, and what it could be
       sheet(1, 'Sheet 2: spare');
       const x = sheetX(1) + SA * px / 2; g.fillStyle = '#6b5a75'; g.font = '11px system-ui'; g.textAlign = 'center';
-      g.fillText('Use it to patch sheet 1,', x, y0 + SB * px / 2 - 4); g.fillText('or to build a second hull.', x, y0 + SB * px / 2 + 12);
+      g.fillText('Use it to patch sheet 1', x, y0 + SB * px / 2 - 4); g.fillText('if the skin runs out.', x, y0 + SB * px / 2 + 12); // (no hint at a second hull: that stays a secret)
     }
     g.fillStyle = '#4a2b55'; g.font = '11px system-ui'; g.textAlign = 'left';
     const sk0 = a.r.skins && a.r.skins[0];
