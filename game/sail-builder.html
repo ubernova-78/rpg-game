@@ -1852,22 +1852,37 @@
   function coach() {
     document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
     const a = A; let text, target = null, tabTo = null;
+    // What to do on THIS page (Nick, 2026-11-20: 'say what to do on that page, not read
+    // them what is on the next page'). Only when a page is done does it point onward.
+    const go = (t, n) => { text = `${t} <b>Done here!</b> Go to <b>${n}</b>.`; };
+    const sailIssue = (a.r.problems || []).find(t => /sail|mast|cloth/i.test(t));
     if (demo) text = 'Watch how a boat is built. Press <b>Next ▶</b> to go on.';
-    else if (!D.segs.length) { text = '<b>Start:</b> drag a stick for the bottom. Then add a side.'; tabTo = 'p-frame'; }
-    else if (a.frame.length || a.seat == null) { text = '<b>Next:</b> fix the red on <b>1. Frame</b>. ' + (a.frame[0] || 'You need a place to sit.'); tabTo = 'p-frame'; }
-    else if (!a.ch.hulls.length) { text = '<b>Next:</b> ' + (a.skin[0] || 'draw a hull.'); tabTo = 'p-frame'; }
-    else if (!a.ready || (a.r.skins && a.r.skins.some(s => !s.fits))) { text = '<b>The skin:</b> ' + (a.skin[0] || 'it is too big for its sheet. Make the boat shorter, or narrower.'); tabTo = 'p-skin'; }
-    else if (tab === 'p-frame' && !tested) { text = '<b>Next:</b> pick a length on <b>2. Length</b>.'; tabTo = 'p-skin'; }
-    else if (tab === 'p-skin' && !tested) { text = '<b>Next:</b> cut a sail on <b>3. Sail</b>.'; tabTo = 'p-sail'; }
-    else if (tab === 'p-sail' && !tested) { text = 'Cut any shape. Then test it on <b>4. Sail out</b>.'; tabTo = 'p-go'; }
     else if (race && race.phase === 'chase') text = '<b>Sail!</b> The dials show your boat tipping. Red means water comes in.';
     else if (race && (race.phase === 'gulp' || race.phase === 'wake' || race.phase === 'free')) text = race.pl.fail ? 'GULP…' : '<b>You got away!</b>';
     else if (race && race.phase === 'replay') text = '<b>Replay:</b> find when the boat starts to move, and when it ' + (race.pl.fail ? 'stops' : 'crosses the finish') + '. Use ◀ ▶ to step.';
     else if (race && race.phase === 'measure') text = '<b>Measure:</b> drag the tape to the end of the blue bar. Type the meters, like 12.34.';
     else if (race && race.phase === 'done') text = race.pl.fail ? '<b>Back to work:</b> change one thing and sail again.' : '<b>You did it!</b>' + (IN_GAME ? ' Press <b>⛵ Use this boat</b>.' : '');
-    else if (!tested) { text = '<b>Next:</b> press <b>⛵ Sail for the inlet!</b>'; target = 'btn-go'; }
-    else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing.';
-    else text = '<b>It didn\'t make it.</b> See why on <b>4. Sail out</b>. Change one thing and try again.';
+    else if (tab === 'p-frame') {
+      if (!D.segs.length) text = 'Drag a stick for the bottom. Then add a side.';
+      else if (a.frame.length) text = a.frame[0];
+      else if (!a.ch.hulls.length) text = 'Add sides that go up, so the skin can wrap the boat.';
+      else if (a.seat == null) text = 'You need room to sit: 50 cm in the middle.';
+      else { go('Your frame holds together.', '2. Length'); tabTo = 'p-skin'; }
+    } else if (tab === 'p-skin') {
+      if (!a.ch.hulls.length) { text = 'First draw a boat on <b>1. Frame</b>.'; tabTo = 'p-frame'; }
+      else if ((a.r.skins || []).some(x => !x.fits) || a.skin.length) text = a.skin[0] || 'The skin is too big. Make the boat shorter.';
+      else if ((a.ch.cuts || []).some(c => c != null) && !D.patch) text = 'The skin doesn\'t reach the top. Try a shorter boat, or sharp or round ends.';
+      else { go('The skin fits. You can change the length or the ends.', '3. Sail'); tabTo = 'p-sail'; }
+    } else if (tab === 'p-sail') {
+      if (!D.sails.length) text = 'Click corners on the cloth to cut a sail. Or press <b>A whole sheet</b>.';
+      else if (sailIssue) text = sailIssue;
+      else { go('Your sail is on. You can click the boat to move a mast.', '4. Sail out'); tabTo = 'p-go'; }
+    } else if (tab === 'p-go') {
+      if (!a.ready || a.r.fail === 'rules') { text = 'Your boat isn\'t ready yet. ' + (a.frame[0] || a.skin[0] || (a.r.problems || [])[0] || ''); tabTo = a.frame.length || !a.ch.hulls.length ? 'p-frame' : !a.ready ? 'p-skin' : sailIssue ? 'p-sail' : null; }
+      else if (!tested) { text = 'Press <b>⛵ Sail for the inlet!</b>'; target = 'btn-go'; }
+      else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing.';
+      else text = '<b>It didn\'t make it.</b> Read why below. Change one thing and try again.';
+    }
     $('coach').innerHTML = text;
     if (target && $(target) && !$(target).disabled) $(target).classList.add('next');
     if (tabTo && tabTo !== tab) document.querySelector(`#tabs [data-tab="${tabTo}"]`).classList.add('next');
