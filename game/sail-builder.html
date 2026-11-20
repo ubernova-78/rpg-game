@@ -1272,7 +1272,11 @@
     else if (pl.fail) s.xb = t < pl.t1 ? pl.v * t : pl.x1;
     else if (pl.run) s.xb = pl.xSink && t >= pl.tSink ? pl.xSink : leakX(pl.run, t);
     else s.xb = pl.v * t;
-    const moving = pl.dock || wait ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
+    const moving = pl.dock || wait ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : !pl.fail && pl.tSink && t >= pl.tSink ? 0 : 1;
+    // When it stops, everything on it stops: the rocking, the tilt, the sail swinging
+    // (Nick, 2026-11-20: the sail kept moving after the boat stopped, which confused them).
+    // tm is the time the rocking is drawn at: frozen at the moment it stopped.
+    const tStopped = pl.fail ? pl.tStop : pl.tSink, tm = moving || tStopped == null ? t : Math.min(t, tStopped);
     s.kt = moving ? pl.v / P.KT : 0;
     if (moving && pl.run) s.kt = (leakX(pl.run, t + 0.05) - leakX(pl.run, t)) / 0.05 / P.KT; // (slowing as it fills)
     if (!pl.fail && pl.run && t >= pl.tSink) s.kt = 0;
@@ -1307,10 +1311,10 @@
     else if (pl.fail === 'roll') {
       if (t < pl.t1) { const n = Math.max(0, Math.round(pl.t1 / 1.4 - 0.25)), w = (Math.PI / 2 + 2 * Math.PI * n) / pl.t1; s.heel = lim * ease(t / pl.t1) * Math.sin(w * t); }
       else { s.heel = lim + (110 - lim) * ease((t - pl.t1) / 0.6); s.flip = ease((t - pl.t1 - 0.2) / 0.4); }
-    } else s.heel = pl.dock ? 0 : A * ease(t / 1.5) * Math.sin(2 * Math.PI * t / 1.4) * (moving ? 1 : 0.4);
+    } else s.heel = pl.dock || wait ? 0 : A * ease(tm / 1.5) * Math.sin(2 * Math.PI * tm / 1.4);
     // Front to back: the steady push, plus each gust's.
-    s.pitch = moving ? pl.trimSteady * ease(t / 1.0) : 0;
-    for (const g of pl.gusts) { const b = Math.exp(-Math.pow((t - g) / 0.3, 2)); s.pitch += (pl.trimGust - pl.trimSteady) * b; s.gust = Math.max(s.gust, Math.exp(-Math.pow((t - g) / 0.5, 2))); }
+    s.pitch = pl.dock || wait ? 0 : pl.trimSteady * ease(tm / 1.0);
+    for (const g of pl.gusts) { const b = Math.exp(-Math.pow((tm - g) / 0.3, 2)); s.pitch += (pl.trimGust - pl.trimSteady) * b; s.gust = Math.max(s.gust, Math.exp(-Math.pow((t - g) / 0.5, 2))); }
     // A boat that fails some other way first never shows its bow going under.
     if (!pl.diveOK && pl.fail !== 'bow' && pl.fail !== 'sinks') s.pitch = Math.min(s.pitch, 0.9 * pl.limPitch);
     if (pl.fail === 'bow' && t >= pl.t1) s.pitch = pl.trimGust + (25 - pl.trimGust) * ease((t - pl.t1) / 0.4);
