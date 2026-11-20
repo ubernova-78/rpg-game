@@ -531,15 +531,15 @@ function nearbyBoatwright(x, y) {
 }
 
 const BOATWRIGHT_TALK = [
-  'Ah, you\'re the one who rebuilt the altar! I\'m the <strong>Boatwright</strong>. This was my hut, before the serpent splintered my boat.',
-  'I\'ve watched that serpent for years. It isn\'t evil, you know. It\'s <strong>lost</strong>. Its colony lives far out in the ocean, and it\'s been trapped in our lake since it was small. It lashes out because it can\'t get home.',
-  'The lake runs out to the ocean through a narrow <strong>inlet</strong>. If someone sails out of it, fast, the serpent will chase them all the way out to sea, and then it will be free.',
-  'But it swims at <strong>6 knots</strong>. I\'m looking for someone brave, but also smart, to design a sailboat faster than that, carrying themselves (60 kg) and <strong>6 stones of 5 kg</strong> to keep it steady. The wind blows <strong>20 knots</strong> straight out the inlet, with gusts.',
-  'You\'ll have <strong>70 sticks</strong>, <strong>two pieces of monster skin</strong> and <strong>two sheets of sail cloth</strong>. Use the <strong>Sail Desk</strong>. And after every run, write down how long it took and how far you got. A good boatwright always measures.',
+  'You fixed the altar! I\'m the <strong>Boatwright</strong>. This was my hut, before the serpent broke my boat.',
+  'That serpent is not bad. It is <strong>lost</strong>. Its family lives far out in the ocean. It got stuck in our lake when it was small.',
+  'The lake meets the ocean through a narrow <strong>inlet</strong>. If you sail out fast, the serpent will follow you out to sea. Then it can go home.',
+  'But it swims <strong>6 knots</strong>. You need a sailboat that goes faster. It carries you (60 kg) and <strong>6 stones</strong> (5 kg each).',
+  'You get <strong>70 sticks</strong>, <strong>2 sheets of skin</strong> and <strong>2 sheets of sail cloth</strong>. Use the <strong>Sail Desk</strong>. After each run, measure how long and how far. Good luck!',
 ];
 function boatwrightTalk() {
   const done = srState() && srState().passed;
-  if (done) { boatwrightPage(`You did it! The serpent followed you all the way out of the inlet, saw its family waiting out at sea, and swam home with them. The lake is safe, and so is it. Your boat got away in <strong>${Number(srState().seconds || 0).toFixed(2)} seconds</strong>.`, [['Thanks!', closeWorkbench]]); return; }
+  if (done) { boatwrightPage(`You did it! The serpent followed you out. It saw its family and swam home with them. The lake is safe now. Your boat got away in <strong>${Number(srState().seconds || 0).toFixed(2)} seconds</strong>.`, [['Thanks!', closeWorkbench]]); return; }
   const page = i => boatwrightPage(BOATWRIGHT_TALK[i], i < BOATWRIGHT_TALK.length - 1 ? [['Next', () => page(i + 1)]] : [['I\'ll build it!', closeWorkbench]], `${i + 1} of ${BOATWRIGHT_TALK.length}`);
   page(0);
 }
@@ -565,5 +565,5 @@ window.addEventListener('message', e => {
   console.log('[sail] race saved');
   gameOverlayEls.btnBack.click();
   lqModal('🌊 The serpent goes home',
-    'You shot out of the inlet into the open ocean, the serpent right behind you. At the mouth of the inlet it stopped, and lifted its head. Out at sea were three more serpents, a big one and two little ones: its <strong>family</strong>, the colony it lost when it was small. It forgot all about you. It swam out to them, and they headed off to sea together, home.', [['🎉 Wonderful!']]);
+    'You sailed out of the inlet. The serpent stopped and looked out to sea. It saw its <strong>family</strong>! It forgot all about you. It swam out to them, and they all went home.', [['🎉 Wonderful!']]);
 });

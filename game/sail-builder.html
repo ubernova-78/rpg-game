@@ -178,6 +178,10 @@
   .tour-card .dots{font-size:0.8rem;color:var(--dim);}
   .tour-card .skip{font:inherit;font-size:0.85rem;background:none;border:none;color:var(--dim);cursor:pointer;text-decoration:underline;margin-right:8px;}
   .msgs .warn{color:#8a5a00;background:#fff6dc;border-radius:6px;padding:4px 8px;margin-top:4px;}
+  details.more{display:inline;}
+  details.more summary{display:inline;cursor:pointer;color:#2f6fb5;font-size:0.82rem;margin-left:4px;list-style:none;}
+  details.more summary::-webkit-details-marker{display:none;}
+  details.more[open]{display:block;margin-top:4px;color:var(--dim);}
 </style>
 </head>
 <body>
@@ -186,9 +190,8 @@
   <div class="titlebar"><h1>⛵ Sail Builder</h1><div><span class="badge">SAIL RACE</span><button class="helpbtn" id="btn-help">❓ How it works</button></div></div>
 
   <div class="goal">
-    <strong>The job:</strong> sail out the inlet to the ocean <strong>faster than the serpent (6 knots)</strong>, carrying
-    <strong>yourself (60 kg)</strong> and <strong>6 stones (5 kg each)</strong>. The wind blows 20 knots from behind you.
-    <div class="sup">Supplies: 70 sticks (1.13 m each, cut them shorter if you like) · Monster skin ×2 (3.05 × 2.73 m) · sail cloth ×2 (2.16 × 2.79 m), for up to 4 masts</div>
+    <strong>Your job:</strong> build a boat that goes <strong>faster than the serpent (6 knots)</strong>. It carries <strong>you (60 kg)</strong> and <strong>6 stones (5 kg each)</strong>.
+    <div class="sup">You have: 70 sticks (1.13 m) · 2 sheets of skin (3.05 × 2.73 m) · 2 sheets of sail cloth (2.16 × 2.79 m)</div>
   </div>
 
   <div class="main">
@@ -214,14 +217,14 @@
         <button data-tab="p-frame">1. Frame</button><button data-tab="p-skin">2. Length</button><button data-tab="p-sail">3. Sail</button><button data-tab="p-go">4. Sail out</button>
       </div>
       <div class="panel tabpanel" id="p-frame">
-        <div class="note" style="margin-top:0">Your boat's <b>cross-section</b>: the shape you'd see if you sawed it in half across the middle and looked from behind. The 3D boat under the drawing builds itself as you go.</div>
-        <div class="row"><span><b>Draw your slice, stick by stick</b></span></div>
-        <div class="note" style="margin-top:0"><b>Drag</b> from one point to another to glue in a stick (or click one end, then the other). <b>✋ Move</b> lets you grab a joint and drag it somewhere else. A short stick standing on the floor is a <b>divider</b>: it runs the length of the boat and stops the stones rolling from side to side. The bottom is yours to design: flat, a V, rounded, anything you think will work.</div>
+        <div class="note" style="margin-top:0">🔊 Hold <b>Search</b> and click words to hear them.</div>
+        <div class="row"><span><b>Draw a slice of your boat.</b></span></div>
+        <div class="note" style="margin-top:0"><b>Drag</b> to add a stick. You pick the shape of the bottom.<details class="more"><summary>ℹ️ More</summary>This is the boat cut in half, seen from the back. The 3D boat under it builds as you go. <b>✋ Move</b> drags a joint. A short stick standing on the floor is a <b>divider</b>. It stops the stones rolling side to side.</details></div>
         <div class="row"><span>Tool</span><div class="seg" id="tool"><button data-v="stick">✏️ Stick</button><button data-v="erase">🧽 Erase</button><button data-v="move">✋ Move</button></div></div>
         <div class="row"><span>Mirror</span><div class="seg" id="mirror"><button data-v="on">🪞 On</button><button data-v="off">Off</button></div></div>
         <div class="note" id="mirrornote" style="margin-top:2px"></div>
         <div class="btnrow"><button class="btn alt small" id="btn-undo">↶ Undo</button><button class="btn alt small" id="btn-clear">Clear all</button></div>
-        <div class="note">Every stick can be cut shorter, never longer than 1.13 m, and has to be glued to another stick. The grid squares are 10 cm. You sit in the middle (the dashed line) and need 50 cm of room; the mast stands there too.</div>
+        <div class="note">A stick is <b>1.13 m</b> long at most.<details class="more"><summary>ℹ️ More</summary>You can cut a stick shorter. Each stick must touch another stick. A grid square is 10 cm. You sit on the dashed line, in the middle. You need 50 cm of room. The mast stands there too.</details></div>
         <div class="msgs" id="framemsg"></div>
       </div>
       <div class="panel tabpanel" id="p-skin">
@@ -230,21 +233,21 @@
         <div class="row"><span>Rib spacing</span><select id="ribgap"></select></div>
         <div class="note" id="ribnote" style="margin-top:2px"></div>
         <div class="row"><span>Dividers across the boat</span><select id="cross"><option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
-        <div class="note" style="margin-top:2px">The stones are loose. When a gust dips the front, they roll forward and push it down further; a divider across the boat (a stick on edge across the floor) stops them. To stop them rolling side to side, draw a short stick standing on the floor in your slice, on <b>1. Frame</b>.</div>
+        <div class="note" style="margin-top:2px">Dividers stop the stones rolling.<details class="more"><summary>ℹ️ More</summary>The stones are loose. In a gust they roll to the front. That pushes the front down. A divider across the boat stops them. To stop them rolling side to side, draw a short stick on the floor on <b>1. Frame</b>.</details></div>
         <div class="row"><span>Front, from above</span><div class="seg" id="bow"><button data-v="square">▭ Square</button><button data-v="pointed">▷ Sharp</button><button data-v="round">◗ Round</button></div></div>
         <div class="row"><span>Front, from the side</span><div class="seg" id="bowrise"><button data-v="plumb">▯ Full depth</button><button data-v="slope">◺ Slopes up</button></div></div>
         <div class="row"><span>Back, from above</span><div class="seg" id="stern"><button data-v="square">▭ Square</button><button data-v="pointed">◁ Sharp</button><button data-v="round">◖ Round</button></div></div>
         <div class="row"><span>Back, from the side</span><div class="seg" id="sternrise"><button data-v="plumb">▯ Full depth</button><button data-v="slope">◿ Slopes up</button></div></div>
-        <div class="note" style="margin-top:2px">A sharp or round end pushes through the water more easily, and needs no flap of skin, so the same sheet covers a longer boat; but it holds less of the boat up. A bottom that slopes up from the keel rides over the water instead of shoving it, and needs a little more skin.</div>
-        <div class="note">The monster skin wraps round the outside of your frame by itself: under the boat, up its sides, and round its ends (a flap up a flat end). Each piece is cut from one 3.05 × 2.73 m sheet.</div>
+        <div class="note" style="margin-top:2px">Sharp or round ends go faster, but float a little lower.<details class="more"><summary>ℹ️ More</summary>A sharp or round end needs no flap of skin. So the same skin can cover a longer boat. A bottom that slopes up rides over the water. It needs a little more skin.</details></div>
+        <div class="note">The skin wraps your frame by itself.<details class="more"><summary>ℹ️ More</summary>It goes under the boat and up the sides. A flat end needs a flap of skin too. Each piece comes from one sheet, 3.05 × 2.73 m.</details></div>
         <canvas class="small" id="pattern" width="320" height="180"></canvas>
         <div class="msgs" id="skinmsg"></div>
         <div class="btnrow" id="patchrow" style="display:none"><button class="btn alt small" id="btn-patch"></button></div>
       </div>
       <div class="panel tabpanel" id="p-sail">
-        <div class="note" style="margin-top:0"><b>Cut sails out of your 2 sheets of cloth:</b> click the corners of a shape, then the first corner again. Each sail goes on its own mast (up to 4). Or add:</div>
+        <div class="note" style="margin-top:0"><b>Cut a sail:</b> click its corners, then the first corner again. Or pick one:<details class="more"><summary>ℹ️ More</summary>You have 2 sheets of cloth. Each sail gets its own mast. You can have up to 4.</details></div>
         <div class="btnrow" style="margin-top:4px"><button class="btn alt small" id="cut-all">A whole sheet</button><button class="btn alt small" id="cut-half">Half a sheet</button><button class="btn alt small" id="cut-tri">A triangle</button><button class="btn alt small" id="cut-cancel">Cancel this cut</button></div>
-        <div class="row" style="margin-top:8px"><span><b>Where the masts stand:</b> click on the boat</span><label style="font-size:0.85rem"><input type="checkbox" id="mastmid" checked> Keep them in the middle</label></div>
+        <div class="row" style="margin-top:8px"><span><b>Masts:</b> click the boat to move one</span><label style="font-size:0.85rem"><input type="checkbox" id="mastmid" checked> Keep them in the middle</label></div>
         <canvas class="small plan" id="plan" height="150"></canvas>
         <div class="note" id="plannote" style="margin-top:2px"></div>
         <div id="sails" class="sails"></div>
@@ -255,7 +258,7 @@
         <div class="stats" id="stats"></div>
         <div class="btnrow"><button class="btn" id="btn-go">⛵ Sail for the inlet!</button></div>
         <div class="result" id="result"></div>
-        <div class="note">The serpent will be right behind you. Sail 20 m from the start line to the finish line at the mouth of the inlet, and out to the ocean.</div>
+        <div class="note">Sail <b>20 m</b> to the finish line. The serpent is right behind you!</div>
       </div>
     </div>
   </div>
@@ -428,7 +431,7 @@
   // The skin: wrapped round the outside of the frame automatically.
   function chains() {
     const sk = sailSkin(D.segs), errs = [];
-    if (D.segs.length && !sk.hulls.length) errs.push('There\'s no hull for the skin to wrap round yet: draw a bottom and two sides that rise above it.');
+    if (D.segs.length && !sk.hulls.length) errs.push('The skin needs a bottom and two sides to wrap.');
     // Each skin as high as its sheet reaches: the sticks above it stick out.
     const tr = sk.hulls.map(h => skinTrim(h, D.L, D.bow, D.bowRise, D.stern, D.sternRise, !!D.patch && sk.hulls.length === 1));
     return { hulls: tr.map(t => t.h), frameHulls: sk.hulls, cuts: tr.map(t => t.cut), errs };
@@ -456,10 +459,10 @@
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
     if (fc.long.length) frame.push(`${fc.long.length === 1 ? 'A stick is' : fc.long.length + ' sticks are'} longer than 1.13 m.`);
-    if (fc.loose.length) frame.push(`${fc.loose.length === 1 ? 'A stick isn\'t' : fc.loose.length + ' sticks aren\'t'} glued to anything (red). Make an end touch another stick.`);
-    else if (fc.pieces > 1) frame.push(`The frame is in ${fc.pieces} separate pieces. Glue them together with a stick.`);
-    if (D.segs.length && mf == null) frame.push('The mast stands in the middle (the dashed line), and no stick crosses there for it to stand on.');
-    D.sails.forEach((sl, i) => { if (sl.x && mastFoot(sl.x) == null) frame.push(`Sail ${i + 1}'s mast is off the middle, where there's no stick for it to stand on. Move it on 3. Sail, or add a stick under it.`); });
+    if (fc.loose.length) frame.push(`${fc.loose.length === 1 ? 'A red stick isn\'t' : fc.loose.length + ' red sticks aren\'t'} glued on. Make an end touch another stick.`);
+    else if (fc.pieces > 1) frame.push(`Your frame is in ${fc.pieces} pieces. Join them with a stick.`);
+    if (D.segs.length && mf == null) frame.push('The mast needs a stick to stand on, on the dashed line.');
+    D.sails.forEach((sl, i) => { if (sl.x && mastFoot(sl.x) == null) frame.push(`Mast ${i + 1} has no stick to stand on. Move it on 3. Sail, or add a stick under it.`); });
     const skin = ch.errs.slice();
     const r = sailAnalyze(d);
     if (ch.hulls.length > P.SKINS) skin.push('You only have 2 pieces of monster skin.');
@@ -536,7 +539,7 @@
   }
   function dropJoint() {
     const mv = moving; moving = null;
-    if (mv.over) { D = JSON.parse(mv.start); flash = { t: performance.now(), text: 'Too long: a stick is only 1.13 m. It sprang back.' }; refresh(); drawCad(); return; }
+    if (mv.over) { D = JSON.parse(mv.start); flash = { t: performance.now(), text: 'Too long! A stick is only 1.13 m.' }; refresh(); drawCad(); return; }
     // Tidy up: a stick squashed to nothing goes, and two sticks now on top of each other become one.
     const seen = new Set(); D.segs = D.segs.filter(sg => { const kk = segKey(sg.a, sg.b); if (dist(sg.a, sg.b) < 0.02 || seen.has(kk)) return false; seen.add(kk); return true; });
     if (JSON.stringify(D) === mv.start) { drawCad(); return; }
@@ -568,7 +571,7 @@
   function addStick(a, b, quiet) {
     [a, b] = firstFix(a, b);
     if (dist(a, b) < 0.02) return;
-    if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long: a stick is only 1.13 m. Cut it shorter, or glue two together.` }; return; }
+    if (dist(a, b) > P.STICK_L + 1e-6) { flash = { t: performance.now(), text: `Too long! A stick is only 1.13 m. Use two sticks.` }; return; }
     const add = mirrorPlan(a, b);
     const fresh = add.filter((s, i) => !D.segs.some(t => segKey(t.a, t.b) === segKey(s.a, s.b)));
     if (!fresh.length) return;
@@ -800,11 +803,11 @@
   const say = text => { flash = { t: performance.now(), text }; };
   // A new sail from a cut: checked, then on its own mast (as tall as the last one, or tall enough).
   function addSail(sheet, poly, quiet) {
-    if (D.sails.length >= P.MASTS) { if (!quiet) say(`You can have up to ${P.MASTS} masts. Delete a sail first.`); return false; }
+    if (D.sails.length >= P.MASTS) { if (!quiet) say(`You can only have ${P.MASTS} masts. Delete a sail first.`); return false; }
     if (polyArea(poly).A < 0.04) { if (!quiet) say('That sail is tiny! Make it bigger.'); return false; }
-    if (crosses(poly)) { if (!quiet) say('The edges cross each other: you can\'t cut that out. Try again.'); return false; }
+    if (crosses(poly)) { if (!quiet) say('The edges cross. Try again.'); return false; }
     const sl = { sheet, poly, mastH: 0, hang: P.MAST_GAP };
-    if (clothOverlap(D.sails.concat([sl]))) { if (!quiet) say('That overlaps a sail you already cut from this sheet.'); return false; }
+    if (clothOverlap(D.sails.concat([sl]))) { if (!quiet) say('That cloth is already used.'); return false; }
     const last = D.sails[D.sails.length - 1];
     // Hang it high enough to clear the boat's sides (sailHitsFrame), in 25 cm steps.
     if (A && A.mf != null) { const dd = { segs: D.segs, mastFoot: [0, A.mf] }; for (let k = 0; k < 12 && sailHitsFrame(dd, sailGeom(sl)); k++) sl.hang = +(sl.hang + 0.25).toFixed(2); }
@@ -820,7 +823,7 @@
       tri: [[[0, 0], [W2, 0], [W2 / 2, H2]]],
     }[shape];
     for (const sheet of [0, 1]) for (const poly of tries) if (!clothOverlap(D.sails.concat([{ sheet, poly }]))) return addSail(sheet, poly.map(p => p.slice()));
-    say(D.sails.length >= P.MASTS ? `You can have up to ${P.MASTS} masts.` : 'There\'s no room left for that on either sheet.');
+    say(D.sails.length >= P.MASTS ? `You can have up to ${P.MASTS} masts.` : 'There\'s no cloth left for that.');
     drawCloth(); return false;
   }
   function clothClick(e) {
@@ -1052,8 +1055,8 @@
     g.fillStyle = '#6b7780'; g.font = '10px system-ui'; g.textAlign = 'left'; g.fillText('back', 4, m.ch - 4); g.textAlign = 'right'; g.fillText('front →', m.cw - 4, m.ch - 4);
     const sl = D.sails[cloth.sel];
     $('plannote').innerHTML = planMsg ? `<span style="color:var(--bad)">${planMsg}</span>`
-      : !D.sails.length ? 'Cut a sail first, then click where its mast goes.'
-      : `Sail ${cloth.sel + 1}'s mast: ${(mastAt(cloth.sel) * D.L).toFixed(2)} m from the back${mastX(cloth.sel) ? `, ${Math.abs(mastX(cloth.sel)).toFixed(2)} m to the ${mastX(cloth.sel) > 0 ? 'right' : 'left'} of the middle` : ', in the middle'}. Pick a sail below to move a different mast.`;
+      : !D.sails.length ? 'Cut a sail first.'
+      : `Mast ${cloth.sel + 1} is ${(mastAt(cloth.sel) * D.L).toFixed(2)} m from the back${mastX(cloth.sel) ? `, ${Math.abs(mastX(cloth.sel)).toFixed(2)} m to the ${mastX(cloth.sel) > 0 ? 'right' : 'left'}` : ''}.`;
   }
   const planPt = e => { const m = planMap(), r = m.c.getBoundingClientRect(); let [f, x] = m.fromPx(e.clientX - r.left, e.clientY - r.top);
     f = Math.round(f * D.L / 0.05) * 0.05 / D.L; x = $('mastmid').checked ? 0 : Math.round(x / 0.05) * 0.05; return [+f.toFixed(4), +x.toFixed(2) || 0]; };
@@ -1062,7 +1065,7 @@
   $('plan').addEventListener('click', e => {
     if (!D.sails.length) return;
     const [f, x] = planPt(e), why = f < 0.03 || f > 0.97 ? 'that\'s not on the boat' : mastWhy(cloth.sel, f, x);
-    if (why) { planMsg = `Can't put the mast there: ${why}.`; drawPlan(); setTimeout(() => { planMsg = ''; drawPlan(); }, 2500); return; }
+    if (why) { planMsg = `Not there: ${why}.`; drawPlan(); setTimeout(() => { planMsg = ''; drawPlan(); }, 2500); return; }
     remember(); const sl = D.sails[cloth.sel]; sl.at = f; if (x) sl.x = x; else delete sl.x; planMsg = ''; changed();
   });
   $('mastmid').addEventListener('change', e => {
@@ -1082,10 +1085,10 @@
     $('ribgap').innerHTML = `<option value="even"${D.ribGap ? '' : ' selected'}>Even: ${(D.L / (rNow - 1)).toFixed(2)} m apart</option>`
       + gaps.map(gp => { const n = ribsFor(D.L, gp), last = +(D.L - (n - 2) * gp).toFixed(2);
         return `<option value="${gp}"${D.ribGap === gp ? ' selected' : ''}>Every ${gp.toFixed(2)} m (${n} ribs${Math.abs(last - gp) > 0.005 ? `, the last gap ${last.toFixed(2)} m` : ''})</option>`; }).join('');
-    $('ribnote').textContent = `Each rib uses every stick in your slice${A && A.wood ? ` (${D.segs.length} now)` : ''}. More ribs cost more sticks and weigh more; they have to be 1 m apart or closer, or the skin sags.`;
+    $('ribnote').textContent = `Each rib uses ${D.segs.length} sticks. Ribs must be 1 m apart or closer.`;
     // One box per sail: its mast's height, and how high up the mast it hangs.
     const box = $('sails');
-    if (!D.sails.length) { box.innerHTML = '<div class="note">No sails yet: cut one out of the cloth on the left.</div>'; }
+    if (!D.sails.length) { box.innerHTML = '<div class="note">No sails yet. Cut one from the cloth.</div>'; }
     else box.innerHTML = D.sails.map((sl, i) => {
       const hmax = +(sl.mastH - sailH(sl)).toFixed(2), hs = steps(P.MAST_GAP, Math.max(P.MAST_GAP, hmax), 0.25, hmax >= P.MAST_GAP ? hmax : null);
       if (!hs.some(v => Math.abs(v - sl.hang) < 1e-9)) hs.push(sl.hang);
@@ -1136,7 +1139,7 @@
   const paintRise = seg('bowrise', () => D.bowRise === 'slope' ? 'slope' : 'plumb', v => { remember(); if (v === 'slope') D.bowRise = 'slope'; else delete D.bowRise; changed(); });
   const paintTool = seg('tool', () => tool, v => { setTool(v); });
   const paintMirror = seg('mirror', () => mirror ? 'on' : 'off', v => { mirror = v === 'on'; paintMirror(); paintMirrorNote(); drawCad(); });
-  function paintMirrorNote() { $('mirrornote').textContent = mirror ? 'Every stick you add or erase is copied to the other side of the middle line, so your boat stays even.' : 'Mirror is off: sticks go only where you draw them, so the two sides can be different.'; }
+  function paintMirrorNote() { $('mirrornote').textContent = mirror ? 'Each stick is copied to the other side.' : 'Sticks go only where you draw them.'; }
   function setTool(v) { tool = v; pend = null; drag = null; moving = null; paintTool(); cad.style.cursor = v === 'stick' ? 'crosshair' : v === 'move' ? 'grab' : 'pointer'; drawCad(); }
   function doUndo() { if (!undo.length) return; D = JSON.parse(undo.pop()); changed(); }
   $('btn-undo').addEventListener('click', doUndo);
@@ -1583,9 +1586,9 @@
     race.shown = kind;
     const pl = race.pl, dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake ' + kind;
-    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You made it out of the inlet!</h4><p>The serpent couldn't catch you. It followed you right to the mouth of the inlet, and stopped. Out in the open ocean, its <b>family</b> was waiting: a big serpent and two little ones, the colony it lost when it was small. It wasn't hunting any more. It swam out to them, and they all headed off to sea together, home.</p><p>Now look back at your run: how long did it take, and how far did you sail?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
-    else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>It was only a dream: your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} right at the dock, before it even set off, and the serpent got you there. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
-    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you jolt awake at your desk!</h4><p>Face-down on your plans, pencil still in your hand. Only a dream! But dreams can teach you something. Look back at your run: how long did your boat last, and how far did it get?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You got away!</h4><p>The serpent stopped at the end of the inlet. It saw its <b>family</b> out at sea. It was not angry any more. It swam home with them.</p><p>Now watch your run again.</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you wake up at your desk!</h4><p>It was a dream. Your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} at the dock. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
+    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you wake up at your desk!</h4><p>It was only a dream! Now watch your run again. How long did it last? How far did it go?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
     const m = $('btn-meas'); if (m) m.addEventListener('click', showReplay);
     const bk = $('btn-back'); if (bk) bk.addEventListener('click', () => { stopRace(); tested = true; setMode('3d'); refresh(); });
     coach();
@@ -1673,11 +1676,11 @@
     if (sOK && eOK && tOK) return replayDone(true, p.hundredths);
     race.rtries++;
     const what = [];
-    if (!sOK) what.push('your <b>start</b> mark isn\'t on the first moment the boat moves');
-    if (!eOK) what.push(`your <b>end</b> mark isn't on the moment it ${pl.fail ? 'stops' : 'crosses the finish line'}`);
-    if (sOK && eOK && !tOK) what.push(`your marks are right, but ${BenchMath.fmt2(p.hundredths)} s isn't the time between them: end minus start, rounded to the hundredth`);
+    if (!sOK) what.push('your <b>start</b> is not when the boat starts to move');
+    if (!eOK) what.push(`your <b>end</b> is not when it ${pl.fail ? 'stops' : 'crosses the finish'}`);
+    if (sOK && eOK && !tOK) what.push(`your marks are right, but the time is not. Do end minus start`);
     fb.className = 'fb bad';
-    if (race.rtries < 2) { fb.innerHTML = 'Not quite: ' + what.join(', and ') + '. Have another look.'; return; }
+    if (race.rtries < 2) { fb.innerHTML = 'Not quite: ' + what.join(', and ') + '. Look again.'; return; }
     el2(true);
     fb.innerHTML = `Not quite: ${what.join(', and ')}. The boat set off at <b>${fmtT(pl.startF / 1000)}</b> and ${pl.fail ? 'stopped' : 'crossed the line'} at <b>${fmtT(pl.endF / 1000)}</b>: `
       + `${fmtT(pl.endF / 1000)} − ${fmtT(pl.startF / 1000)} = <b>${BenchMath.fmt2(want)} s</b>.<div style="margin-top:6px"><button class="btn small" id="r-cont">Continue</button></div>`;
@@ -1723,7 +1726,7 @@
     race.tries++;
     if (race.tries < 2) {
       fb.className = 'fb bad';
-      fb.innerHTML = `Not quite: you put ${v.toFixed(2)} m. Look again. Count the red meter marks from 0 first, then the numbered 10 cm marks after the last one, then the small centimeter ticks to the end of the bar.`;
+      fb.innerHTML = `Not quite: you put ${v.toFixed(2)} m. Count the red meters first. Then the 10 cm marks. Then the small ticks.`;
       return;
     }
     $('m-ok').disabled = true; $('m-in').disabled = true;
@@ -1756,16 +1759,16 @@
   }
   function resultText(r) {
     const kt = v => (v || 0).toFixed(1) + ' kt';
-    return r.ok ? [`${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!`, 'You got away. Try changing one thing at a time to see what matters most.'] : ({
+    return r.ok ? [`${kt(r.speedKt)}: faster than the serpent!`, 'You got away! Try changing one thing to see what happens.'] : ({
       leak: r.leakRun && r.leakRun.end === 'caught'
-        ? ['Water leaked in, and it slowed you down!', `Water came in through the glued seam below the waterline. Water is heavy: as it filled, your boat sat lower and got slower, and the serpent caught you ${(r.leakRun.xEnd || 0).toFixed(1)} m out. Keep seams above the water, or don't need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`]
-        : ['It filled with water and sank!', `Water came in through the glued seam below the waterline. It was full ${(r.tFill || 0).toFixed(1)} s after you set off, before you could get out the inlet. Keep seams above the water, or don't need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`],
-      sinks: ['It sank at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
-      capsize: r.GMT > 0 && r.GML <= 0 ? ['It tipped over end-first as soon as you climbed in!', 'It\'s too short for how high the weight sits: the mast and sail tip it over the front or the back. Make it longer, or the rig lower.']
-        : ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
-      slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and caught you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
-      bow: ['A 30-knot gust drove the bow under!', 'Watch the front-to-back dial: the sail pushes high up, and that tips the front down. A lower or smaller sail, a longer hull, or higher sides.'],
-      roll: ['The serpent\'s waves rolled it until the side went under!', (r.rollNm > 1 ? 'Your loose stones rolled to the low side too, and tipped it further. ' : '') + 'Watch the side-to-side dial: it needs to be steadier. Wider, with the weight lower, or with higher sides.'],
+        ? ['Water leaked in and slowed you down!', `The seam under the water leaked. Water is heavy. The boat got slow, and the serpent caught you. Keep seams above the water, or don't patch.`]
+        : ['It filled with water and sank!', `The seam under the water leaked. Keep seams above the water, or don't patch.`],
+      sinks: ['It sank at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg. That is too heavy for this boat. Make it bigger.`],
+      capsize: r.GMT > 0 && r.GML <= 0 ? ['It tipped over end first!', 'It is too short for that tall mast. Make it longer, or the mast shorter.']
+        : ['It rolled over when you got in!', 'It is too narrow. Make it wider, or keep the weight low.'],
+      slow: [`Too slow: ${kt(r.speedKt)}. The serpent is 6 kt.`, 'Try a bigger sail, a longer boat, or a pointed front.'],
+      bow: ['A big gust pushed the front under!', 'Try a lower or smaller sail, a longer boat, or higher sides.'],
+      roll: ['The waves tipped it over!', (r.rollNm > 1 ? 'The stones rolled to one side. ' : '') + 'Try a wider boat, higher sides, or dividers.'],
       rules: ['This boat breaks a rule.', r.problems.join(' ')],
     })[r.fail];
   }
@@ -1807,7 +1810,7 @@
     fm.innerHTML = !D.segs.length ? '<div>No sticks yet: draw your first one.</div>'
       : a.frame.length ? a.frame.map(t => `<div class="bad">⚠ ${t}</div>`).join('') : `<div class="ok">✓ The frame holds together.</div>`;
     const sk = a.skin.slice();
-    if (a.ch.hulls.length && a.r.skins) a.r.skins.forEach((s, i) => { if (!s.fits) sk.push(`${a.ch.hulls.length > 1 ? 'Sheet ' + (i + 1) + ': the' : 'The'} skin needs a ${s.long.toFixed(2)} × ${s.G.toFixed(2)} m piece, and a sheet is 3.05 × 2.73 m. Each piece of skin must be cut from one sheet, in one piece.`); });
+    if (a.ch.hulls.length && a.r.skins) a.r.skins.forEach((s, i) => { if (!s.fits) sk.push(`${a.ch.hulls.length > 1 ? 'Sheet ' + (i + 1) + ': the' : 'The'} skin is too big for its sheet. Make the boat shorter, narrower or shallower.`); });
     // Where the sheet doesn't reach the top, the skin stops level and the sticks stick out above it.
     const cuts = (a.ch.cuts || []).map((c, i) => {
       if (c == null) return '';
@@ -1816,9 +1819,9 @@
       const longWay = sk && Math.max(sk.long, sk.G) >= P.SHEET_A - 0.02 ? sk.long >= sk.G : sk && sk.long >= sk.G;
       const flaps = [endPlain(D.stern, D.sternRise) ? 'the back' : '', endPlain(D.bow, D.bowRise) ? 'the front' : ''].filter(Boolean);
       const why = !sk ? '' : longWay
-        ? ` The sheet runs out <b>along the boat</b>: it's ${D.L.toFixed(2)} m long${flaps.length ? `, plus a flap up ${flaps.join(' and ')} as tall as the skin` : ''}, ${sk.long.toFixed(2)} m in all. ${flaps.length ? 'A sharp or round end needs no flap, or ' : ''}a shorter boat lets it go higher.`
-        : ` The sheet runs out <b>around the boat</b>: under it and up both sides is ${sk.G.toFixed(2)} m. A narrower or shallower hull lets it go higher.`;
-      return `${hn} skin only reaches ${c.toFixed(2)} m up, so the sticks above it stick out, and the water comes in over the top of the skin.${why}`;
+        ? ` The boat is too long for the sheet${flaps.length ? `, with a flap up ${flaps.join(' and ')}` : ''}. Try a shorter boat${flaps.length ? ', or sharp or round ends' : ''}.`
+        : ` The boat is too wide or deep for the sheet. Try it narrower or shallower.`;
+      return `${hn} skin only goes ${c.toFixed(2)} m up. Water comes in over the top of it.${why}`;
     }).filter(Boolean);
     const cutHtml = cuts.map(t => `<div class="warn">ℹ ${t}</div>`).join('');
     sm.innerHTML = sk.length ? sk.map(t => `<div class="bad">⚠ ${t}</div>`).join('')
@@ -1828,44 +1831,42 @@
     // The seam leaks (Nick, 2026-11-19), so say how fast, and against what.
     const one = a.ch.hulls.length === 1, short = (a.ch.cuts || []).some(c => c != null) || (a.r.skins || []).some(x => !x.fits);
     $('patchrow').style.display = one && (short || D.patch) ? '' : 'none';
-    $('btn-patch').textContent = D.patch ? 'Take the patch off' : '✂️ Patch it with your second sheet of skin';
+    $('btn-patch').textContent = D.patch ? 'Take the patch off' : '✂️ Patch it with sheet 2';
     if (one && D.patch && a.r.seam > 0) {
       const v = (a.r.speedKt || 0) * P.KT, tOut = v > 0 ? P.COURSE / v : Infinity, sp = (a.r.seams || [])[0] || {};
-      const where = sp.kind === 'side' ? `in strips along the top of each side; the seams run along the boat ${sp.y.toFixed(2)} m up` : 'end to end; the seam runs right round the boat';
-      const leak = `<div class="warn">🩹 Patched: your second sheet is glued on ${where}, overlapping by ${Math.round(P.PATCH_OV * 100)} cm. `
-        + (!a.r.wetSeam ? '<b>The seams are above the water, so they stay dry: no leak.</b>'
-          : `<b>${a.r.wetSeam.toFixed(2)} m of seam is under water, and it leaks</b>: this boat fills and sinks <b>${(a.r.tFill || 0).toFixed(1)} s</b> after it sets off, slowing as it fills.`
-            + (a.r.speedKt ? (a.r.fail === 'leak' ? " It won't get out the inlet in time: it gets too heavy and slow." : ' It gets out the inlet first, then sinks just outside, and you swim back to the shore.') : '')
-            + (sp.kind === 'ring' ? ' (Seams along the top of the sides would stay dry, if the skin fitted one sheet lengthways.)' : ''))
+      const leak = `<div class="warn">🩹 Patched with glue. `
+        + (!a.r.wetSeam ? '<b>The seams are above the water. No leak!</b>'
+          : `<b>A seam is under the water, so it leaks.</b> The boat fills in ${(a.r.tFill || 0).toFixed(0)} s. It gets heavy and slow.`
+            + (a.r.speedKt ? (a.r.fail === 'leak' ? " It won't get away." : ' It gets out first. Then it sinks, and you swim to shore.') : ''))
         + '</div>';
       sm.innerHTML += leak; fm.innerHTML += leak;
-    } else if (one && D.patch) sm.innerHTML += '<div class="warn">🩹 The patch isn\'t needed: the skin fits on one sheet, so there\'s no seam.</div>';
-    const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit: you sit in the middle and need 50 cm of room, on the floor of the hull or on a stick across it.</div>' : '';
+    } else if (one && D.patch) sm.innerHTML += '<div class="warn">🩹 You don\'t need the patch. The skin fits on one sheet.</div>';
+    const seatMsg = a.seat == null && D.segs.length ? '<div class="bad">⚠ You have nowhere to sit. You need 50 cm of room in the middle.</div>' : '';
     fm.innerHTML += seatMsg;
-    $('sailnote').innerHTML = `Your drawing is one slice of the boat: it's copied ${a.wood.nRib} times along the boat as ribs, ${D.ribGap ? `every ${D.ribGap.toFixed(2)} m from the back` : `${(D.L / (a.wood.nRib - 1)).toFixed(2)} m apart`} (choose them on <b>2. Length</b>), joined by long sticks at every corner of the skin. ${D.sails.length ? `Your sail${D.sails.length > 1 ? 's add' : ' is'} up to ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m², on ${D.sails.length} mast${D.sails.length > 1 ? 's' : ''} using ${a.wood.mastSticks} of your 70 sticks.${D.sails.length > 1 && a.r.windA != null && a.r.windA < a.r.sailA - 0.05 ? ` <b>But the wind comes from behind, and only sees ${a.r.windA.toFixed(2)} m² of it</b>: a sail behind another is in its wind shadow (see "from behind" below). Hang them at different heights, or side by side, for the wind to reach more.` : ''} Each sail has to start at least 0.50 m up its mast, over your head, and clear the sides of the boat.` : 'No sails yet.'}`
-      + (D.bow === 'pointed' ? ` The front ${Math.round(P.TAPER * 100)}% narrows to a point.` : D.bow === 'round' ? ` The front ${Math.round(P.TAPER * 100)}% curves round.` : '')
+    $('sailnote').innerHTML = D.sails.length ? `Sails: ${D.sails.reduce((t, sl) => t + polyArea(sl.poly).A, 0).toFixed(2)} m² of cloth.${D.sails.length > 1 && a.r.windA != null && a.r.windA < a.r.sailA - 0.05 ? ` <b>The wind only reaches ${a.r.windA.toFixed(2)} m².</b> A sail behind another sail gets no wind. Try them at different heights.` : ''}`
+      + '<details class="more"><summary>ℹ️ More</summary>The wind blows from behind. A sail must start at least 0.50 m up its mast, over your head. It must not touch the boat. The masts use ' + a.wood.mastSticks + ' of your 70 sticks.</details>' : 'No sails yet.';
       + (D.bowRise === 'slope' ? ` Its bottom slopes up over the front ${Math.round(P.RISE * 100)}%.` : '')
       + (endPlain(D.stern, D.sternRise) ? '' : ` The back is ${sternName()}.`);
   }
   function coach() {
     document.querySelectorAll('.next').forEach(el => el.classList.remove('next'));
     const a = A; let text, target = null, tabTo = null;
-    if (demo) text = 'Watch how a boat gets built. Press <b>Next ▶</b> (in the corner) when you\'re ready to go on.';
-    else if (!D.segs.length) { text = '<b>Start:</b> draw your boat\'s slice: drag out a stick for the bottom, then a side. <b>Mirror</b> copies each one to the other side.'; tabTo = 'p-frame'; }
-    else if (a.frame.length || a.seat == null) { text = '<b>Next:</b> on <b>1. Frame</b>, fix what\'s marked in red. ' + (a.frame[0] || 'Give yourself somewhere to sit.'); tabTo = 'p-frame'; }
+    if (demo) text = 'Watch how a boat is built. Press <b>Next ▶</b> to go on.';
+    else if (!D.segs.length) { text = '<b>Start:</b> drag a stick for the bottom. Then add a side.'; tabTo = 'p-frame'; }
+    else if (a.frame.length || a.seat == null) { text = '<b>Next:</b> fix the red on <b>1. Frame</b>. ' + (a.frame[0] || 'You need a place to sit.'); tabTo = 'p-frame'; }
     else if (!a.ch.hulls.length) { text = '<b>Next:</b> ' + (a.skin[0] || 'draw a hull.'); tabTo = 'p-frame'; }
-    else if (!a.ready || (a.r.skins && a.r.skins.some(s => !s.fits))) { text = '<b>The skin:</b> ' + (a.skin[0] || 'one piece doesn\'t fit its sheet. On <b>2. Length</b>, make the boat shorter, or on <b>1. Frame</b> make the hull shallower or narrower.'); tabTo = 'p-skin'; }
-    else if (tab === 'p-frame' && !tested) { text = '<b>Next:</b> on <b>2. Length</b>, choose how long the boat is.'; tabTo = 'p-skin'; }
-    else if (tab === 'p-skin' && !tested) { text = '<b>Next:</b> on <b>3. Sail</b>, cut your sail out of the cloth and put it on the mast.'; tabTo = 'p-sail'; }
-    else if (tab === 'p-sail' && !tested) { text = 'Cut any shape you like. When it\'s ready, test it on <b>4. Sail out</b>.'; tabTo = 'p-go'; }
-    else if (race && race.phase === 'chase') text = '<b>Sail!</b> Watch the dials in the corner: they show how far your boat tips side to side and front to back. Red means water comes in.';
+    else if (!a.ready || (a.r.skins && a.r.skins.some(s => !s.fits))) { text = '<b>The skin:</b> ' + (a.skin[0] || 'it is too big for its sheet. Make the boat shorter, or narrower.'); tabTo = 'p-skin'; }
+    else if (tab === 'p-frame' && !tested) { text = '<b>Next:</b> pick a length on <b>2. Length</b>.'; tabTo = 'p-skin'; }
+    else if (tab === 'p-skin' && !tested) { text = '<b>Next:</b> cut a sail on <b>3. Sail</b>.'; tabTo = 'p-sail'; }
+    else if (tab === 'p-sail' && !tested) { text = 'Cut any shape. Then test it on <b>4. Sail out</b>.'; tabTo = 'p-go'; }
+    else if (race && race.phase === 'chase') text = '<b>Sail!</b> The dials show your boat tipping. Red means water comes in.';
     else if (race && (race.phase === 'gulp' || race.phase === 'wake' || race.phase === 'free')) text = race.pl.fail ? 'GULP…' : '<b>You got away!</b>';
-    else if (race && race.phase === 'replay') text = '<b>Replay:</b> drag the timeline, or step with ◀ ▶ (the arrow keys work too). Mark the moment the boat starts moving and the moment it ' + (race.pl.fail ? 'stops' : 'crosses the finish line') + '.';
-    else if (race && race.phase === 'measure') text = '<b>Measure</b> how far your boat got: drag the tape to the end of the blue bar, and type what it reads, in meters to the nearest centimeter.';
+    else if (race && race.phase === 'replay') text = '<b>Replay:</b> find when the boat starts to move, and when it ' + (race.pl.fail ? 'stops' : 'crosses the finish') + '. Use ◀ ▶ to step.';
+    else if (race && race.phase === 'measure') text = '<b>Measure:</b> drag the tape to the end of the blue bar. Type the meters, like 12.34.';
     else if (race && race.phase === 'done') text = race.pl.fail ? '<b>Back to work:</b> change one thing and sail again.' : '<b>You did it!</b>' + (IN_GAME ? ' Press <b>⛵ Use this boat</b>.' : '');
     else if (!tested) { text = '<b>Next:</b> press <b>⛵ Sail for the inlet!</b>'; target = 'btn-go'; }
-    else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing at a time to see what matters most.';
-    else text = '<b>It didn\'t make it.</b> Read why on <b>4. Sail out</b>, change one thing, and test again.';
+    else if (a.r.ok) text = '<b>It gets away!</b> Try changing one thing.';
+    else text = '<b>It didn\'t make it.</b> See why on <b>4. Sail out</b>. Change one thing and try again.';
     $('coach').innerHTML = text;
     if (target && $(target) && !$(target).disabled) $(target).classList.add('next');
     if (tabTo && tabTo !== tab) document.querySelector(`#tabs [data-tab="${tabTo}"]`).classList.add('next');
@@ -2191,7 +2192,7 @@
     { go: async () => { // 1. Draw the floor...
       demoSet({ tab: 'p-frame', view: 'cad', show: {} });
       const mb0 = document.querySelector('#mirror [data-v="on"]'); mb0.classList.add('next');
-      cap('<b>1.</b> Draw one slice of your boat, stick by stick. First the floor: drag from the side <b>to the middle line</b>, and <b>Mirror</b> copies the other half.');
+      cap('<b>1.</b> Draw the floor. Drag from the side <b>to the middle</b>. Mirror copies it.');
       await wait(800);
       await demoDraw(DEMO_FLOOR, 1100);
       await wait(300); mb0.classList.remove('next');
@@ -2200,7 +2201,7 @@
     { go: async () => { // ...then one wall, and Mirror draws the other.
       demoSet({ tab: 'p-frame', view: 'cad', sticks: 'floor', show: {} });
       const mb = document.querySelector('#mirror [data-v="on"]'); mb.classList.add('next');
-      cap('Now one wall: Mirror puts in the other one, so the boat stays even.');
+      cap('Now one side. Mirror makes the other side.');
       await wait(900);
       await demoDraw(DEMO_WALL, 900);
       await wait(400); mb.classList.remove('next');
@@ -2208,30 +2209,30 @@
     } },
     { go: async () => {
       demoSet({ tab: 'p-frame', view: 'cad', sticks: true, show: {} });
-      cap('That\'s the slice: the shape you\'d see if you sawed the boat in half and looked from behind. The skin wraps itself round the outside (purple).');
+      cap('That is one <b>slice</b> of the boat. The purple is the skin.');
       await hold();
     } },
     { threeD: true, go: async () => { // 2. The ribs.
       demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { ribs: 1, stringers: 0, skin: 0 } });
-      cap(`<b>2.</b> The builder copies your slice along the boat, at least every 1 m. These are the <b>ribs</b>: this ${D.L} m boat has ${A.wood.nRib}, and each one uses all ${D.segs.length} of your sticks.`);
+      cap(`<b>2.</b> Your slice is copied along the boat. These are the <b>ribs</b>. This boat has ${A.wood.nRib}.`);
       await wait(1200);
       for (let i = 1; i < A.wood.nRib; i++) { await tween(900, k => { show.ribs = i + k; }); await wait(250); }
       await hold();
     } },
     { threeD: true, go: async () => { // 3. The long sticks.
       demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { stringers: 0, skin: 0 } });
-      cap('<b>3.</b> Long sticks run along the boat at every corner, to hold the ribs together.');
+      cap('<b>3.</b> Long sticks hold the ribs together.');
       await tween(1300, k => { show.stringers = k; }); await hold();
     } },
     { threeD: true, go: async () => { // 4. The skin.
       demoSet({ tab: 'p-frame', view: '3d', orbit: ORBIT_HULL, sticks: true, show: { skin: 0 } });
-      cap(`<b>4.</b> The monster skin wraps round the outside to keep the water out. That's <b>${A.wood.sticks - 1} sticks</b> so far, out of 70.`);
+      cap(`<b>4.</b> The skin keeps the water out. That is <b>${A.wood.sticks - 1} sticks</b> so far.`);
       await tween(1200, k => { show.skin = k; }); await hold();
     } },
     { threeD: true, go: async () => { // Shape the ends: here the front goes round.
       demoSet({ tab: 'p-skin', view: '3d', orbit: { theta: 0.55, phi: 1.0, r: 4.4, ty: 0.3 }, sticks: true, show: {} });
       const rb = document.querySelector('#bow [data-v="round"]'); rb.classList.add('next');
-      cap('You can shape the ends, too, on <b>2. Length</b>. Here the front goes <b>round</b>: it pushes through the water more easily, but holds a little less of the boat up.');
+      cap('You can shape the ends on <b>2. Length</b>. A <b>round</b> front goes through the water more easily.');
       await wait(1600);
       D.bow = 'round'; refresh(); if (three) three.rebuild(); show.y = floatY({ rider: false, stones: 0 });
       rb.classList.add('next');
@@ -2239,7 +2240,7 @@
     } },
     { go: async () => { // 5. Cut a sail out of the cloth, corner by corner.
       demoSet({ round: true, tab: 'p-sail', sticks: true }); cloth.sheet = 0; drawCloth();
-      cap('<b>5.</b> Cut a sail out of the cloth: click its corners, then the first corner again.');
+      cap('<b>5.</b> Cut a sail. Click its corners.');
       await wait(1100);
       for (const p of DEMO_CUT) { await tween(450, k => { const prev = cloth.draft.length ? cloth.draft[cloth.draft.length - 1] : [p[0] - 0.4, p[1] - 0.4]; demoCursor = [prev[0] + (p[0] - prev[0]) * k, prev[1] + (p[1] - prev[1]) * k]; cloth.hover = demoCursor; drawCloth(); }); cloth.draft.push(p); drawCloth(); await wait(250); }
       await tween(450, k => { const a = DEMO_CUT[3], b = DEMO_CUT[0]; demoCursor = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; cloth.hover = demoCursor; drawCloth(); });
@@ -2248,32 +2249,32 @@
     } },
     { threeD: true, go: async () => { // ...and up the mast.
       demoSet({ round: true, tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: {} });
-      cap(`…and hang it on the mast. This sail is ${A.r.sailA.toFixed(2)} m².`);
+      cap(`Put it on the mast. This sail is ${A.r.sailA.toFixed(2)} m².`);
       await tween(900, k => { show.mast = k; }); await tween(900, k => { show.sail = k; }); await hold();
     } },
     { threeD: true, go: async () => { // 6. You climb in.
       demoSet({ round: true, tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: { mast: 1, sail: 1 } });
-      cap(`<b>6.</b> Climb aboard: <b>60 kg</b>. Watch the boat sink lower in the water. (Its sides are ${fb({ rider: false, stones: 0 })} m above the water.)`);
+      cap(`<b>6.</b> You get in: <b>60 kg</b>. Watch the boat go lower.`);
       await wait(900);
       const y0 = show.y, y1 = floatY({ stones: 0 });
       await tween(700, k => { show.rider = k; }); await tween(800, k => { show.y = y0 + (y1 - y0) * ease(k); });
-      cap(`Now its sides are only <b>${fb({ stones: 0 })} m</b> above the water.`);
+      cap(`Now the sides are only <b>${fb({ stones: 0 })} m</b> above the water.`);
       await hold();
     } },
     { threeD: true, go: async () => { // 7. The stones.
       demoSet({ round: true, tab: 'p-sail', view: '3d', orbit: ORBIT_MAST, sticks: true, sail: true, show: { mast: 1, sail: 1, rider: 1 }, load: { stones: 0 } });
-      cap('<b>7.</b> Load the <b>6 stones</b>, 5 kg each…');
+      cap('<b>7.</b> Add the <b>6 stones</b>…');
       await wait(1200);
       for (let i = 0; i < P.STONES; i++) {
         const ya = show.y, yb = floatY({ stones: i + 1 });
         await tween(380, k => { show.stones = i + k; }); await tween(250, k => { show.y = ya + (yb - ya) * k; });
       }
-      cap(`It <b>barely floats</b>: only ${fb({})} m of its sides left above the water!`);
+      cap(`It <b>barely floats</b>! Only ${fb({})} m is above the water.`);
       await hold();
     } },
     { go: async () => { // 8. Off it goes, too slowly.
       demoSet({ round: true, tab: 'p-go', sticks: true, sail: true });
-      cap(`<b>8.</b> Sail for the inlet! It goes ${A.r.speedKt.toFixed(1)} knots. The serpent swims 6…`);
+      cap(`<b>8.</b> Go! This boat does ${A.r.speedKt.toFixed(1)} knots. The serpent does 6…`);
       startRace(); race.demo = true;
       // (Also redrawn from here: the chase's own frames can stall where animation frames are scarce.)
       while (!demo.eaten) { await wait(100); if (race && race.frozen == null && (race.phase === 'chase' || race.phase === 'gulp')) raceShow(raceT()); }
@@ -2336,7 +2337,7 @@
     $('democap').style.display = 'none';
     const dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake sleep';
-    wk.innerHTML = `<div class="bed">🐉</div><h4>Too slow!</h4><p>That boat only went ${A.r.speedKt.toFixed(1)} knots, and the serpent swims 6. It barely floated, and its sail was small.</p><p><b>Now it's your turn.</b> Design a boat that gets away!</p>`
+    wk.innerHTML = `<div class="bed">🐉</div><h4>Too slow!</h4><p>That boat went ${A.r.speedKt.toFixed(1)} knots. The serpent goes 6.</p><p><b>Now it's your turn.</b> Build a boat that gets away!</p>`
       + `<div class="btnrow" style="justify-content:center"><button class="btn" id="demo-go">Start building</button><button class="btn alt" id="demo-tour">Show me the controls</button></div>`;
     $('demo-go').addEventListener('click', () => endDemo());
     $('demo-tour').addEventListener('click', () => { endDemo(); tourShow(0); });
@@ -2363,12 +2364,12 @@
 
   // ---------- First-time tour ----------
   const TOUR = [
-    ['view', 'Your drawing board', 'This is your boat\'s <b>cross-section</b>, drawn to scale: each square is 10 cm. The dashed line is the middle, where you sit and the mast stands. Press <b>3D</b> in the corner to see the whole boat.'],
-    ['p-frame', '1. Glue in sticks', '<b>Drag</b> from one point to another to add a stick. Ends snap to the grid and to other sticks. A stick can be cut shorter, but never longer than <b>1.13 m</b>, and it has to be glued to another stick.'],
-    ['counter', 'Count your sticks', 'You have <b>70 sticks</b>. Your drawing is one slice of the boat. The builder copies that slice <b>at least every 1 m</b> along the boat to make its <b>ribs</b>: a 2.5 m boat has 4 ribs, and each rib uses every stick you drew. Long sticks run the length of the boat at each corner of the skin to hold the ribs together, and the mast is one more. This counter adds them all up.'],
-    ['p-skin', '2. Length and skin', 'Pick the boat\'s length and a square or pointed front. The monster skin wraps itself round the outside of your frame; each piece has to come from one <b>3.05 × 2.73 m</b> sheet, and the pattern shows whether it fits.'],
-    ['p-sail', '3. The sail', '<b>Cut your sail</b> out of the 2.16 × 2.79 m cloth: any shape you like. Then choose how tall the mast is and how high the sail hangs on it. The wind blows from behind and pushes on the sail.'],
-    ['coach', 'Then sail out!', 'The serpent swims at <b>6 knots</b>: your boat has to be faster, and not dive or tip over. This yellow line always says what to do next. Good luck, sailor!'],
+    ['view', 'Your drawing', 'This is a <b>slice</b> of your boat. Each square is 10 cm. You sit on the dashed line. Press <b>3D</b> to see the whole boat.'],
+    ['p-frame', '1. Add sticks', '<b>Drag</b> to add a stick. A stick is <b>1.13 m</b> at most. Each stick must touch another one.'],
+    ['counter', 'Count your sticks', 'You have <b>70 sticks</b>. Your slice is copied along the boat to make <b>ribs</b>. Each rib uses all its sticks. This box counts them all.'],
+    ['p-skin', '2. Length and skin', 'Pick how long the boat is, and the shape of its ends. The skin wraps the frame by itself.'],
+    ['p-sail', '3. The sail', '<b>Cut a sail</b> from the cloth. Any shape works. The wind blows from behind.'],
+    ['coach', 'Then sail!', 'Your boat must beat the serpent: <b>6 knots</b>. This yellow line always says what to do next. Good luck!'],
   ];
   let tourAt = -1, tourEls = null;
   function tourShow(i) {

@@ -480,10 +480,10 @@ function windArea(d, sgs) {
 function sailAnalyze(d) {
   const P = SAIL, L = d.L, tp = taper(d.bow);
   const r = { ok: true, problems: [] };
-  if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin on the boat yet, so the water comes straight through.'); return r; }
+  if (!d.hulls.length) { r.ok = false; r.fail = 'rules'; r.problems.push('There is no skin yet. Water comes right in.'); return r; }
   // The skin goes as high as its sheet reaches; above that the sticks stick out.
   const patch = !!d.patch && d.hulls.length === 1;
-  if (d.patch && d.hulls.length > 1) r.problems.push('Both sheets of skin are used for your two hulls, so there\'s none left to patch with.');
+  if (d.patch && d.hulls.length > 1) r.problems.push('There is no skin left to patch with.');
   const trims = d.hulls.map(h => skinTrim(h, L, d.bow, d.bowRise, d.stern, d.sternRise, patch));
   r.seam = trims.reduce((t, x) => t + (x.seam || 0), 0);
   r.skinCut = trims.map(t => t.cut);
@@ -491,11 +491,11 @@ function sailAnalyze(d) {
 
   // Wood: pieces and their heights (for the center of gravity).
   const w = sailWood(d), woodM = w.woodM, woodMy = w.woodMy;
-  if (w.tooLong) r.problems.push('A stick in the section is longer than one stick (1.13 m).');
+  if (w.tooLong) r.problems.push('A stick is longer than 1.13 m.');
   const sgs = sailList(d).map(sailGeom), sailA = sgs.reduce((t, g) => t + g.A, 0);
   r.sticks = w.sticks; r.nRib = w.nRib; r.mastH = w.mastH;
-  if (L / (w.nRib - 1) > P.RIB_GAP + 1e-9) r.problems.push(`Your ribs are ${(L / (w.nRib - 1)).toFixed(2)} m apart. More than ${P.RIB_GAP} m and the skin sags between them: add a rib.`);
-  if (r.sticks > P.STICKS) r.problems.push(`That takes ${r.sticks} sticks; you have ${P.STICKS}.`);
+  if (L / (w.nRib - 1) > P.RIB_GAP + 1e-9) r.problems.push(`Your ribs are too far apart. Add a rib.`);
+  if (r.sticks > P.STICKS) r.problems.push(`That needs ${r.sticks} sticks. You have ${P.STICKS}.`);
 
   // Skin: each hull's net (bottom and sides, plus end flaps) on one sheet.
   r.skins = d.hulls.map(h => {
@@ -504,23 +504,22 @@ function sailAnalyze(d) {
     const fits = sheetSeam(long, G, patch) != null;
     return { G, D, long, fits };
   });
-  if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 pieces of monster skin.');
+  if (d.hulls.length > P.SKINS) r.problems.push('You only have 2 sheets of skin.');
   // Say which way it's too big (Nick, 2026-11-19: "what is this about breaking a rule?").
   r.skins.forEach((s, i) => {
     if (s.fits) return;
     const hn = d.hulls.length > 1 ? `Hull ${i + 1}'s skin` : 'The skin', ends = 'its ends';
-    r.problems.push(`${hn} doesn't fit on its sheet (3.05 x 2.73 m). It has to reach under the boat and up both sides (${s.G.toFixed(2)} m around), and along the boat plus up ${ends} (${s.long.toFixed(2)} m long). `
-      + `It needs a ${s.long.toFixed(2)} x ${s.G.toFixed(2)} m piece: make the boat shorter, or the hull shallower or narrower.`);
+    r.problems.push(`${hn} is too big for its sheet. Make the boat shorter, or narrower, or shallower.`);
   });
   const many = sgs.length > 1, nm = i => many ? `Sail ${i + 1}` : 'The sail';
   sgs.forEach((sg, i) => {
     if (!sg.inCloth) r.problems.push(`${nm(i)} is bigger than the cloth.`);
-    if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push(`The bottom of ${many ? 'sail ' + (i + 1) : 'the sail'} must be at least 0.5 m up its mast, over your head.`);
-    if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push(`${nm(i)} goes higher than the top of its mast.`);
-    if (sailHitsFrame(d, sg)) r.problems.push(`${nm(i)} runs into the boat: the sides or a stick go through it. Hang it higher up its mast, or make it narrower at the bottom.`);
+    if (sg.hang < P.MAST_GAP - 1e-9) r.problems.push(`${nm(i)} must start 0.5 m up the mast, over your head.`);
+    if (sg.hang + sg.h > sg.mastH + 1e-9) r.problems.push(`${nm(i)} goes past the top of its mast.`);
+    if (sailHitsFrame(d, sg)) r.problems.push(`${nm(i)} hits the boat. Hang it higher on the mast.`);
   });
-  if (sgs.length > P.MASTS) r.problems.push(`You can have up to ${P.MASTS} masts.`);
-  if (d.sails) { const ov = clothOverlap(d.sails); if (ov) r.problems.push(`Sails ${ov[0] + 1} and ${ov[1] + 1} overlap on the cloth: you can't cut the same cloth twice.`); }
+  if (sgs.length > P.MASTS) r.problems.push(`You can only have ${P.MASTS} masts.`);
+  if (d.sails) { const ov = clothOverlap(d.sails); if (ov) r.problems.push(`Sails ${ov[0] + 1} and ${ov[1] + 1} use the same cloth.`); }
   if (sailA < 0.01) r.problems.push('There is no sail.');
 
   // Masses and heights.
@@ -537,7 +536,7 @@ function sailAnalyze(d) {
   // The rider sits in the middle: on a stick across it (a seat or a beam), or
   // down in the hull where it's at least HIPS wide, whichever is lower.
   const seat = riderSeat(d);
-  if (seat == null) { r.problems.push('Your rider has nowhere to sit. They sit in the middle, and need 50 cm of room.'); }
+  if (seat == null) { r.problems.push('You have nowhere to sit. You need 50 cm in the middle.'); }
   r.seatY = seat == null ? 0 : seat;
   r.riderY = r.seatY + P.RIDER_SIT;
   // d.load (optional, for the builder's intro): who's aboard. Default: you and all 6 stones.
