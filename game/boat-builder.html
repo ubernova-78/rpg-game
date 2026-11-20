@@ -608,7 +608,7 @@
       // The tip of the neck, in the monster's own frame (lean tips it toward -x).
       head.position.set(neckG.position.x - Math.sin(lean) * NECK, neckG.position.y + Math.cos(lean) * NECK, 0);
       head.rotation.z = lean * 0.6; // the head dips a little less than the neck
-      jaw.rotation.z = -0.7 * ease((t - 2.9) / 0.3) + 0.7 * ease((t - 3.3) / 0.12);
+      jaw.rotation.z = 0.7 * ease((t - 2.9) / 0.3) - 0.7 * ease((t - 3.3) / 0.12); // (positive opens it, the jaw dropping; it used to swing up over the snout)
       gulpEl.style.display = t >= 3.35 && t < 5.2 ? 'block' : 'none';
       // 4.6-5.4 s everything goes black; 5.9-6.6 s you wake up at the drafting desk.
       dreamEl.style.display = t >= 4.6 ? 'block' : 'none';

@@ -7,7 +7,7 @@
 //
 // Its own frame: +y up, the head and the lean toward -x, +x behind it. The pages
 // pose it every frame through the parts returned: neckG (rotation.z = the lean),
-// head (placed at the neck's tip) and jaw (rotation.z opens it, negative = open).
+// head (placed at the neck's tip) and jaw (rotation.z opens it: positive drops it open).
 function buildSerpent(THREE) {
   const lam = c => new THREE.MeshLambertMaterial({ color: c });
   const DARK = lam(0x1f4d33), LIGHT = lam(0x2e6b45), BELLY = lam(0x8f9c5c), BONE = lam(0xd9d2b4), MOUTH = lam(0x4a0f14);

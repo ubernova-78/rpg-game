@@ -2098,7 +2098,9 @@
       neckG.rotation.z = lean;
       head.position.set(neckG.position.x - Math.sin(lean) * NECK, neckG.position.y + Math.cos(lean) * NECK, 0);
       head.rotation.z = lean * 0.6;
-      jaw.rotation.z = -0.7 * ease3((t - 1.0) / 0.3) + 0.7 * ease3((t - 1.4) / 0.12);
+      // (Positive opens it: the jaw hangs toward -x, so a positive turn swings its tip down.
+      // It was negative, and the lower jaw swung up over the snout: Nick, 2026-11-20.)
+      jaw.rotation.z = 0.7 * ease3((t - 1.0) / 0.3) - 0.7 * ease3((t - 1.4) / 0.12);
     }
     // The inset: the same scene, small, in the drawing view's corner. A click (not a
     // drag) on it opens the full 3D view.
