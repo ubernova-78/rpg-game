@@ -233,8 +233,9 @@
         <div class="row"><span>Ribs (copies of your slice)</span><select id="ribs"></select></div>
         <div class="row"><span>Rib spacing</span><select id="ribgap"></select></div>
         <div class="note" id="ribnote" style="margin-top:2px"></div>
-        <div class="row"><span>Dividers across the boat</span><select id="cross"><option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
-        <div class="note" style="margin-top:2px">Dividers stop the stones rolling.<details class="more"><summary>ℹ️ More</summary>The stones are loose. In a gust they roll to the front. That pushes the front down. A divider across the boat stops them. To stop them rolling side to side, draw a short stick on the floor on <b>1. Frame</b>.</details></div>
+        <div class="row"><span>Dividers across (side to side)</span><select id="cross"><option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+        <div class="row"><span>Dividers along (front to back)</span><select id="along"><option value="0">None</option><option value="2">2</option><option value="4">4</option></select></div>
+        <div class="note" style="margin-top:2px">Dividers stop the stones rolling.<details class="more"><summary>ℹ️ More</summary>The stones are loose. In a gust they roll to the front. That pushes the front down. A divider across stops that. When the boat tips, they roll to one side. A divider along the boat stops that. Each divider is a stick on its edge on the floor. It costs wood.</details></div>
         <div class="row"><span>Front, from above</span><div class="seg" id="bow"><button data-v="square">▭ Square</button><button data-v="pointed">▷ Sharp</button><button data-v="round">◗ Round</button></div></div>
         <div class="row"><span>Front, from the side</span><div class="seg" id="bowrise"><button data-v="plumb">▯ Full depth</button><button data-v="slope">◺ Slopes up</button></div></div>
         <div class="row"><span>Back, from above</span><div class="seg" id="stern"><button data-v="square">▭ Square</button><button data-v="pointed">◁ Sharp</button><button data-v="round">◖ Round</button></div></div>
@@ -386,20 +387,22 @@
       const mid = (lo + hiX) / 2, half = Math.max(0, (hiX - lo) / 2 - R - 0.03);
       // Across each compartment between the dividers (a V has just its one low point).
       const comps = (a.r.floors && a.r.floors[hi] && a.r.floors[hi].comps.length) ? a.r.floors[hi].comps : [[lo, hiX]], xs = [];
-      for (const [c0, c1] of comps) { const cm = (c0 + c1) / 2, ch = Math.max(0, (c1 - c0) / 2 - R - 0.03), nx = Math.floor(ch * 2 / gap) + 1; for (let i = 0; i < nx; i++) xs.push(cm + (i - (nx - 1) / 2) * gap); }
+      comps.forEach(([c0, c1], ci) => { const cm = (c0 + c1) / 2, ch = Math.max(0, (c1 - c0) / 2 - R - 0.03), nx = Math.floor(ch * 2 / gap) + 1; for (let i = 0; i < nx; i++) xs.push({ x: cm + (i - (nx - 1) / 2) * gap, ci, nc: comps.length }); });
       const zEnd = L / 2 - R - 0.03, across = crossZs(L);
-      for (let z = -zEnd; z <= zEnd + 1e-9; z += gap) for (const x of xs) {
+      for (let z = -zEnd; z <= zEnd + 1e-9; z += gap) for (const { x, ci, nc } of xs) {
         if (across.some(zc => Math.abs(z - zc) < R + 0.03)) continue; // a divider across the boat
         if (!seatClear && Math.abs(x) < 0.22 && z > rz - 0.25 && z < rz + 0.5) continue; // you
         if (masts.some(m => Math.abs(x - m.x) < 0.06 + R && Math.abs(z - m.z) < 0.06 + R)) continue; // a mast
         { const e = endScales(D, (z + L / 2) / L); if (e.k < 0.97 || Math.abs(x - mid) > half * e.s - 0.02) continue; } // where a shaped end narrows or rises
-        cand.push({ x, y, z, hi, d: Math.abs(x - mid) + Math.abs(z) * 0.6 });
+        cand.push({ x, y, z, hi, ci, nc, d: Math.abs(x - mid) + Math.abs(z) * 0.6 });
       }
     });
     cand.sort((p, q) => p.d - q.d);
     // Two hulls share them; when the floor is full, the rest go on top of the others.
     for (let i = 0; i < a.r.stoneY.length; i++) {
-      const want = hs.length > 1 ? i % 2 : 0, c = cand.filter(p => p.hi === want && !out.includes(p))[0] || cand.filter(p => !out.includes(p))[0];
+      // (Shared evenly between the compartments, as the physics shares them.)
+      const want = hs.length > 1 ? i % 2 : 0, k = out.filter(p => p.hi === want && !p.top).length, free = cand.filter(p => !out.includes(p));
+      const c = free.find(p => p.hi === want && p.ci === k % p.nc) || free.find(p => p.hi === want) || free[0];
       if (c) out.push(c);
       else { const b = out.length ? out[i % out.length] : { x: 0, y, z: 0, hi: 0 }; out.push({ x: b.x + R * 0.5, y: b.y + R * 1.7, z: b.z + R * 0.5, hi: b.hi, top: true }); }
     }
@@ -455,7 +458,7 @@
   function analyze() {
     const fc = frameCheck(), ch = chains(), mf = mastFoot();
     // The cut-out is centered on the mast for the physics' sake (its shape, not where it was cut).
-    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, patch: !!D.patch, cross: D.cross || 0, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
+    const d = { segs: D.segs.map(s => ({ a: s.a, b: s.b })), hulls: ch.hulls, frameHulls: ch.frameHulls, L: D.L, ribs: D.ribs, ribGap: D.ribGap, patch: !!D.patch, cross: D.cross || 0, along: D.along || 0, bow: D.bow, bowRise: D.bowRise, stern: D.stern, sternRise: D.sternRise, sails: D.sails.map(sl => sl.x ? Object.assign({}, sl, { foot: mastFoot(sl.x) }) : sl), mastFoot: [0, mf == null ? 0 : mf] };
     const wood = sailWood(d);
     const frame = [];
     if (!D.segs.length) frame.push('No sticks yet.');
@@ -669,6 +672,9 @@
       for (const x of xs) { const [sx, sy] = S([x, y]); g.beginPath(); g.arc(sx, sy, Math.max(3, P.STONE_R * k), 0, 7); g.fill(); g.stroke(); }
       if (xs.length) { const lowY = Math.min(...a.ch.hulls.flat().map(p => p[1])), [sx, sy] = S([(Math.min(...xs) + Math.max(...xs)) / 2, lowY]); g.fillStyle = '#4b4e52'; g.font = 'bold 11px system-ui'; g.textAlign = 'center'; g.fillText('stones (6 × 5 kg) on the floor', sx, sy + 16); }
     }
+    // Dividers along the boat, seen end-on: a stick on its edge on the floor.
+    if (a && a.ch.hulls.length && !demo) for (const h of a.ch.hulls) { const lowY = Math.min(...h.map(p => p[1]));
+      for (const x of alongXs(a.d, h)) { const [sx, sy] = S([x, lowY + 0.012]), [, ty] = S([x, lowY + 2 * P.STONE_R - 0.02]); g.fillStyle = '#4a3018'; g.fillRect(sx - 3.5, ty, 7, sy - ty); g.fillStyle = '#c48a4e'; g.fillRect(sx - 2, ty + 1.5, 4, sy - ty - 3); } }
     if (a && a.seat != null && !demo) drawRider(a.seat);
     // Skin under the sticks it covers, drawn on their outside (a wide purple band).
     if (a) for (const h of a.ch.hulls) {
@@ -1077,6 +1083,7 @@
   function paintSelects() {
     fill($('L'), steps(0.5, 3.0, 0.25), D.L);
     $('cross').value = String(D.cross || 0);
+    $('along').value = String(D.along || 0);
     // Ribs: pick how many (spread evenly from the back to the front), or how far
     // apart (from the back, the last one at the front); each sets the other.
     const rMin = ribCount(D.L), rNow = D.ribs || rMin, rOpts = [];
@@ -1113,6 +1120,7 @@
     remember(); delete D.ribGap; D.ribs = n; changed();
   });
   $('cross').addEventListener('change', e => { remember(); const n = +e.target.value; if (n) D.cross = n; else delete D.cross; changed(); });
+  $('along').addEventListener('change', e => { remember(); const n = +e.target.value; if (n) D.along = n; else delete D.along; changed(); });
   $('ribs').addEventListener('change', e => { remember(); delete D.ribGap; D.ribs = +e.target.value; changed(); });
   $('ribgap').addEventListener('change', e => {
     remember();
@@ -1985,6 +1993,8 @@
         const lowH = Math.min(...h.map(p => p[1])), y = lowH + P.STONE_R, xs = [];
         for (let i = 0; i < h.length - 1; i++) { const p = h[i], q = h[i + 1]; if ((p[1] - y) * (q[1] - y) <= 0 && Math.abs(q[1] - p[1]) > 1e-9) xs.push(p[0] + (q[0] - p[0]) * (y - p[1]) / (q[1] - p[1])); }
         if (xs.length >= 2) for (const z of crossZs(L)) { const m = stick(tx([Math.min(...xs) + 0.03, lowH + 0.05], z, hi), tx([Math.max(...xs) - 0.03, lowH + 0.05], z, hi), 0.09); m.scale.set(0.35, 1, 1); boat.add(m); }
+        { const z0 = -L / 2 + L * sternTo() + 0.03, z1 = -L / 2 + L * bowFrom() - 0.03;
+          if (z1 > z0) for (const x of alongXs(a.d, h)) { const m = stick(tx([x, lowH + 0.05], z0, hi), tx([x, lowH + 0.05], z1, hi), 0.09); m.scale.set(0.35, 1, 1); boat.add(m); } }
         const fl = a.r.floors && a.r.floors[hi];
         if (fl) for (const sg of fl.dividers) { const p = sg.a[1] >= sg.b[1] ? sg.a : sg.b; for (let j = 0; j < zs.length - 1; j++) { const m = stick(tx(p, zs[j], hi), tx(p, zs[j + 1], hi), t * 0.8); m.userData = { part: 'stringer' }; boat.add(m); } }
       });

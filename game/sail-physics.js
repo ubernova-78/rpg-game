@@ -302,6 +302,14 @@ function floorRun(h) {
   while (i1 < h.length - 1 && flat(h[i1], h[i1 + 1])) i1++;
   return [Math.min(h[i0][0], h[i1][0]), Math.max(h[i0][0], h[i1][0])];
 }
+// Where the dividers along the boat stand across its floor: evenly, never in the very
+// middle (you sit there), and only where each gap still holds a stone.
+function alongXs(d, h) {
+  const n = d.along || 0; if (!n) return [];
+  const [a, b] = floorRun(h); if ((b - a) / (n + 1) < 2 * SAIL.STONE_R) return [];
+  const out = []; for (let i = 1; i <= n; i++) out.push(a + (b - a) * i / (n + 1));
+  return out;
+}
 function floorCompartments(d, h) {
   const R = SAIL.STONE_R, lowY = lowest(h)[1];
   let [a, b] = floorRun(h);
@@ -319,6 +327,9 @@ function floorCompartments(d, h) {
     if (x1 < a - 1e-6 || x0 > b + 1e-6) continue;
     cuts.push([x0, x1]); dividers.push(sg);
   }
+  // Dividers along the boat (d.along of them, Nick 2026-11-20: "the dividers only go
+  // side to side"): each a stick on edge running front to back, standing on the floor.
+  for (const xd of alongXs(d, h)) cuts.push([xd - 0.01, xd + 0.01]);
   cuts.sort((u, v) => u[0] - v[0]);
   const comps = []; let x = a;
   for (const [c0, c1] of cuts) { if (c0 - x >= 2 * R) comps.push([x, c0]); x = Math.max(x, c1); }
@@ -349,7 +360,10 @@ function sailWood(d) {
     const w = xs.length >= 2 ? Math.max(...xs) - Math.min(...xs) : 0;
     if (w > 0.01) for (let k = 0; k < d.cross; k++) for (const pc of splicedPieces(w)) { pieces.push(pc); addWood(pc, y); }
   }
-  // A divider runs the length of the boat too: a long stick along its top.
+  // Dividers along the boat (d.along): each a stick on edge the length of the full-depth floor.
+  if (d.along) { const fl = L * Math.max(0, 1 - endLen(d.bow, bowRise(d)) - endLen(sternShape(d), sternRise(d)));
+    for (const h of d.frameHulls || d.hulls) for (const xd of alongXs(d, h)) for (const pc of splicedPieces(fl)) { pieces.push(pc); addWood(pc, lowest(h)[1] + P.STONE_R); } }
+  // A divider drawn in the slice runs the length of the boat too: a long stick along its top.
   for (const h of d.frameHulls || d.hulls) for (const sg of floorCompartments(d, h).dividers) { const p = sg.a[1] >= sg.b[1] ? sg.a : sg.b; verts.set(p[0].toFixed(3) + ',' + p[1].toFixed(3), p); }
   for (const p of verts.values()) for (const pc of splicedPieces(L)) { pieces.push(pc); addWood(pc, p[1]); }
   // The masts are sticks too, spliced to their height: one mast per sail.
@@ -810,4 +824,4 @@ function sailSkin(segs) {
   return { hulls, path: P };
 }
 
-if (typeof module !== 'undefined') module.exports = { SAIL, windArea, floorCompartments, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
+if (typeof module !== 'undefined') module.exports = { SAIL, windArea, floorCompartments, alongXs, leakRun, leakX, sheetSeam, skinTrim, bowSlices, skinLong, endScales, ribFracs, ribShape, sailSkin, clothOverlap, inPoly, sailAnalyze, sailWood, sailGeom, splicedPieces, packSticks, ribCount };
