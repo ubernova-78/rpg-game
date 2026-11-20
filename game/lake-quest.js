@@ -135,7 +135,8 @@ function lqModal(title, text, buttons) {
   chestModalEls.modal.classList.remove('hidden');
   chestModalEls.titleEl.textContent = title;
   chestModalEls.bodyEl.innerHTML = `<div class="wb-modal-body">${text}</div>`;
-  const close = () => { scene.modalOpen = false; chestModalEls.modal.classList.add('hidden'); };
+  const body = chestModalEls.bodyEl.firstElementChild; if (typeof Speak !== 'undefined' && body) body.prepend(Speak.button(() => Speak.visibleText(body))); // 🔊 (speak.js)
+  const close = () => { scene.modalOpen = false; if (typeof Speak !== 'undefined') Speak.stop(); chestModalEls.modal.classList.add('hidden'); };
   for (const [label, fn] of buttons) chestModalEls.bodyEl.appendChild(gateButton(label, () => { close(); if (fn) fn(); }));
 }
 function lqAtDock() {
@@ -544,12 +545,15 @@ function boatwrightTalk() {
   page(0);
 }
 function boatwrightPage(html, buttons, step) {
+  if (typeof Speak !== 'undefined') Speak.stop(); // (a new page: stop reading the last one)
   scene.modalOpen = true;
   wbModal.classList.add('story');
   wbModalCloseHook = () => wbModal.classList.remove('story');
   wbTitle.textContent = 'The Boatwright' + (step ? ` (${step})` : '');
   wbBody.innerHTML = '';
-  const p = document.createElement('p'); p.innerHTML = html; p.style.margin = '0 0 6px'; wbBody.appendChild(p);
+  const p = document.createElement('p'); p.innerHTML = html; p.style.margin = '0 0 6px';
+  if (typeof Speak !== 'undefined') p.prepend(Speak.button(() => Speak.visibleText(p))); // 🔊 (speak.js)
+  wbBody.appendChild(p);
   for (const [label, fn] of buttons) wbBody.appendChild(gateButton(label, fn));
   wbModal.classList.remove('hidden');
 }
