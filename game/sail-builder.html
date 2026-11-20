@@ -2107,21 +2107,63 @@
     }
     function gulpStop() {
       if (gul) Object.assign(orbit, gul.view);
+      if (gul && gul.shards) for (const sh of gul.shards) { sh.m.position.copy(sh.p0); sh.m.quaternion.copy(sh.q0); sh.m.visible = sh.vis; }
       gul = null; monster.visible = false; freeRider.visible = false; pivot.rotation.set(0, 0, 0); pivot.position.y = 0;
       const rd = boat.getObjectByName('rider'); if (rd) rd.visible = true;
     }
     // The same beats as the Boat Builder's sink show, from t = 0 here:
     //   0-0.9 s it rises behind you; 1.0-1.5 s it leans in, jaw open; 1.45 s GULP;
     //   1.7-2.2 s it straightens; 2.1-3.1 s it sinks away.
+    // The smash (Nick, 2026-11-20: "make the monster smash its mouth into the boat and
+    // make it splinter and sink"): at the bite every part of the boat flies apart from
+    // where its jaws came down, splashes down and sinks. Worked out in the water's own
+    // frame from the moment of the bite, so it's a pure function of t like the rest.
+    const SMASH = 1.42, _v = new THREE.Vector3(), _q = new THREE.Quaternion();
+    function smashSetup() {
+      boat.updateMatrixWorld(true);
+      gul.inv = boat.matrixWorld.clone().invert(); gul.shards = [];
+      const bite = new THREE.Vector3(gul.x, 0, gul.z);
+      boat.children.forEach((m, i) => {
+        const sh = { m, p0: m.position.clone(), q0: m.quaternion.clone(), vis: m.visible };
+        gul.shards.push(sh);
+        if (m.name === 'rider' || (m.userData && m.userData.part === 'drymask')) { m.visible = false; sh.skip = true; return; }
+        const w0 = m.getWorldPosition(new THREE.Vector3()), h = (n) => { const x = Math.sin((i + 1) * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); };
+        let size = 0.3; if (m.geometry) { m.geometry.computeBoundingSphere(); size = m.geometry.boundingSphere.radius; }
+        const heavy = size > 0.9; // (the skin and the sail: big, slow and soon under)
+        const out = new THREE.Vector3(w0.x - bite.x, 0, w0.z - bite.z); if (out.lengthSq() < 1e-4) out.set(h(1) - 0.5, 0, h(2) - 0.5); out.normalize();
+        const sp = heavy ? 0.4 + 0.4 * h(3) : 1.4 + 2.2 * h(3);
+        sh.w0 = w0; sh.v = new THREE.Vector3(out.x * sp + (h(4) - 0.5), heavy ? 0.6 + 0.6 * h(5) : 2.2 + 2.6 * h(5), out.z * sp + (h(6) - 0.5));
+        sh.axis = new THREE.Vector3(h(7) - 0.5, h(8) - 0.5, h(9) - 0.5).normalize(); sh.spin = (heavy ? 1.5 : 5 + 9 * h(10)) * (h(11) < 0.5 ? -1 : 1);
+        sh.sink = heavy ? 0.55 : 0.18 + 0.2 * h(12);
+        const a = 4.9, b = sh.v.y, c = w0.y; sh.th = (b + Math.sqrt(b * b + 4 * a * Math.max(0, c))) / (2 * a); // when it lands
+        sh.qw = new THREE.Quaternion(); m.getWorldQuaternion(sh.qw);
+        sh.qp = new THREE.Quaternion(); m.parent.getWorldQuaternion(sh.qp); sh.qp.invert();
+      });
+    }
+    function smashPose(t) {
+      const dt = t - SMASH;
+      for (const sh of gul.shards) {
+        if (sh.skip) continue;
+        const ta = Math.min(dt, sh.th), wet = Math.max(0, dt - sh.th);
+        _v.set(sh.w0.x + sh.v.x * ta + 0.15 * sh.v.x * wet, dt < sh.th ? sh.w0.y + sh.v.y * dt - 4.9 * dt * dt : -sh.sink * wet * (1 + wet), sh.w0.z + sh.v.z * ta + 0.15 * sh.v.z * wet);
+        sh.m.position.copy(_v.applyMatrix4(gul.inv));
+        _q.setFromAxisAngle(sh.axis, sh.spin * (ta + 0.2 * wet)); sh.m.quaternion.copy(sh.qp).multiply(_q).multiply(sh.qw);
+      }
+    }
     function gulpPose(t) {
+      if (gul.shards && t < SMASH) { for (const sh of gul.shards) { sh.m.position.copy(sh.p0); sh.m.quaternion.copy(sh.q0); sh.m.visible = sh.vis; } gul.shards = null; }
       const k = gul.kind, swamp = k === 'bow' || k === 'sinks' || k === 'leak', over = k === 'roll' || k === 'capsize', wet = swamp || over;
       // The boat rocks as the serpent rises behind it, then lurches when it strikes:
       // bow down and over on its side, so the mast and sail are thrown forward,
       // away from the jaws (Nick, 2026-11-19: its face went through the sail).
       const rock = 0.13 * Math.sin(t * 5.5) * ease3(t / 0.5) * (1 - ease3((t - 1.0) / 0.3));
       const hit = ease3((t - 0.95) / 0.35) - ease3((t - 1.9) / 0.7);
-      pivot.rotation.set((swamp ? 0.3 : 0) + (wet ? 0.08 : 0.28) * hit, 0, (over ? -2.6 : 0) + rock + (wet ? 0.1 : 0.32) * hit + 0.06 * Math.sin(t * 9) * hit);
-      pivot.position.y = (swamp ? -0.4 : over ? 0.1 : 0) - 0.08 * hit;
+      if (!gul.shards) {
+        pivot.rotation.set((swamp ? 0.3 : 0) + (wet ? 0.08 : 0.28) * hit, 0, (over ? -2.6 : 0) + rock + (wet ? 0.1 : 0.32) * hit + 0.06 * Math.sin(t * 9) * hit);
+        pivot.position.y = (swamp ? -0.4 : over ? 0.1 : 0) - 0.08 * hit;
+        if (t >= SMASH) smashSetup();
+      }
+      if (gul.shards) smashPose(t);
       const rd = boat.getObjectByName('rider'); if (rd) rd.visible = !wet && t < 1.45;
       freeRider.visible = wet && t < 1.45;
       const panic = ease3((t - 0.3) / 0.4);
@@ -2133,7 +2175,8 @@
       // (Far enough back that its jaws close on you, not on the mast in front of you.)
       monster.position.set(tx, bodyY + 0.03 * Math.sin(t * 3), tz - 2.35);
       monster.rotation.y = Math.PI / 2;
-      const lean = 1.05 * ease3((t - 1.0) / 0.5) - 1.05 * ease3((t - 1.7) / 0.5); // (not so far that its snout goes into the boat)
+      // Leaning in, then a last plunge: its snout smashes down into the boat at the bite.
+      const lean = 1.05 * ease3((t - 1.0) / 0.5) + 0.3 * ease3((t - 1.3) / 0.12) - 1.35 * ease3((t - 1.7) / 0.5);
       neckG.rotation.z = lean;
       head.position.set(neckG.position.x - Math.sin(lean) * NECK, neckG.position.y + Math.cos(lean) * NECK, 0);
       head.rotation.z = lean * 0.6;
