@@ -1591,9 +1591,9 @@
     race.shown = kind;
     const pl = race.pl, dr = $('dream'), wk = $('wake');
     dr.style.display = 'block'; dr.style.opacity = 1; wk.style.opacity = 1; wk.className = 'wake ' + kind;
-    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You got away!</h4><p>The serpent stopped at the end of the inlet. It saw its <b>family</b> out at sea. It was not angry any more. It swam home with them.</p><p>Now watch your run again.</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    if (kind === 'free') wk.innerHTML = `<div class="bed">🌊⛵🐉</div><h4>You got away!</h4><p>The serpent stopped at the end of the inlet. It saw its <b>family</b> out at sea. It was not angry any more. It swam home with them.</p><p><b>Next:</b> find the <b>elapsed time</b>. That is how long your run took.</p><button class="btn" id="btn-meas">⏱ Find the elapsed time</button>`;
     else if (pl.dock) wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you wake up at your desk!</h4><p>It was a dream. Your boat ${pl.fail === 'sinks' ? 'sank' : 'rolled over'} at the dock. Nothing to measure this time.</p><button class="btn" id="btn-back">Back to work</button>`;
-    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you wake up at your desk!</h4><p>It was only a dream! Now watch your run again. How long did it last? How far did it go?</p><button class="btn" id="btn-meas">▶ Watch the replay</button>`;
+    else wk.innerHTML = `<div class="bed">📐😵‍💫</div><h4>…you wake up at your desk!</h4><p>It was only a dream!</p><p><b>Next:</b> find the <b>elapsed time</b>. That is how long your boat lasted.</p><button class="btn" id="btn-meas">⏱ Find the elapsed time</button>`;
     const m = $('btn-meas'); if (m) m.addEventListener('click', showReplay);
     const bk = $('btn-back'); if (bk) bk.addEventListener('click', () => { stopRace(); tested = true; setMode('3d'); refresh(); });
     coach();
@@ -1617,13 +1617,14 @@
     $('dream').style.display = 'none'; $('gyro').style.display = 'none';
     if (three) three.gulpStop();
     const endWord = pl.fail ? (pl.fail === 'slow' ? 'stops, caught by the serpent' : 'stops, swamped') : 'crosses the finish line';
-    el.innerHTML = `<div class="top"><div><b>Replay.</b> Find the moment your boat <b>starts moving</b> and the moment it <b>${endWord}</b>. Mark both, then work out the elapsed time.</div><div class="timer" id="r-timer">00:00.000</div></div>`
+    el.innerHTML = `<div class="top"><div class="r-goal"><b>Find the elapsed time.</b><br>1. Find when your boat <b>starts moving</b>. Press <b>Mark Start</b>.<br>2. Find when it <b>${endWord}</b>. Press <b>Mark End</b>.<br>3. Subtract: end minus start.</div><div class="timer" id="r-timer">00:00.000</div></div>`
       + `<div class="timeline-wrap" id="r-tl"><div class="timeline-thumb" id="r-thumb"></div><div class="timeline-marker start-marker" id="r-ms"><div class="timeline-label"></div></div><div class="timeline-marker end-marker" id="r-me"><div class="timeline-label"></div></div></div>`
       + `<div class="scrub-btns"><button class="scrub-step" data-d="-10" title="Back 10 thousandths">❮❮</button><button class="scrub-step" data-d="-1" title="Back 1 thousandth">◀</button>`
       + `<button class="scrub-step" id="r-play" title="Play / pause">▶</button><button class="scrub-step" data-d="1" title="Forward 1 thousandth">▶</button><button class="scrub-step" data-d="10" title="Forward 10 thousandths">❯❯</button>`
       + `<button class="scrub-btn" id="r-mark-s">Mark Start</button><button class="scrub-btn" id="r-mark-e">Mark End</button></div>`
       + `<div class="ans"><label for="r-in"><b>Elapsed time (seconds):</b></label><input id="r-in" inputmode="decimal" autocomplete="off" placeholder="0.00"><button class="btn small" id="r-ok" disabled>Check</button></div><div class="fb" id="r-fb"></div>`;
     el.style.display = 'block';
+    { const gl = el.querySelector('.r-goal'); if (gl && typeof Speak !== 'undefined') gl.prepend(Speak.button(() => Speak.visibleText(gl))); } // 🔊
     setMode('race'); // after the controls exist: setMode redraws through setRF
     const tl = $('r-tl');
     const fromEv = e => { const r = tl.getBoundingClientRect(); setRF(Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * pl.clipF)); };
@@ -2392,6 +2393,7 @@
   // 🔊 on the words that matter (speak.js): the yellow help line, the intro's captions,
   // the race result, the end cards and the tape.
   for (const id of ['coach', 'democap', 'result', 'wake', 'measure']) Speak.attach($(id));
+  // (The replay's goal is rebuilt each run: its 🔊 goes in when it's drawn, in showReplay.)
   $('demo-pause').addEventListener('click', () => demoPause(demo && demo.pausedAt == null));
   $('demo-back').addEventListener('click', () => demoGo(-1));
   $('demo-next').addEventListener('click', () => demoGo(1));
