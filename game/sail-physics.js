@@ -302,11 +302,24 @@ function floorRun(h) {
   while (i1 < h.length - 1 && flat(h[i1], h[i1 + 1])) i1++;
   return [Math.min(h[i0][0], h[i1][0]), Math.max(h[i0][0], h[i1][0])];
 }
-// Where the dividers along the boat stand across its floor: evenly, never in the very
-// middle (you sit there), and only where each gap still holds a stone.
+// Where the dividers along the boat stand across its floor, and only where each gap
+// still holds a stone. In the hull you sit in, they leave you your 50 cm in the
+// middle, one each side of your hips (Nick, 2026-11-20: "if you put dividers won't
+// you need a seat?" They were at thirds, 31 cm apart, so you'd have sat on them).
+// The rest split what's left on each side.
 function alongXs(d, h) {
   const n = d.along || 0; if (!n) return [];
-  const [a, b] = floorRun(h); if ((b - a) / (n + 1) < 2 * SAIL.STONE_R) return [];
+  const [a, b] = floorRun(h), R2 = 2 * SAIL.STONE_R, g = SAIL.HIPS / 2;
+  if (a < 0 && b > 0) {
+    const out = [], m = n / 2;
+    for (const [s, edge] of [[-1, -a], [1, b]]) {
+      if (edge - g < R2) continue; // no room for stones beside you
+      const k = Math.max(1, Math.min(m, Math.floor((edge - g) / R2)));
+      for (let j = 0; j < k; j++) out.push(s * (g + (edge - g) * j / k));
+    }
+    return out.sort((u, v) => u - v);
+  }
+  if ((b - a) / (n + 1) < R2) return [];
   const out = []; for (let i = 1; i <= n; i++) out.push(a + (b - a) * i / (n + 1));
   return out;
 }

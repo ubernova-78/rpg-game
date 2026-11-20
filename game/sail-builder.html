@@ -235,7 +235,7 @@
         <div class="note" id="ribnote" style="margin-top:2px"></div>
         <div class="row"><span>Dividers across (side to side)</span><select id="cross"><option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
         <div class="row"><span>Dividers along (front to back)</span><select id="along"><option value="0">None</option><option value="2">2</option><option value="4">4</option></select></div>
-        <div class="note" style="margin-top:2px">Dividers stop the stones rolling.<details class="more"><summary>ℹ️ More</summary>The stones are loose. In a gust they roll to the front. That pushes the front down. A divider across stops that. When the boat tips, they roll to one side. A divider along the boat stops that. Each divider is a stick on its edge on the floor. It costs wood.</details></div>
+        <div class="note" style="margin-top:2px">Dividers stop the stones rolling.<details class="more"><summary>ℹ️ More</summary>The stones are loose. In a gust they roll to the front. That pushes the front down. A divider across stops that. When the boat tips, they roll to one side. A divider along the boat stops that. They leave you 50 cm to sit between them. Each divider is a stick on its edge on the floor. It costs wood.</details></div>
         <div class="row"><span>Front, from above</span><div class="seg" id="bow"><button data-v="square">▭ Square</button><button data-v="pointed">▷ Sharp</button><button data-v="round">◗ Round</button></div></div>
         <div class="row"><span>Front, from the side</span><div class="seg" id="bowrise"><button data-v="plumb">▯ Full depth</button><button data-v="slope">◺ Slopes up</button></div></div>
         <div class="row"><span>Back, from above</span><div class="seg" id="stern"><button data-v="square">▭ Square</button><button data-v="pointed">◁ Sharp</button><button data-v="round">◖ Round</button></div></div>
@@ -393,7 +393,7 @@
         if (across.some(zc => Math.abs(z - zc) < R + 0.03)) continue; // a divider across the boat
         if (!seatClear && Math.abs(x) < 0.22 && z > rz - 0.25 && z < rz + 0.5) continue; // you
         if (masts.some(m => Math.abs(x - m.x) < 0.06 + R && Math.abs(z - m.z) < 0.06 + R)) continue; // a mast
-        { const e = endScales(D, (z + L / 2) / L); if (e.k < 0.97 || Math.abs(x - mid) > half * e.s - 0.02) continue; } // where a shaped end narrows or rises
+        { const e = endScales(D, (z + L / 2) / L); if (e.k < 0.97 || Math.abs(x - mid) > ((hiX - lo) / 2) * e.s - R - 0.01) continue; } // where a shaped end narrows or rises
         cand.push({ x, y, z, hi, ci, nc, d: Math.abs(x - mid) + Math.abs(z) * 0.6 });
       }
     });
