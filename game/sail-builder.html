@@ -298,7 +298,19 @@
   // the intro plays (for the teacher, to see what a new student sees).
   if (/[?&]new\b/.test(location.search)) { try { localStorage.removeItem('sailDesign'); localStorage.removeItem('sailIntroSeen'); } catch (e) {} history.replaceState(null, '', location.pathname); }
   let D = START();
-  try { const s = JSON.parse(localStorage.getItem('sailDesign') || 'null'); if (s && Array.isArray(s.segs) && s.L && (Array.isArray(s.sails) || (s.sail && Array.isArray(s.sail.poly)))) { if (!s.sails) s.sails = [Object.assign({ sheet: 0 }, s.sail)]; delete s.sail; D = s; } } catch (e) {}
+  // A saved boat, tidied: sticks and sails that don't make sense are dropped (a broken
+  // sail used to slip past every check and pass: cold review, 2026-11-20).
+  try {
+    const s = JSON.parse(localStorage.getItem('sailDesign') || 'null');
+    if (s && Array.isArray(s.segs) && Number.isFinite(+s.L) && (Array.isArray(s.sails) || (s.sail && Array.isArray(s.sail.poly)))) {
+      if (!s.sails) s.sails = [Object.assign({ sheet: 0 }, s.sail)]; delete s.sail;
+      const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+      s.segs = s.segs.filter(sg => sg && pt(sg.a) && pt(sg.b));
+      s.sails = s.sails.filter(sl => sl && Array.isArray(sl.poly) && sl.poly.length >= 3 && sl.poly.every(pt) && Number.isFinite(sl.mastH) && Number.isFinite(sl.hang)).slice(0, 4);
+      s.sails.forEach(sl => { if (sl.sheet !== 1) sl.sheet = 0; if (sl.x != null && !Number.isFinite(sl.x)) delete sl.x; if (sl.at != null && !Number.isFinite(sl.at)) delete sl.at; });
+      s.L = +s.L; D = s;
+    }
+  } catch (e) {}
   const sailH = sl => { const ys = sl.poly.map(p => p[1]); return Math.max(...ys) - Math.min(...ys); };
   const sailW = sl => { const xs = sl.poly.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); };
   // Where each mast stands along the boat, from the stern (0) to the bow (1);
@@ -1216,9 +1228,8 @@
       return mark(pl, pl.tOut);
     }
     if (pl.fail === 'leak' && pl.run) {
-      pl.D = cmR(Math.max(0.05, pl.run.xEnd)); pl.t1 = pl.run.tEnd; pl.x1 = pl.run.xEnd; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
+      pl.D = cmR(Math.max(0.05, pl.run.xEnd)); pl.t1 = pl.run.tEnd; pl.x1 = pl.D; pl.tStop = pl.t1; pl.vs = VS; // (stops dead where the tape measures)
       pl.tCatch = pl.run.end === "caught" ? pl.t1 : Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
-      if (pl.run.end === 'caught') pl.tStop = pl.t1; // (struck: it stops dead)
       mark(pl, pl.tStop); pl.tEnd = pl.go + pl.tCatch + 0.45; return pl;
     }
     if (pl.fail === 'slow') {
@@ -1228,7 +1239,9 @@
       mark(pl, pl.tStop);
     } else {
       pl.D = cmR(pl.fail === 'leak' ? Math.max(0.05, v * (r.tFill || 0)) : pl.fail === 'bow' ? rnd(3, 16) : rnd(2, 14));
-      pl.x1 = pl.D - v * 0.15; pl.t1 = pl.x1 / v; pl.tStop = pl.t1 + 0.3; pl.vs = VS;
+      // (It stops dead where it goes under, so that moment is easy to find in the replay;
+      // it used to glide to a stop over 0.3 s, moving under 1 mm in the last 10 ms.)
+      pl.x1 = pl.D; pl.t1 = pl.D / v; pl.tStop = pl.t1; pl.vs = VS;
       pl.tCatch = Math.max(pl.tStop + 0.8, (pl.D + GAP) / VS);
       if (pl.fail === 'bow') pl.gusts.push(pl.t1);
       else if (pl.diveOK && pl.t1 > 1.2) pl.gusts.push(rnd(0.5, pl.t1 - 0.6));
@@ -1251,8 +1264,8 @@
     const s = { t, T, xb: 0, gust: 0, sunk: 0, flip: 0 };
     if (pl.dock) s.xb = 0;
     else if (pl.fail === 'slow') s.xb = pl.v * Math.min(t, pl.tStop);
-    else if (pl.fail === 'leak' && pl.run) { if (t < pl.t1) s.xb = leakX(pl.run, t); else if (pl.run.end === 'caught') s.xb = pl.x1; else { const u = Math.min(t - pl.t1, 0.3), v1 = pl.run.vs[pl.run.vs.length - 1]; s.xb = pl.x1 + v1 * (u - u * u / 0.6); } }
-    else if (pl.fail) { if (t < pl.t1) s.xb = pl.v * t; else { const u = Math.min(t - pl.t1, 0.3); s.xb = pl.x1 + pl.v * (u - u * u / 0.6); } }
+    else if (pl.fail === 'leak' && pl.run) s.xb = t < pl.t1 ? leakX(pl.run, t) : pl.x1;
+    else if (pl.fail) s.xb = t < pl.t1 ? pl.v * t : pl.x1;
     else if (pl.run) s.xb = pl.xSink && t >= pl.tSink ? pl.xSink : leakX(pl.run, t);
     else s.xb = pl.v * t;
     const moving = pl.dock || wait ? 0 : pl.fail && t >= (pl.tStop || 0) ? 0 : 1;
@@ -1535,6 +1548,7 @@
     if (!A.ready || race) return;
     if (A.r.fail === 'rules') { tested = true; refresh(); return; }
     race = { pl: planRace(A.r), t0: performance.now(), frozen: null, phase: 'chase', shown: null }; gyroRoll = null;
+    race.snap = { r: A.r, design: designSummary() }; // (what's saved is the boat that raced: cold review, 2026-11-20)
     $('gyro').style.display = 'block'; setMode('race'); refresh(); requestAnimationFrame(raceTick);
   }
   function stopRace() {
@@ -1720,7 +1734,7 @@
   function settle(right, v) {
     const pl = race.pl, m = $('measure');
     race.phase = 'done'; tested = true; lastRun = { D: pl.D, right, pass: !pl.fail, H: race.elapsed ? race.elapsed.H : null };
-    const res = resultText(A.r);
+    const res = resultText(race.snap ? race.snap.r : A.r); // (the boat that raced, even if they've changed it since)
     m.innerHTML = `<h4>${right ? '✓ Right: ' + pl.D.toFixed(2) + ' m' : 'The distance was ' + pl.D.toFixed(2) + ' m'}${race.elapsed ? ', in ' + BenchMath.fmt2(race.elapsed.H) + ' seconds.' : '.'}</h4>`
       + `<div class="result ${pl.fail ? 'bad' : 'good'}" style="display:block">${res[0]}<div class="why">${res[1]}</div></div>`
       + `<div class="btnrow">${!pl.fail && IN_GAME ? '<button class="btn" id="btn-use">⛵ Use this boat</button>' : ''}<button class="btn ${pl.fail ? '' : 'alt'}" id="m-done">${pl.fail ? 'Back to work' : 'Done'}</button></div>`;
@@ -1728,20 +1742,27 @@
     // To the game (lake-quest.js): the distance, the time, and a short summary of
     // the boat for the student's record (its rule allows 200 characters).
     const use = $('btn-use'); if (use) use.addEventListener('click', () => {
-      const r = A.r, n = A.ch.hulls.length;
-      const design = `${n} hull${n > 1 ? 's' : ''}, ${D.L.toFixed(2)} m long, ${sternName()} back, ${bowName()} front,${D.patch && A.r.seam > 0 ? ' patched skin,' : ''} ${A.wood.sticks} sticks, ${D.sails.length} sail${D.sails.length > 1 ? 's' : ''} ${r.sailA.toFixed(2)} m2, mast${D.sails.length > 1 ? 's' : ''} ${D.sails.map(sl => sl.mastH.toFixed(2)).join('/')} m, ${r.speedKt.toFixed(1)} kt`.slice(0, 200); // (the rules allow 200 characters)
+      const design = race.snap ? race.snap.design : designSummary();
       window.parent.postMessage({ type: 'sail-passed', distance: pl.D, seconds: race.elapsed ? race.elapsed.H / 100 : null, design }, '*');
       use.disabled = true; use.textContent = '⛵ Boat saved';
     });
     refresh();
   }
   let lastRun = null;
+  // A short summary of the boat for the student's record (the rules allow 200 characters).
+  function designSummary() {
+    const r = A.r, n = A.ch.hulls.length, f = v => (Number.isFinite(v) ? v : 0);
+    return `${n} hull${n > 1 ? 's' : ''}, ${D.L.toFixed(2)} m long, ${sternName()} back, ${bowName()} front,${D.patch && r.seam > 0 ? ' patched skin,' : ''} ${A.wood.sticks} sticks, ${D.sails.length} sail${D.sails.length > 1 ? 's' : ''} ${f(r.sailA).toFixed(2)} m2, mast${D.sails.length > 1 ? 's' : ''} ${D.sails.map(sl => f(sl.mastH).toFixed(2)).join('/')} m, ${f(r.speedKt).toFixed(1)} kt`.slice(0, 200);
+  }
   function resultText(r) {
     const kt = v => (v || 0).toFixed(1) + ' kt';
     return r.ok ? [`${kt(r.speedKt)}: faster than the serpent, and steady in the gusts and the waves!`, 'You got away. Try changing one thing at a time to see what matters most.'] : ({
-      leak: ['It filled with water and sank!', `Water came in through the glued seam in your skin. It was full ${(r.tFill || 0).toFixed(1)} s after you set off, before you could get out the inlet. A patched boat has to be fast, or not need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`],
+      leak: r.leakRun && r.leakRun.end === 'caught'
+        ? ['Water leaked in, and it slowed you down!', `Water came in through the glued seam below the waterline. Water is heavy: as it filled, your boat sat lower and got slower, and the serpent caught you ${(r.leakRun.xEnd || 0).toFixed(1)} m out. Keep seams above the water, or don't need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`]
+        : ['It filled with water and sank!', `Water came in through the glued seam below the waterline. It was full ${(r.tFill || 0).toFixed(1)} s after you set off, before you could get out the inlet. Keep seams above the water, or don't need a patch: a shorter boat, or sharp or round ends, can fit on one sheet.`],
       sinks: ['It sank at the dock!', `With you and the stones it weighs ${Math.round(r.mass)} kg, and the hull can't push aside that much water before the water comes over its sides. Make it bigger.`],
-      capsize: ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
+      capsize: r.GMT > 0 && r.GML <= 0 ? ['It tipped over end-first as soon as you climbed in!', 'It\'s too short for how high the weight sits: the mast and sail tip it over the front or the back. Make it longer, or the rig lower.']
+        : ['It rolled over as soon as you climbed in!', 'It\'s too narrow for how high the weight sits. Make it wider, or keep the weight lower.'],
       slow: [`Too slow: ${kt(r.speedKt)}. The serpent swims 6 kt and caught you.`, 'A bigger sail pushes harder; a longer, slimmer hull slips through the water more easily. A pointed bow helps too.'],
       bow: ['A 30-knot gust drove the bow under!', 'Watch the front-to-back dial: the sail pushes high up, and that tips the front down. A lower or smaller sail, a longer hull, or higher sides.'],
       roll: ['The serpent\'s waves rolled it until the side went under!', (r.rollNm > 1 ? 'Your loose stones rolled to the low side too, and tipped it further. ' : '') + 'Watch the side-to-side dial: it needs to be steadier. Wider, with the weight lower, or with higher sides.'],

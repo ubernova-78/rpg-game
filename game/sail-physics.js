@@ -38,6 +38,7 @@ const SAIL = {
   // asked for 3-5 s fills, but water's weight slows a filling boat so much that then
   // none escaped; he chose about 30 s (a 2.5 m boat ~30 s), so a fast patched boat
   // gets out and a slow one is caught as it gets heavy.
+  FLOOR_SLOPE: 0.18,        // a floor flatter than about 10 degrees lets the stones roll across it
   STONES_FWD: true,          // loose stones roll forward when the bow dips (dividers across stop them)
   PATCH_OV: 0.1, LEAK: 0.04, SEAM_DRY: 0.05, // (a seam closer than 5 cm to the water leaks: waves, and the boat rocking)
   RHO_AIR: 1.225, CD_SAIL: 1.2, RHO_W: 1000, NU: 1.0e-6, G: 9.81,
@@ -288,10 +289,22 @@ function ribShape(d, f) {
 // by any stick that isn't the hull itself rising through the band a stone sits in
 // (the bottom 2 stone-radii above the floor): a divider standing on the floor, or a
 // slanted brace coming down to it. One lying flat across doesn't divide anything. Returns { lowY, comps: [[x0, x1]...], dividers: [stick] }.
+// The floor the stones can roll across: from the lowest point, out along the hull
+// each way while it's flatter than FLOOR_SLOPE (about 10 degrees: the boat heels
+// more than that in the waves, so they'd roll over it). (It was everything within
+// 1 cm of the bottom, so a 1 cm dip in a flat floor held them still: cold review,
+// 2026-11-20.)
+function floorRun(h) {
+  let il = 0; for (let i = 1; i < h.length; i++) if (h[i][1] < h[il][1]) il = i;
+  const flat = (p, q) => Math.abs(q[0] - p[0]) > 1e-9 && Math.abs(q[1] - p[1]) <= SAIL.FLOOR_SLOPE * Math.abs(q[0] - p[0]);
+  let i0 = il, i1 = il;
+  while (i0 > 0 && flat(h[i0 - 1], h[i0])) i0--;
+  while (i1 < h.length - 1 && flat(h[i1], h[i1 + 1])) i1++;
+  return [Math.min(h[i0][0], h[i1][0]), Math.max(h[i0][0], h[i1][0])];
+}
 function floorCompartments(d, h) {
   const R = SAIL.STONE_R, lowY = lowest(h)[1];
-  let a = Infinity, b = -Infinity;
-  for (const p of h) if (Math.abs(p[1] - lowY) < 0.01) { a = Math.min(a, p[0]); b = Math.max(b, p[0]); }
+  let [a, b] = floorRun(h);
   const y0 = lowY + 0.005, y1 = lowY + 2 * R, cuts = [], dividers = [];
   for (const sg of d.segs) {
     const mid = [(sg.a[0] + sg.b[0]) / 2, (sg.a[1] + sg.b[1]) / 2];
@@ -593,6 +606,9 @@ function sailAnalyze(d) {
     r.floodDeg = Math.min(r.floodDeg, Math.atan2(p[1] - T, Math.abs(p[0])) * 180 / Math.PI);
   }
   if (r.GMT <= 0) { r.ok = false; r.fail = 'capsize'; return finish(r); }
+  // (Front to back too: a short boat with a tall rig tips over end-first. Unchecked,
+  // its trim went past 90 degrees and flipped sign: cold review, 2026-11-20.)
+  if (r.GML <= 0) { r.ok = false; r.fail = 'capsize'; return finish(r); }
 
   // Drag at speed v (m/s), and the sail's push.
   const W = M * P.G;
@@ -661,13 +677,14 @@ function sailAnalyze(d) {
     r.seam = r.seams.reduce((t, x) => t + (x ? x.len : 0), 0);
     r.wetSeam = r.seams.reduce((t, x) => t + (x ? x.wet : 0), 0);
   }
-  if (r.wetSeam > 0 && !d.waterKg) {
+  if (r.wetSeam > 0 && d.waterKg == null) {
     r.reserve = Math.max(0, vol(top) - need);
     r.tFill = r.reserve / (P.LEAK * r.wetSeam);
     const fr = [0, 0.25, 0.5, 0.75, 0.97];
     r.leakV = fr.map(f => f ? Math.max(0, (sailAnalyze(Object.assign({}, d, { waterKg: f * r.reserve * P.RHO_W })).speedKt || 0) * P.KT) : v);
     r.leakRun = leakRun(r.leakV, r.tFill);
-    if (r.leakRun.end !== 'out' && r.bowDip < r.freeboard && r.heelDeg < r.floodDeg) { r.ok = false; r.fail = 'leak'; return finish(r); }
+    // (Too slow even dry: that's why it's caught, not the leak.)
+    if (r.leakRun.end !== 'out' && r.speedKt >= P.MONSTER_KT && r.bowDip < r.freeboard && r.heelDeg < r.floodDeg) { r.ok = false; r.fail = 'leak'; return finish(r); }
   }
   if (r.speedKt < P.MONSTER_KT) { r.ok = false; r.fail = 'slow'; }
   else if (r.bowDip >= r.freeboard) { r.ok = false; r.fail = 'bow'; }
@@ -676,6 +693,9 @@ function sailAnalyze(d) {
 
   function finish(r) {
     if (r.problems.length) { r.ok = false; r.fail = 'rules'; }
+    // A missing number (a broken saved sail, say) makes every comparison false, which
+    // would let it pass: never pass with one (cold review, 2026-11-20).
+    else if (r.ok && ![r.mass, r.KG, r.speedKt, r.heelDeg, r.bowDip, r.freeboard].every(Number.isFinite)) { r.ok = false; r.fail = 'rules'; r.problems.push('Something about this boat doesn\'t add up. Check each sail has a mast height.'); }
     return r;
   }
 }

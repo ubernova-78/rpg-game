@@ -557,6 +557,9 @@ function boatwrightPage(html, buttons, step) {
 // The Sail Builder's "Use this boat": save it, close the builder, and the ending.
 window.addEventListener('message', e => {
   if (!e.data || e.data.type !== 'sail-passed') return;
+  // Only from the Sail Builder in the workbench overlay: another window posting
+  // 'sail-passed' mustn't write a result (cold review, 2026-11-20).
+  if (!gameOverlayEls.frame || e.source !== gameOverlayEls.frame.contentWindow || !/sail-builder\.html/.test(gameOverlayEls.frame.src)) return;
   const num = (v, hi) => Math.max(0, Math.min(hi, Number(v) || 0));
   srSave({ passed: true, distance: num(e.data.distance, 100), seconds: num(e.data.seconds, 1000), design: String(e.data.design || '').slice(0, 200), ts: Date.now() });
   console.log('[sail] race saved');
