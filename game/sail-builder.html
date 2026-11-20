@@ -2008,16 +2008,25 @@
       // invisible copy of the hull below the waterline is drawn after the boat and
       // before the water: it writes depth only, and the water behind it is hidden.
       if (hs.length && a.r.T != null) {
-        const Tw = a.r.T + 0.012, zs = zsFor(L), NZm = zs.length - 1, pos = [];
+        // Built slice by slice: in each, only the part of that slice that's under the water
+        // (a narrowed or raised end has less, or none). It used to be the whole hull's
+        // underwater shape squashed to fit, which left a flat sheet at the waterline under
+        // a sloped end, hiding the water there: a pale patch (Nick, 2026-11-20).
+        const Tw = a.r.T + 0.012, zs = zsFor(L), pos = [];
         hs.forEach((h, hi) => {
-          const sec = clipBelow(h, Tw); if (sec.length < 3) return;
-          const at = (p, z) => { const q = tx(p, z, hi); q[1] = Math.min(q[1], Tw); return q; }; // (a raised front stays out of the water)
-          for (let j = 0; j < NZm; j++) for (let q = 0; q < sec.length; q++) {
-            const p0 = sec[q], p1 = sec[(q + 1) % sec.length], A0 = at(p0, zs[j]), B0 = at(p1, zs[j]), A1 = at(p0, zs[j + 1]), B1 = at(p1, zs[j + 1]);
-            pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
+          const top = tops[hi], c = centers[hi];
+          for (let j = 0; j < zs.length - 1; j++) {
+            const z0 = zs[j], z1 = zs[j + 1], zm = (z0 + z1) / 2, sc = sAt(zm), kk = kAt(zm);
+            if (sc < 0.01 || kk < 0.01) continue;
+            const Tk = top - (top - Tw) / kk, sec = clipBelow(h, Tk); if (sec.length < 3) continue;
+            const pt = (p, z) => [c + (p[0] - c) * sc, Math.min(Tw, top - (top - p[1]) * kk), z];
+            for (let q = 0; q < sec.length; q++) {
+              const p0 = sec[q], p1 = sec[(q + 1) % sec.length], A0 = pt(p0, z0), B0 = pt(p1, z0), A1 = pt(p0, z1), B1 = pt(p1, z1);
+              pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
+            }
+            const tri = THREE.ShapeUtils.triangulateShape(sec.map(p => new THREE.Vector2(p[0], p[1])), []);
+            for (const z of [z0, z1]) for (const [i0, i1, i2] of tri) pos.push(...pt(sec[i0], z), ...pt(sec[i1], z), ...pt(sec[i2], z));
           }
-          const tri = THREE.ShapeUtils.triangulateShape(sec.map(p => new THREE.Vector2(p[0], p[1])), []);
-          for (const z of [zs[0], zs[NZm]]) for (const [i0, i1, i2] of tri) pos.push(...at(sec[i0], z), ...at(sec[i1], z), ...at(sec[i2], z));
         });
         const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         const mask = new THREE.Mesh(mg, new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide }));
